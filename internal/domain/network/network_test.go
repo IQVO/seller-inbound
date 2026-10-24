@@ -157,3 +157,18 @@ func TestPackagingValidation(t *testing.T) {
 		t.Error("empty level")
 	}
 }
+
+func TestPackLevelBoundaries(t *testing.T) {
+	if _, err := Declare(nil, "item-1", Case, "00614141000036", "00614141000012", 1, t0); err != nil {
+		t.Fatalf("one unit per pack is a valid declaration: %v", err)
+	}
+	if _, err := Declare(nil, "item-1", Case, "00614141000036", "00614141000012", 0, t0); !errors.Is(err, shared.ErrValidation) {
+		t.Fatalf("zero units: %v", err)
+	}
+	for units, want := range map[int]bool{1: false, 2: true, 12: true} {
+		rows := []PackLevel{{CatalogItemID: "item-1", Level: Case, GTIN: "00614141000036", UnitsPerPack: units, Active: true}}
+		if got, ok := ActiveCaseUnits(rows, "00614141000036"); ok != want || (ok && got != units) {
+			t.Errorf("units %d: ActiveCaseUnits = %d, %v", units, got, ok)
+		}
+	}
+}
