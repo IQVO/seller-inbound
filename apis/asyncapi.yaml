@@ -326,7 +326,7 @@ components:
                 l: 400
                 w: 300
                 h: 200
-            - sscc: 006141410000000029
+            - sscc: '006141410000000029'
               kind: HOMOGENEOUS_CASE
               contents:
               - catalogItemId: item-004512
@@ -399,7 +399,7 @@ components:
             cartons:
             - sscc: '006141410000000012'
               status: RECEIVED
-            - sscc: 006141410000000029
+            - sscc: '006141410000000029'
               status: DAMAGED
             receivedAt: '2026-10-25T09:30:00Z'
     InboundDiscrepancyRecorded:
@@ -430,7 +430,7 @@ components:
             shipmentId: shp-0f3a91
             sellerId: seller-77
             nodeId: node-0f3a91
-            sscc: 006141410000000029
+            sscc: '006141410000000029'
             kind: Short
             expected: 00614141000036:12
             actual: 00614141000036:10
@@ -692,7 +692,7 @@ components:
               - gtin: '00614141000036'
                 qtyEaches: 12
               complianceCodes: []
-            - sscc: 006141410000000029
+            - sscc: '006141410000000029'
               status: DAMAGED
               items:
               - gtin: '00614141000036'

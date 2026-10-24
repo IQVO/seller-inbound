@@ -1,0 +1,1085 @@
+openapi: 3.0.3
+info:
+  title: Seller Inbound API
+  version: 1.0.0
+  description: |
+    This is the **seller API** of the `seller-inbound` bounded context (retail network, partner tier): the front door through which a seller gets stock into the network.
+
+    A seller declares an **inbound plan** (what it will send, to which node, `INDIVIDUAL` or `CASE_PACKED`), confirms it, opens an **inbound shipment** against the plan, adds
+    **cartons** (each with an SSCC and its contents), has the labels produced, and ships. The vendor that runs the receiving node later reports what it received
+    (over the event stream, not this API) and the shipment closes.
+
+    Rules of the contract:
+
+    - **Quantities are always eaches** (`qtyEaches`). A case-packed carton holds one item at one quantity, and that quantity must equal the units per pack the
+      case GTIN declares (`case-qty-mismatches-gtin`).
+    - **GTIN** is 14 digits and **SSCC** is 18 digits, both with a GS1 mod-10 check digit.
+    - **SSCC.** The seller may supply an SSCC on `POST /inbound-shipments/{id}/cartons`; it is accepted only when valid (`invalid-sscc` otherwise) and unique network-wide
+      (`sscc-not-unique` otherwise). Without one, the network issues an SSCC from its own GS1 company prefix and returns it (`ssccIssued: true`).
+    - **Labels.** `:label` moves a `DRAFT` shipment to `LABELLED` once the cartons add up to the confirmed plan (`carton-contents-mismatch-plan` otherwise).
+      `GET /inbound-shipments/{id}/labels` returns the **label data** per carton (SSCC, the GS1-128 element string `(00)<sscc>`, the human readable line, the content
+      summary in eaches and the destination node). Rendering a printable label is the seller's concern.
+    - **Destination node.** The plan's node must be `ACTIVE` and have the INBOUND capability in the local view fed by node-topology events (`node-cannot-receive`).
+      Cartons are checked against the node's declared inbound limits (`carton-overweight`, `carton-oversize`).
+    - **Suspension.** A suspended seller creates no plan, shipment or carton and ships nothing (`seller-suspended`).
+    - **No authentication** (consistent with the fleet): the seller is named in the request body and checked against its account.
+    - Every state-changing `POST` takes `Idempotency-Key` (1 to 128 characters); a repeat replays the first response, a different body under the same key is `idempotency-key-reused`.
+    - Errors are RFC 9457 `application/problem+json`; the shared problem types are `not-found` 404, `illegal-transition` 409, `concurrent-update` 409 and
+      `validation-failed` 422, plus one slug per model `Err...` name.
+    - Commands that find the state already in effect (suspend of a suspended seller, confirm of a confirmed plan, label of a labelled shipment) answer `200` with the
+      resource and publish no event (ADR 0002 A3).
+    - Events (AsyncAPI `apis/asyncapi.yaml`): `InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived` on the events topic; the other six on the analytics topic.
+  contact:
+    name: seller-inbound maintainers
+    url: https://github.com/IQVO/seller-inbound
+  license:
+    name: UNLICENSED
+servers:
+- url: http://localhost:8000/api/retail-network/seller-inbound
+tags:
+- name: Sellers
+  description: Seller onboarding, suspension and reinstatement (network partner managers).
+- name: Inbound Plans
+  description: What a seller will send, to which node, in eaches.
+- name: Inbound Shipments
+  description: Cartons with SSCCs, label data and the ship command.
+paths:
+  /sellers:
+    post:
+      tags:
+      - Sellers
+      operationId: onboardSeller
+      summary: Onboard a seller (OnboardSeller)
+      description: Used by network partner managers. Creates the account `ACTIVE` and publishes `SellerOnboarded`. A `sellerId` that already exists is `seller-exists`.
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardSellerRequest'
+            example:
+              sellerId: seller-77
+              name: Acme Goods
+      responses:
+        '201':
+          description: The seller account, ACTIVE.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SellerAccount'
+              example:
+                sellerId: seller-77
+                name: Acme Goods
+                state: ACTIVE
+                onboardedAt: '2026-10-24T13:00:00Z'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+        '422':
+          $ref: '#/components/responses/ValidationProblem'
+  /sellers/{sellerId}:suspend:
+    post:
+      tags:
+      - Sellers
+      operationId: suspendSeller
+      summary: Suspend a seller (SuspendSeller)
+      description: Moves the account `ACTIVE` to `SUSPENDED` and publishes `SellerSuspended`. A seller already `SUSPENDED` gets the account back unchanged with `200` and no event. While suspended, the seller
+        creates no plan, shipment or carton and ships nothing.
+      parameters:
+      - $ref: '#/components/parameters/SellerIdPath'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SuspendSellerRequest'
+            example:
+              reason: repeated label violations
+      responses:
+        '200':
+          description: The seller account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SellerAccount'
+              example:
+                sellerId: seller-77
+                name: Acme Goods
+                state: SUSPENDED
+                onboardedAt: '2026-10-24T13:00:00Z'
+                suspendedAt: '2026-10-24T13:00:00Z'
+                suspendReason: repeated label violations
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+        '422':
+          $ref: '#/components/responses/ValidationProblem'
+  /sellers/{sellerId}:reinstate:
+    post:
+      tags:
+      - Sellers
+      operationId: reinstateSeller
+      summary: Reinstate a seller (ReinstateSeller)
+      description: Moves the account `SUSPENDED` to `ACTIVE` and publishes `SellerReinstated`. A seller already `ACTIVE` gets the account back unchanged with `200` and no event.
+      parameters:
+      - $ref: '#/components/parameters/SellerIdPath'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: The seller account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SellerAccount'
+              example:
+                sellerId: seller-77
+                name: Acme Goods
+                state: ACTIVE
+                onboardedAt: '2026-10-24T13:00:00Z'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+  /inbound-plans:
+    post:
+      tags:
+      - Inbound Plans
+      operationId: createInboundPlan
+      summary: Create an inbound plan (CreateInboundPlan)
+      description: Declares what the seller will send to one destination node. The plan starts `DRAFT`. The seller must be `ACTIVE`; the node must be `ACTIVE` with the INBOUND capability (`node-cannot-receive`).
+        Every line is in eaches; for `CASE_PACKED` each line's quantity must be a whole number of the case GTIN's units per pack.
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInboundPlanRequest'
+            example:
+              sellerId: seller-77
+              destinationNodeId: node-0f3a91
+              packingOption: CASE_PACKED
+              lines:
+              - catalogItemId: item-004512
+                gtin: '00614141000036'
+                qtyEaches: 24
+      responses:
+        '201':
+          description: The inbound plan, DRAFT.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboundPlan'
+              example:
+                planId: pln-0f3a91
+                sellerId: seller-77
+                destinationNodeId: node-0f3a91
+                packingOption: CASE_PACKED
+                state: DRAFT
+                lines:
+                - catalogItemId: item-004512
+                  gtin: '00614141000036'
+                  qtyEaches: 24
+                createdAt: '2026-10-24T13:00:00Z'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+        '422':
+          $ref: '#/components/responses/ValidationProblem'
+  /inbound-plans/{planId}:
+    get:
+      tags:
+      - Inbound Plans
+      operationId: getInboundPlan
+      summary: Get an inbound plan (GetInboundPlan)
+      description: Reads one inbound plan.
+      parameters:
+      - $ref: '#/components/parameters/PlanIdPath'
+      responses:
+        '200':
+          description: The inbound plan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboundPlan'
+              example:
+                planId: pln-0f3a91
+                sellerId: seller-77
+                destinationNodeId: node-0f3a91
+                packingOption: CASE_PACKED
+                state: CONFIRMED
+                lines:
+                - catalogItemId: item-004512
+                  gtin: '00614141000036'
+                  qtyEaches: 24
+                createdAt: '2026-10-24T13:00:00Z'
+                confirmedAt: '2026-10-24T13:00:00Z'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /inbound-plans/{planId}:confirm:
+    post:
+      tags:
+      - Inbound Plans
+      operationId: confirmInboundPlan
+      summary: Confirm an inbound plan (ConfirmInboundPlan)
+      description: Moves a `DRAFT` plan to `CONFIRMED` and publishes `InboundPlanConfirmed`. Shipments are opened only against a confirmed plan. Confirming a confirmed plan answers `200` and publishes nothing;
+        a cancelled plan is `illegal-transition`.
+      parameters:
+      - $ref: '#/components/parameters/PlanIdPath'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: The inbound plan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboundPlan'
+              example:
+                planId: pln-0f3a91
+                sellerId: seller-77
+                destinationNodeId: node-0f3a91
+                packingOption: CASE_PACKED
+                state: CONFIRMED
+                lines:
+                - catalogItemId: item-004512
+                  gtin: '00614141000036'
+                  qtyEaches: 24
+                createdAt: '2026-10-24T13:00:00Z'
+                confirmedAt: '2026-10-24T13:00:00Z'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+  /inbound-plans/{planId}:cancel:
+    post:
+      tags:
+      - Inbound Plans
+      operationId: cancelInboundPlan
+      summary: Cancel an inbound plan (CancelInboundPlan)
+      description: Moves a `DRAFT` plan to `CANCELLED`. A confirmed plan cannot be cancelled (`illegal-transition`); cancelling a cancelled plan answers `200`.
+      parameters:
+      - $ref: '#/components/parameters/PlanIdPath'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: The inbound plan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboundPlan'
+              example:
+                planId: pln-0f3a91
+                sellerId: seller-77
+                destinationNodeId: node-0f3a91
+                packingOption: CASE_PACKED
+                state: CANCELLED
+                lines:
+                - catalogItemId: item-004512
+                  gtin: '00614141000036'
+                  qtyEaches: 24
+                createdAt: '2026-10-24T13:00:00Z'
+                cancelledAt: '2026-10-24T13:00:00Z'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+  /inbound-plans/{planId}/shipments:
+    post:
+      tags:
+      - Inbound Shipments
+      operationId: createInboundShipment
+      summary: Open an inbound shipment (CreateInboundShipment)
+      description: Opens a `DRAFT` shipment against a `CONFIRMED` plan of an `ACTIVE` seller. The shipment inherits the plan's destination node.
+      parameters:
+      - $ref: '#/components/parameters/PlanIdPath'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: The inbound shipment, DRAFT, without cartons.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboundShipment'
+              example:
+                shipmentId: shp-0f3a91
+                planId: pln-0f3a91
+                sellerId: seller-77
+                nodeId: node-0f3a91
+                state: DRAFT
+                cartons: []
+                createdAt: '2026-10-24T13:00:00Z'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+  /inbound-shipments/{shipmentId}/cartons:
+    post:
+      tags:
+      - Inbound Shipments
+      operationId: addCarton
+      summary: Add a carton (AddCarton)
+      description: 'Adds one carton to a `DRAFT` shipment. `sscc` is optional: a supplied SSCC must be valid and unique network-wide, otherwise the network issues one and returns it. `kind` is `HOMOGENEOUS_CASE`
+        (one item at one quantity, matching the case GTIN) or `MIXED`. `parentSscc` names the pallet SSCC when the node accepts pallets. The carton is checked against the node''s inbound limits. The response
+        carries the carton and its label data.'
+      parameters:
+      - $ref: '#/components/parameters/ShipmentIdPath'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddCartonRequest'
+            example:
+              kind: HOMOGENEOUS_CASE
+              contents:
+              - catalogItemId: item-004512
+                gtin: '00614141000036'
+                qtyEaches: 12
+                lot: L7
+                expiry: '2027-10-24'
+              grossWeightG: 5200
+              dimsMm:
+                l: 400
+                w: 300
+                h: 200
+      responses:
+        '201':
+          description: The carton and its label data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddedCarton'
+              example:
+                shipmentId: shp-0f3a91
+                carton:
+                  sscc: '006141420000000011'
+                  kind: HOMOGENEOUS_CASE
+                  contents:
+                  - catalogItemId: item-004512
+                    gtin: '00614141000036'
+                    qtyEaches: 12
+                    lot: L7
+                    expiry: '2027-10-24'
+                  grossWeightG: 5200
+                  dimsMm:
+                    l: 400
+                    w: 300
+                    h: 200
+                  sealed: false
+                ssccIssued: true
+                label:
+                  labelRef: LBL-006141420000000011
+                  sscc: '006141420000000011'
+                  gs1128: (00)006141420000000011
+                  humanReadable: (00) 0 0614 1420 0000 0001 1
+                  kind: HOMOGENEOUS_CASE
+                  contents:
+                  - catalogItemId: item-004512
+                    gtin: '00614141000036'
+                    qtyEaches: 12
+                    lot: L7
+                    expiry: '2027-10-24'
+                  contentSummary: '12 eaches: item-004512 x12'
+                  totalEaches: 12
+                  destinationNodeId: node-0f3a91
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+        '422':
+          $ref: '#/components/responses/ValidationProblem'
+  /inbound-shipments/{shipmentId}:label:
+    post:
+      tags:
+      - Inbound Shipments
+      operationId: labelInboundShipment
+      summary: Label an inbound shipment (LabelShipment)
+      description: 'Moves a `DRAFT` shipment to `LABELLED`: the cartons must add up to the confirmed plan (`carton-contents-mismatch-plan`) and the manifest is frozen. Publishes `InboundShipmentLabelled`.
+        Labelling a labelled shipment answers `200` and publishes nothing.'
+      parameters:
+      - $ref: '#/components/parameters/ShipmentIdPath'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: The inbound shipment, LABELLED.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboundShipment'
+              example:
+                shipmentId: shp-0f3a91
+                planId: pln-0f3a91
+                sellerId: seller-77
+                nodeId: node-0f3a91
+                state: LABELLED
+                cartons:
+                - sscc: '006141420000000011'
+                  kind: HOMOGENEOUS_CASE
+                  contents:
+                  - catalogItemId: item-004512
+                    gtin: '00614141000036'
+                    qtyEaches: 12
+                    lot: L7
+                    expiry: '2027-10-24'
+                  grossWeightG: 5200
+                  dimsMm:
+                    l: 400
+                    w: 300
+                    h: 200
+                  sealed: true
+                createdAt: '2026-10-24T13:00:00Z'
+                labelledAt: '2026-10-24T13:00:00Z'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+        '422':
+          $ref: '#/components/responses/ValidationProblem'
+  /inbound-shipments/{shipmentId}/labels:
+    get:
+      tags:
+      - Inbound Shipments
+      operationId: getShipmentLabels
+      summary: Get the label data (GetLabels)
+      description: 'Returns the label DATA of every carton: SSCC, the GS1-128 element string `(00)<sscc>`, the human readable line, the contents summary in eaches and the destination node.'
+      parameters:
+      - $ref: '#/components/parameters/ShipmentIdPath'
+      responses:
+        '200':
+          description: The label data per carton.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShipmentLabels'
+              example:
+                shipmentId: shp-0f3a91
+                state: LABELLED
+                destinationNodeId: node-0f3a91
+                labels:
+                - labelRef: LBL-006141420000000011
+                  sscc: '006141420000000011'
+                  gs1128: (00)006141420000000011
+                  humanReadable: (00) 0 0614 1420 0000 0001 1
+                  kind: HOMOGENEOUS_CASE
+                  contents:
+                  - catalogItemId: item-004512
+                    gtin: '00614141000036'
+                    qtyEaches: 12
+                    lot: L7
+                    expiry: '2027-10-24'
+                  contentSummary: '12 eaches: item-004512 x12'
+                  totalEaches: 12
+                  destinationNodeId: node-0f3a91
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /inbound-shipments/{shipmentId}:ship:
+    post:
+      tags:
+      - Inbound Shipments
+      operationId: shipInboundShipment
+      summary: Ship an inbound shipment (ShipInboundShipment)
+      description: Moves a `LABELLED` shipment to `SHIPPED` and publishes `InboundShipmentShipped`. A shipment that is not labelled is `shipment-not-labelled`; a suspended seller ships nothing (`seller-suspended`).
+        Shipping a shipped shipment answers `200` and publishes nothing.
+      parameters:
+      - $ref: '#/components/parameters/ShipmentIdPath'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: The inbound shipment, SHIPPED.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboundShipment'
+              example:
+                shipmentId: shp-0f3a91
+                planId: pln-0f3a91
+                sellerId: seller-77
+                nodeId: node-0f3a91
+                state: SHIPPED
+                cartons:
+                - sscc: '006141420000000011'
+                  kind: HOMOGENEOUS_CASE
+                  contents:
+                  - catalogItemId: item-004512
+                    gtin: '00614141000036'
+                    qtyEaches: 12
+                    lot: L7
+                    expiry: '2027-10-24'
+                  grossWeightG: 5200
+                  dimsMm:
+                    l: 400
+                    w: 300
+                    h: 200
+                  sealed: true
+                createdAt: '2026-10-24T13:00:00Z'
+                labelledAt: '2026-10-24T13:00:00Z'
+                shippedAt: '2026-10-24T13:00:00Z'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StateConflict'
+  /inbound-shipments/{shipmentId}:
+    get:
+      tags:
+      - Inbound Shipments
+      operationId: getInboundShipment
+      summary: Get an inbound shipment (GetInboundShipment)
+      description: Reads one shipment with its cartons and, once the vendor reported, the receipt status of each carton.
+      parameters:
+      - $ref: '#/components/parameters/ShipmentIdPath'
+      responses:
+        '200':
+          description: The inbound shipment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboundShipment'
+              example:
+                shipmentId: shp-0f3a91
+                planId: pln-0f3a91
+                sellerId: seller-77
+                nodeId: node-0f3a91
+                state: DRAFT
+                cartons:
+                - sscc: '006141420000000011'
+                  kind: HOMOGENEOUS_CASE
+                  contents:
+                  - catalogItemId: item-004512
+                    gtin: '00614141000036'
+                    qtyEaches: 12
+                    lot: L7
+                    expiry: '2027-10-24'
+                  grossWeightG: 5200
+                  dimsMm:
+                    l: 400
+                    w: 300
+                    h: 200
+                  sealed: false
+                createdAt: '2026-10-24T13:00:00Z'
+        '404':
+          $ref: '#/components/responses/NotFound'
+components:
+  parameters:
+    SellerIdPath:
+      name: sellerId
+      in: path
+      required: true
+      description: The seller id.
+      schema:
+        type: string
+      example: seller-77
+    PlanIdPath:
+      name: planId
+      in: path
+      required: true
+      description: The inbound plan id.
+      schema:
+        type: string
+      example: pln-0f3a91
+    ShipmentIdPath:
+      name: shipmentId
+      in: path
+      required: true
+      description: The inbound shipment id.
+      schema:
+        type: string
+      example: shp-0f3a91
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Client-chosen key. A retry with the same key returns the first response.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+      example: 3f6c2a9e-8b1d-4c7a-9e55-0d2f6b7a1c40
+  responses:
+    NotFound:
+      description: The resource does not exist (`not-found`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    StateConflict:
+      description: 'The write conflicts with the state of a resource. Problem types: `seller-exists`, `seller-suspended` (`ErrSellerSuspended`), `node-cannot-receive` (`ErrNodeCannotReceive`), `sscc-not-unique`
+        (`ErrSsccNotUnique`), `shipment-not-labelled` (`ErrShipmentNotLabelled`), `illegal-transition` and `concurrent-update` (optimistic-concurrency conflict; re-read and retry).'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ValidationProblem:
+      description: 'The request is malformed or breaks a rule. Problem types: `validation-failed`, `case-pack-not-uniform` (`ErrCasePackNotUniform`), `case-qty-mismatches-gtin` (`ErrCaseQtyMismatchesGtin`),
+        `carton-overweight` (`ErrCartonOverweight`), `carton-oversize` (`ErrCartonOversize`), `invalid-sscc` (`ErrInvalidSscc`), `carton-contents-mismatch-plan` (`ErrCartonContentsMismatchPlan`), `idempotency-key-required`
+        and `idempotency-key-reused`.'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    Problem:
+      type: object
+      description: RFC 9457 problem details.
+      required:
+      - type
+      - title
+      - status
+      properties:
+        type:
+          type: string
+          description: 'Problem type slug: the shared `not-found`, `illegal-transition`, `concurrent-update` and `validation-failed`, or one slug per `Err...` name of this context, for example `sscc-not-unique`.'
+          example: sscc-not-unique
+        title:
+          type: string
+          example: The SSCC is already used
+        status:
+          type: integer
+          example: 409
+        detail:
+          type: string
+          example: 'sscc not unique: 006141420000000011 is already in this shipment'
+        instance:
+          type: string
+          example: /inbound-shipments/shp-0f3a91/cartons
+    OnboardSellerRequest:
+      type: object
+      required:
+      - sellerId
+      - name
+      properties:
+        sellerId:
+          type: string
+          maxLength: 64
+          pattern: ^[A-Za-z0-9][A-Za-z0-9._:-]*$
+          example: seller-77
+        name:
+          type: string
+          maxLength: 200
+          example: Acme Goods
+    SuspendSellerRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+          example: repeated label violations
+    SellerAccount:
+      type: object
+      required:
+      - sellerId
+      - name
+      - state
+      - onboardedAt
+      properties:
+        sellerId:
+          type: string
+          maxLength: 64
+          pattern: ^[A-Za-z0-9][A-Za-z0-9._:-]*$
+          example: seller-77
+        name:
+          type: string
+          example: Acme Goods
+        state:
+          type: string
+          enum:
+          - ACTIVE
+          - SUSPENDED
+          example: ACTIVE
+        onboardedAt:
+          type: string
+          format: date-time
+          example: '2026-10-24T13:00:00Z'
+        suspendedAt:
+          type: string
+          format: date-time
+          example: '2026-10-24T13:00:00Z'
+        suspendReason:
+          type: string
+          example: repeated label violations
+    PlanLine:
+      type: object
+      description: One line of an inbound plan, in eaches.
+      required:
+      - catalogItemId
+      - gtin
+      - qtyEaches
+      properties:
+        catalogItemId:
+          type: string
+          maxLength: 64
+          pattern: ^[A-Za-z0-9][A-Za-z0-9._:-]*$
+          example: item-004512
+        gtin:
+          type: string
+          pattern: ^[0-9]{14}$
+          description: 14 digits with a GS1 mod-10 check digit.
+          example: '00614141000036'
+        qtyEaches:
+          type: integer
+          minimum: 1
+          example: 24
+          description: Eaches, never cases.
+    CreateInboundPlanRequest:
+      type: object
+      required:
+      - sellerId
+      - destinationNodeId
+      - packingOption
+      - lines
+      properties:
+        sellerId:
+          type: string
+          maxLength: 64
+          pattern: ^[A-Za-z0-9][A-Za-z0-9._:-]*$
+          example: seller-77
+        destinationNodeId:
+          type: string
+          maxLength: 64
+          pattern: ^[A-Za-z0-9][A-Za-z0-9._:-]*$
+          example: node-0f3a91
+        packingOption:
+          $ref: '#/components/schemas/PackingOption'
+        lines:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/PlanLine'
+    PackingOption:
+      type: string
+      enum:
+      - INDIVIDUAL
+      - CASE_PACKED
+      example: CASE_PACKED
+      description: '`CASE_PACKED` cartons hold one item at the case GTIN''s units per pack; `INDIVIDUAL` cartons are packed by the seller as it sees fit.'
+    InboundPlan:
+      type: object
+      required:
+      - planId
+      - sellerId
+      - destinationNodeId
+      - packingOption
+      - state
+      - lines
+      - createdAt
+      properties:
+        planId:
+          type: string
+          example: pln-0f3a91
+        sellerId:
+          type: string
+          example: seller-77
+        destinationNodeId:
+          type: string
+          example: node-0f3a91
+        packingOption:
+          $ref: '#/components/schemas/PackingOption'
+        state:
+          type: string
+          enum:
+          - DRAFT
+          - CONFIRMED
+          - CANCELLED
+          example: DRAFT
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanLine'
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-10-24T13:00:00Z'
+        confirmedAt:
+          type: string
+          format: date-time
+          example: '2026-10-24T13:00:00Z'
+        cancelledAt:
+          type: string
+          format: date-time
+          example: '2026-10-24T13:00:00Z'
+    Dims:
+      type: object
+      description: Outer dimensions in millimetres.
+      required:
+      - l
+      - w
+      - h
+      properties:
+        l:
+          type: integer
+          minimum: 1
+          example: 400
+        w:
+          type: integer
+          minimum: 1
+          example: 300
+        h:
+          type: integer
+          minimum: 1
+          example: 200
+    CartonContent:
+      type: object
+      description: What a carton holds of one item, in eaches.
+      required:
+      - catalogItemId
+      - gtin
+      - qtyEaches
+      properties:
+        catalogItemId:
+          type: string
+          maxLength: 64
+          pattern: ^[A-Za-z0-9][A-Za-z0-9._:-]*$
+          example: item-004512
+        gtin:
+          type: string
+          pattern: ^[0-9]{14}$
+          description: 14 digits with a GS1 mod-10 check digit.
+          example: '00614141000036'
+        qtyEaches:
+          type: integer
+          minimum: 1
+          example: 12
+        lot:
+          type: string
+          maxLength: 20
+          example: L7
+        expiry:
+          type: string
+          format: date
+          example: '2027-10-24'
+    AddCartonRequest:
+      type: object
+      required:
+      - kind
+      - contents
+      - grossWeightG
+      - dimsMm
+      properties:
+        sscc:
+          type: string
+          pattern: ^[0-9]{18}$
+          description: Optional. Accepted only when valid and unique network-wide; otherwise the network issues one.
+          example: '006141420000000011'
+        parentSscc:
+          type: string
+          pattern: ^[0-9]{18}$
+          description: The pallet SSCC, when the node accepts pallets.
+          example: '006141420000000028'
+        kind:
+          type: string
+          enum:
+          - HOMOGENEOUS_CASE
+          - MIXED
+          example: HOMOGENEOUS_CASE
+        contents:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/CartonContent'
+        grossWeightG:
+          type: integer
+          minimum: 1
+          example: 5200
+        dimsMm:
+          $ref: '#/components/schemas/Dims'
+    Carton:
+      type: object
+      required:
+      - sscc
+      - kind
+      - contents
+      - grossWeightG
+      - dimsMm
+      - sealed
+      properties:
+        sscc:
+          type: string
+          pattern: ^[0-9]{18}$
+          description: 18 digits with a GS1 mod-10 check digit.
+          example: '006141420000000011'
+        parentSscc:
+          type: string
+          pattern: ^[0-9]{18}$
+          description: 18 digits with a GS1 mod-10 check digit.
+          example: '006141420000000028'
+        kind:
+          type: string
+          enum:
+          - HOMOGENEOUS_CASE
+          - MIXED
+          example: HOMOGENEOUS_CASE
+        contents:
+          type: array
+          items:
+            $ref: '#/components/schemas/CartonContent'
+        grossWeightG:
+          type: integer
+          example: 5200
+        dimsMm:
+          $ref: '#/components/schemas/Dims'
+        sealed:
+          type: boolean
+          example: false
+          description: 'True once the shipment is labelled: the manifest is frozen.'
+        receiptStatus:
+          type: string
+          enum:
+          - RECEIVED
+          - MISSING
+          - UNEXPECTED
+          - DAMAGED
+          example: RECEIVED
+          description: Set once the vendor reported its receipt.
+    InboundShipment:
+      type: object
+      required:
+      - shipmentId
+      - planId
+      - sellerId
+      - nodeId
+      - state
+      - cartons
+      - createdAt
+      properties:
+        shipmentId:
+          type: string
+          example: shp-0f3a91
+        planId:
+          type: string
+          example: pln-0f3a91
+        sellerId:
+          type: string
+          example: seller-77
+        nodeId:
+          type: string
+          example: node-0f3a91
+        state:
+          type: string
+          enum:
+          - DRAFT
+          - LABELLED
+          - SHIPPED
+          - RECEIVING
+          - CLOSED
+          - CLOSED_WITH_DISCREPANCY
+          example: DRAFT
+        cartons:
+          type: array
+          items:
+            $ref: '#/components/schemas/Carton'
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-10-24T13:00:00Z'
+        labelledAt:
+          type: string
+          format: date-time
+          example: '2026-10-24T13:00:00Z'
+        shippedAt:
+          type: string
+          format: date-time
+          example: '2026-10-24T13:00:00Z'
+        receivedAt:
+          type: string
+          format: date-time
+          example: '2026-10-24T13:00:00Z'
+    Label:
+      type: object
+      description: The data a printer needs for one carton label.
+      required:
+      - labelRef
+      - sscc
+      - gs1128
+      - humanReadable
+      - kind
+      - contents
+      - contentSummary
+      - totalEaches
+      - destinationNodeId
+      properties:
+        labelRef:
+          type: string
+          example: LBL-006141420000000011
+        sscc:
+          type: string
+          pattern: ^[0-9]{18}$
+          description: 18 digits with a GS1 mod-10 check digit.
+          example: '006141420000000011'
+        gs1128:
+          type: string
+          example: (00)006141420000000011
+          description: 'The GS1-128 element string for AI 00: `(00)<sscc>`.'
+        humanReadable:
+          type: string
+          example: (00) 0 0614 1420 0000 0001 1
+        parentSscc:
+          type: string
+          pattern: ^[0-9]{18}$
+          description: 18 digits with a GS1 mod-10 check digit.
+          example: '006141420000000028'
+        kind:
+          type: string
+          enum:
+          - HOMOGENEOUS_CASE
+          - MIXED
+          example: HOMOGENEOUS_CASE
+        contents:
+          type: array
+          items:
+            $ref: '#/components/schemas/CartonContent'
+        contentSummary:
+          type: string
+          example: '12 eaches: item-004512 x12'
+        totalEaches:
+          type: integer
+          example: 12
+        destinationNodeId:
+          type: string
+          example: node-0f3a91
+    AddedCarton:
+      type: object
+      required:
+      - shipmentId
+      - carton
+      - ssccIssued
+      - label
+      properties:
+        shipmentId:
+          type: string
+          example: shp-0f3a91
+        carton:
+          $ref: '#/components/schemas/Carton'
+        ssccIssued:
+          type: boolean
+          example: true
+          description: True when the network issued the SSCC.
+        label:
+          $ref: '#/components/schemas/Label'
+    ShipmentLabels:
+      type: object
+      required:
+      - shipmentId
+      - state
+      - destinationNodeId
+      - labels
+      properties:
+        shipmentId:
+          type: string
+          example: shp-0f3a91
+        state:
+          type: string
+          example: LABELLED
+        destinationNodeId:
+          type: string
+          example: node-0f3a91
+        labels:
+          type: array
+          items:
+            $ref: '#/components/schemas/Label'
