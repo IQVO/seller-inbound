@@ -1,0 +1,1245 @@
+asyncapi: 3.0.0
+info:
+  title: seller-inbound Domain Events
+  version: 1.0.0
+  contact:
+    name: seller-inbound maintainers
+    url: https://github.com/IQVO/seller-inbound
+    email: seller-inbound@iqvo.example.com
+  license:
+    name: UNLICENSED
+  tags:
+  - name: seller-inbound
+    description: The seller-inbound bounded context (retail network, partner tier).
+  - name: seller
+    description: 'Events about a seller: the SellerAccount aggregate and compliance facts.'
+  - name: inboundplan
+    description: Events raised by the InboundPlan aggregate.
+  - name: inboundshipment
+    description: Events raised by the InboundShipment aggregate.
+  description: |
+    Event catalog for the **seller-inbound** bounded context of the retail network (partner tier): the seller-facing front door for stock coming into the network.
+    The REST contract is `apis/openapi.yaml`.
+
+    **Published.** Nine types. `InboundShipmentLabelled`, `InboundShipmentShipped` and `InboundShipmentReceived` go to `retailnetwork.seller-inbound.events`; the other six (`SellerOnboarded`, `SellerSuspended`, `SellerReinstated`, `InboundPlanConfirmed`, `InboundDiscrepancyRecorded`, `SellerComplianceViolationRecorded`) go ONLY to `retailnetwork.seller-inbound.analytics` (the model marks them analytics only). Every event leaves through a **transactional outbox**: the aggregate row and the already-encoded events are written in ONE database transaction and an always-on relay drains them to Kafka (at-least-once; the CloudEvents `id` is stored with the outbox row, so a retry republishes the same `id`).
+
+    **Consumed.** Eight types from three producers (ADR 0003): node-topology `NodeRegistered`, `NodeOperationalProfileDeclared`, `NodeActivated`, `NodeSuspended`, `NodeRetired` (local NodeInboundView); offer-availability `CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired` (local CatalogPackagingView); vendor-connectivity `InboundReceiptSubmitted`. Each is deduplicated on the CloudEvents `id` in the `processed_events` inbox table, dispatched on the full `type`, decoded tolerantly (unknown fields are ignored) and dead-lettered to `<topic>.dlq` when it cannot be processed. The consumed `data` below lists only the fields this context relies on. There are no synchronous calls to any neighbour.
+
+    **Envelope (mandatory).** CloudEvents 1.0, structured content mode, Kafka header `content-type: application/cloudevents+json; charset=UTF-8`. `specversion`, `id`, `source` (`/retailnetwork/seller-inbound`), `type`, `subject` (the aggregate root id: `sellerId`, `planId` or `shipmentId`), `time`, `datacontenttype` (`application/json`) and `dataschema` (`urn:retailnetwork:seller-inbound:<stream>:<EventName>:v1`, stream `events` or `analytics`) are all required. Kafka key = the subject, so one shipment's events stay ordered on one partition. Type = `com.retailnetwork.partner.seller-inbound.<entity>.<EventName>` with entity `seller`, `inboundplan` or `inboundshipment`.
+
+    **Conventions.** `data` is camelCase; timestamps are RFC 3339 UTC; quantities are ALWAYS eaches (`qtyEaches`); optional fields are omitted when absent (never null); arrays are always present. GTINs are 14 digits, SSCCs 18 digits, both with a GS1 mod-10 check digit.
+servers:
+  production:
+    host: '{brokers}'
+    protocol: kafka
+    description: Retail-network Kafka broker (host supplied by the deployment environment via KAFKA_BROKERS).
+    variables:
+      brokers:
+        default: kafka.retail-network.internal:9092
+defaultContentType: application/cloudevents+json
+channels:
+  sellerInboundEvents:
+    address: retailnetwork.seller-inbound.events
+    title: seller-inbound integration topic
+    description: This service's integration topic, written by the outbox relay; key = subject. Carries the three events other contexts consume. Every message carries the CloudEvents content-type header.
+      Dispatch on the full `type`, ignore unknown types, dedupe on `id`.
+    messages:
+      InboundShipmentLabelled:
+        $ref: '#/components/messages/InboundShipmentLabelled'
+      InboundShipmentShipped:
+        $ref: '#/components/messages/InboundShipmentShipped'
+      InboundShipmentReceived:
+        $ref: '#/components/messages/InboundShipmentReceived'
+  sellerInboundAnalytics:
+    address: retailnetwork.seller-inbound.analytics
+    title: seller-inbound analytics topic
+    description: Analytics-only events. No context consumes them.
+    messages:
+      SellerOnboarded:
+        $ref: '#/components/messages/SellerOnboarded'
+      SellerSuspended:
+        $ref: '#/components/messages/SellerSuspended'
+      SellerReinstated:
+        $ref: '#/components/messages/SellerReinstated'
+      InboundPlanConfirmed:
+        $ref: '#/components/messages/InboundPlanConfirmed'
+      InboundDiscrepancyRecorded:
+        $ref: '#/components/messages/InboundDiscrepancyRecorded'
+      SellerComplianceViolationRecorded:
+        $ref: '#/components/messages/SellerComplianceViolationRecorded'
+  nodeTopologyEvents:
+    address: retailnetwork.node-topology.events
+    title: node-topology integration topic
+    description: The node-topology integration topic, consumed under the mandatory consumer group `NODE_CONSUMER_GROUP`.
+    messages:
+      NodeRegistered:
+        $ref: '#/components/messages/NodeRegistered'
+      NodeOperationalProfileDeclared:
+        $ref: '#/components/messages/NodeOperationalProfileDeclared'
+      NodeActivated:
+        $ref: '#/components/messages/NodeActivated'
+      NodeSuspended:
+        $ref: '#/components/messages/NodeSuspended'
+      NodeRetired:
+        $ref: '#/components/messages/NodeRetired'
+  offerAvailabilityEvents:
+    address: retailnetwork.offer-availability.events
+    title: offer-availability integration topic
+    description: The offer-availability integration topic, consumed under the mandatory consumer group `CATALOG_CONSUMER_GROUP`.
+    messages:
+      CatalogItemPackagingDeclared:
+        $ref: '#/components/messages/CatalogItemPackagingDeclared'
+      CatalogItemPackLevelRetired:
+        $ref: '#/components/messages/CatalogItemPackLevelRetired'
+  vendorConnectivityEvents:
+    address: retailnetwork.vendor-connectivity.events
+    title: vendor-connectivity integration topic
+    description: The vendor-connectivity integration topic, consumed under the mandatory consumer group `RECEIPT_CONSUMER_GROUP`.
+    messages:
+      InboundReceiptSubmitted:
+        $ref: '#/components/messages/InboundReceiptSubmitted'
+operations:
+  publishSellerInboundEvents:
+    action: send
+    title: Publish seller-inbound integration events
+    summary: Publish the three shipment events other contexts consume.
+    description: The service sends InboundShipmentLabelled, InboundShipmentShipped and InboundShipmentReceived to `retailnetwork.seller-inbound.events` through the transactional outbox. Consumers route
+      on the full `type`.
+    tags:
+    - name: inboundshipment
+    channel:
+      $ref: '#/channels/sellerInboundEvents'
+    messages:
+    - $ref: '#/channels/sellerInboundEvents/messages/InboundShipmentLabelled'
+    - $ref: '#/channels/sellerInboundEvents/messages/InboundShipmentShipped'
+    - $ref: '#/channels/sellerInboundEvents/messages/InboundShipmentReceived'
+  publishSellerInboundAnalytics:
+    action: send
+    title: Publish seller-inbound analytics events
+    summary: Publish the analytics-only events through the transactional outbox.
+    description: SellerOnboarded, SellerSuspended, SellerReinstated, InboundPlanConfirmed, InboundDiscrepancyRecorded and SellerComplianceViolationRecorded go ONLY to `retailnetwork.seller-inbound.analytics`;
+      no context consumes them.
+    tags:
+    - name: seller
+    channel:
+      $ref: '#/channels/sellerInboundAnalytics'
+    messages:
+    - $ref: '#/channels/sellerInboundAnalytics/messages/SellerOnboarded'
+    - $ref: '#/channels/sellerInboundAnalytics/messages/SellerSuspended'
+    - $ref: '#/channels/sellerInboundAnalytics/messages/SellerReinstated'
+    - $ref: '#/channels/sellerInboundAnalytics/messages/InboundPlanConfirmed'
+    - $ref: '#/channels/sellerInboundAnalytics/messages/InboundDiscrepancyRecorded'
+    - $ref: '#/channels/sellerInboundAnalytics/messages/SellerComplianceViolationRecorded'
+  receiveNodeTopologyEvents:
+    action: receive
+    title: Receive node-topology events
+    summary: Receive node-topology events this context relies on.
+    description: 'Consumes the node lifecycle and NodeOperationalProfileDeclared into the local NodeInboundView (Conformist): the INBOUND capability by node type, ACTIVE status and the optional inbound
+      limits.'
+    tags:
+    - name: seller-inbound
+    channel:
+      $ref: '#/channels/nodeTopologyEvents'
+    messages:
+    - $ref: '#/channels/nodeTopologyEvents/messages/NodeRegistered'
+    - $ref: '#/channels/nodeTopologyEvents/messages/NodeOperationalProfileDeclared'
+    - $ref: '#/channels/nodeTopologyEvents/messages/NodeActivated'
+    - $ref: '#/channels/nodeTopologyEvents/messages/NodeSuspended'
+    - $ref: '#/channels/nodeTopologyEvents/messages/NodeRetired'
+  receiveOfferAvailabilityEvents:
+    action: receive
+    title: Receive offer-availability events
+    summary: Receive offer-availability events this context relies on.
+    description: 'Consumes CatalogItemPackagingDeclared and CatalogItemPackLevelRetired into the local CatalogPackagingView (Conformist): the active CASE level validates the quantity of a case-packed carton.'
+    tags:
+    - name: seller-inbound
+    channel:
+      $ref: '#/channels/offerAvailabilityEvents'
+    messages:
+    - $ref: '#/channels/offerAvailabilityEvents/messages/CatalogItemPackagingDeclared'
+    - $ref: '#/channels/offerAvailabilityEvents/messages/CatalogItemPackLevelRetired'
+  receiveVendorConnectivityEvents:
+    action: receive
+    title: Receive vendor-connectivity events
+    summary: Receive vendor-connectivity events this context relies on.
+    description: 'Consumes InboundReceiptSubmitted (Customer/Supplier) and runs RecordInboundReceipt: InboundDiscrepancyRecorded, SellerComplianceViolationRecorded and, when every carton has a final status,
+      InboundShipmentReceived.'
+    tags:
+    - name: seller-inbound
+    channel:
+      $ref: '#/channels/vendorConnectivityEvents'
+    messages:
+    - $ref: '#/channels/vendorConnectivityEvents/messages/InboundReceiptSubmitted'
+components:
+  messages:
+    SellerOnboarded:
+      name: SellerOnboarded
+      title: A seller was onboarded
+      summary: A seller was onboarded.
+      description: '`type` = `com.retailnetwork.partner.seller-inbound.seller.SellerOnboarded`; subject and key = the aggregate root id; stream `analytics`. Raised by OnboardSeller (POST /sellers). Analytics
+        only.'
+      contentType: application/cloudevents+json
+      tags:
+      - name: seller
+      payload:
+        $ref: '#/components/schemas/SellerOnboardedEvent'
+      examples:
+      - name: sellerOnboarded
+        summary: A seller was onboarded.
+        payload:
+          specversion: '1.0'
+          id: 3f6c2a9e-8b1d-4c7a-9e55-0d2f6b7a1ca1
+          source: /retailnetwork/seller-inbound
+          type: com.retailnetwork.partner.seller-inbound.seller.SellerOnboarded
+          subject: seller-77
+          time: '2026-10-24T13:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:seller-inbound:analytics:SellerOnboarded:v1
+          data:
+            sellerId: seller-77
+            name: Acme Goods
+            onboardedAt: '2026-10-24T13:00:00Z'
+    SellerSuspended:
+      name: SellerSuspended
+      title: A seller was suspended
+      summary: A seller was suspended.
+      description: '`type` = `com.retailnetwork.partner.seller-inbound.seller.SellerSuspended`; subject and key = the aggregate root id; stream `analytics`. Raised by SuspendSeller. A suspended seller creates
+        no plan, shipment or carton and ships nothing. Analytics only.'
+      contentType: application/cloudevents+json
+      tags:
+      - name: seller
+      payload:
+        $ref: '#/components/schemas/SellerSuspendedEvent'
+      examples:
+      - name: sellerSuspended
+        summary: A seller was suspended.
+        payload:
+          specversion: '1.0'
+          id: 3f6c2a9e-8b1d-4c7a-9e55-0d2f6b7a1ca2
+          source: /retailnetwork/seller-inbound
+          type: com.retailnetwork.partner.seller-inbound.seller.SellerSuspended
+          subject: seller-77
+          time: '2026-10-24T13:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:seller-inbound:analytics:SellerSuspended:v1
+          data:
+            sellerId: seller-77
+            suspendedAt: '2026-10-24T13:00:00Z'
+            reason: repeated label violations
+    SellerReinstated:
+      name: SellerReinstated
+      title: A suspended seller was reinstated
+      summary: A suspended seller was reinstated.
+      description: '`type` = `com.retailnetwork.partner.seller-inbound.seller.SellerReinstated`; subject and key = the aggregate root id; stream `analytics`. Raised by ReinstateSeller. Analytics only.'
+      contentType: application/cloudevents+json
+      tags:
+      - name: seller
+      payload:
+        $ref: '#/components/schemas/SellerReinstatedEvent'
+      examples:
+      - name: sellerReinstated
+        summary: A suspended seller was reinstated.
+        payload:
+          specversion: '1.0'
+          id: 3f6c2a9e-8b1d-4c7a-9e55-0d2f6b7a1ca3
+          source: /retailnetwork/seller-inbound
+          type: com.retailnetwork.partner.seller-inbound.seller.SellerReinstated
+          subject: seller-77
+          time: '2026-10-24T13:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:seller-inbound:analytics:SellerReinstated:v1
+          data:
+            sellerId: seller-77
+            reinstatedAt: '2026-10-24T13:00:00Z'
+    InboundPlanConfirmed:
+      name: InboundPlanConfirmed
+      title: A seller confirmed an inbound plan
+      summary: A seller confirmed an inbound plan.
+      description: '`type` = `com.retailnetwork.partner.seller-inbound.inboundplan.InboundPlanConfirmed`; subject and key = the aggregate root id; stream `analytics`. Raised by ConfirmInboundPlan. Quantities
+        are eaches. Analytics only.'
+      contentType: application/cloudevents+json
+      tags:
+      - name: inboundplan
+      payload:
+        $ref: '#/components/schemas/InboundPlanConfirmedEvent'
+      examples:
+      - name: inboundPlanConfirmed
+        summary: A seller confirmed an inbound plan.
+        payload:
+          specversion: '1.0'
+          id: 3f6c2a9e-8b1d-4c7a-9e55-0d2f6b7a1cb1
+          source: /retailnetwork/seller-inbound
+          type: com.retailnetwork.partner.seller-inbound.inboundplan.InboundPlanConfirmed
+          subject: pln-0f3a91
+          time: '2026-10-24T13:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:seller-inbound:analytics:InboundPlanConfirmed:v1
+          data:
+            planId: pln-0f3a91
+            sellerId: seller-77
+            destinationNodeId: node-0f3a91
+            packingOption: CASE_PACKED
+            lines:
+            - catalogItemId: item-004512
+              gtin: '00614141000036'
+              qtyEaches: 24
+            confirmedAt: '2026-10-24T13:00:00Z'
+    InboundShipmentLabelled:
+      name: InboundShipmentLabelled
+      title: Every carton of a shipment has a label; the manifest is frozen
+      summary: Every carton of a shipment has a label; the manifest is frozen.
+      description: '`type` = `com.retailnetwork.partner.seller-inbound.inboundshipment.InboundShipmentLabelled`; subject and key = the aggregate root id; stream `events`. Raised by LabelShipment. `cartons`
+        is the full manifest: vendor-connectivity serves it on the Vendor API once the shipment ships. `parentSscc` is present only for a palletised carton; `lot` and `expiry` only when declared.'
+      contentType: application/cloudevents+json
+      tags:
+      - name: inboundshipment
+      payload:
+        $ref: '#/components/schemas/InboundShipmentLabelledEvent'
+      examples:
+      - name: inboundShipmentLabelled
+        summary: Every carton of a shipment has a label; the manifest is frozen.
+        payload:
+          specversion: '1.0'
+          id: 3f6c2a9e-8b1d-4c7a-9e55-0d2f6b7a1cc1
+          source: /retailnetwork/seller-inbound
+          type: com.retailnetwork.partner.seller-inbound.inboundshipment.InboundShipmentLabelled
+          subject: shp-0f3a91
+          time: '2026-10-24T13:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:seller-inbound:events:InboundShipmentLabelled:v1
+          data:
+            shipmentId: shp-0f3a91
+            planId: pln-0f3a91
+            sellerId: seller-77
+            nodeId: node-0f3a91
+            cartons:
+            - sscc: '006141410000000012'
+              kind: HOMOGENEOUS_CASE
+              contents:
+              - catalogItemId: item-004512
+                gtin: '00614141000036'
+                qtyEaches: 12
+                lot: L7
+                expiry: '2027-10-24'
+              grossWeightG: 5200
+              dimsMm:
+                l: 400
+                w: 300
+                h: 200
+            - sscc: 006141410000000029
+              kind: HOMOGENEOUS_CASE
+              contents:
+              - catalogItemId: item-004512
+                gtin: '00614141000036'
+                qtyEaches: 12
+              grossWeightG: 5100
+              dimsMm:
+                l: 400
+                w: 300
+                h: 200
+            labelledAt: '2026-10-24T13:00:00Z'
+    InboundShipmentShipped:
+      name: InboundShipmentShipped
+      title: A labelled shipment left the seller
+      summary: A labelled shipment left the seller.
+      description: '`type` = `com.retailnetwork.partner.seller-inbound.inboundshipment.InboundShipmentShipped`; subject and key = the aggregate root id; stream `events`. Raised by ShipInboundShipment. Consumers:
+        vendor-connectivity (offers the shipment to the vendor), node-performance (inbound timeliness).'
+      contentType: application/cloudevents+json
+      tags:
+      - name: inboundshipment
+      payload:
+        $ref: '#/components/schemas/InboundShipmentShippedEvent'
+      examples:
+      - name: inboundShipmentShipped
+        summary: A labelled shipment left the seller.
+        payload:
+          specversion: '1.0'
+          id: 3f6c2a9e-8b1d-4c7a-9e55-0d2f6b7a1cc2
+          source: /retailnetwork/seller-inbound
+          type: com.retailnetwork.partner.seller-inbound.inboundshipment.InboundShipmentShipped
+          subject: shp-0f3a91
+          time: '2026-10-24T13:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:seller-inbound:events:InboundShipmentShipped:v1
+          data:
+            shipmentId: shp-0f3a91
+            planId: pln-0f3a91
+            sellerId: seller-77
+            nodeId: node-0f3a91
+            shippedAt: '2026-10-24T13:00:00Z'
+    InboundShipmentReceived:
+      name: InboundShipmentReceived
+      title: The vendor's receipt closed the shipment
+      summary: The vendor's receipt closed the shipment.
+      description: '`type` = `com.retailnetwork.partner.seller-inbound.inboundshipment.InboundShipmentReceived`; subject and key = the aggregate root id; stream `events`. Raised when every manifest carton
+        has a final status (policy ReceiveOnVendorReceipt). `status` is CLOSED when nothing differed from the manifest, CLOSED_WITH_DISCREPANCY otherwise; `cartons` lists the manifest cartons and any UNEXPECTED
+        ones. `receivedAt` is the vendor''s instant.'
+      contentType: application/cloudevents+json
+      tags:
+      - name: inboundshipment
+      payload:
+        $ref: '#/components/schemas/InboundShipmentReceivedEvent'
+      examples:
+      - name: inboundShipmentReceived
+        summary: The vendor's receipt closed the shipment.
+        payload:
+          specversion: '1.0'
+          id: 3f6c2a9e-8b1d-4c7a-9e55-0d2f6b7a1cc3
+          source: /retailnetwork/seller-inbound
+          type: com.retailnetwork.partner.seller-inbound.inboundshipment.InboundShipmentReceived
+          subject: shp-0f3a91
+          time: '2026-10-24T13:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:seller-inbound:events:InboundShipmentReceived:v1
+          data:
+            shipmentId: shp-0f3a91
+            sellerId: seller-77
+            nodeId: node-0f3a91
+            status: CLOSED_WITH_DISCREPANCY
+            cartons:
+            - sscc: '006141410000000012'
+              status: RECEIVED
+            - sscc: 006141410000000029
+              status: DAMAGED
+            receivedAt: '2026-10-25T09:30:00Z'
+    InboundDiscrepancyRecorded:
+      name: InboundDiscrepancyRecorded
+      title: A difference between the manifest and the vendor's receipt was recorded
+      summary: A difference between the manifest and the vendor's receipt was recorded.
+      description: '`type` = `com.retailnetwork.partner.seller-inbound.inboundshipment.InboundDiscrepancyRecorded`; subject and key = the aggregate root id; stream `analytics`. Raised per difference (policy
+        RecordDiscrepancies); the manifest is never edited. `kind` is the receiving side''s carton discrepancy kind string, passed through: MissingCarton, UnexpectedCarton, Damaged, Short or Over. For Short
+        and Over, `expected` and `actual` are `<gtin>:<qtyEaches>`. Analytics only.'
+      contentType: application/cloudevents+json
+      tags:
+      - name: inboundshipment
+      payload:
+        $ref: '#/components/schemas/InboundDiscrepancyRecordedEvent'
+      examples:
+      - name: inboundDiscrepancyRecorded
+        summary: A difference between the manifest and the vendor's receipt was recorded.
+        payload:
+          specversion: '1.0'
+          id: 3f6c2a9e-8b1d-4c7a-9e55-0d2f6b7a1cc4
+          source: /retailnetwork/seller-inbound
+          type: com.retailnetwork.partner.seller-inbound.inboundshipment.InboundDiscrepancyRecorded
+          subject: shp-0f3a91
+          time: '2026-10-24T13:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:seller-inbound:analytics:InboundDiscrepancyRecorded:v1
+          data:
+            shipmentId: shp-0f3a91
+            sellerId: seller-77
+            nodeId: node-0f3a91
+            sscc: 006141410000000029
+            kind: Short
+            expected: 00614141000036:12
+            actual: 00614141000036:10
+            recordedAt: '2026-10-24T13:00:00Z'
+    SellerComplianceViolationRecorded:
+      name: SellerComplianceViolationRecorded
+      title: A compliance violation of a seller was recorded
+      summary: A compliance violation of a seller was recorded.
+      description: '`type` = `com.retailnetwork.partner.seller-inbound.seller.SellerComplianceViolationRecorded`; subject and key = the aggregate root id; stream `analytics`. Raised per distinct compliance
+        code on a carton of a vendor receipt, plus UNMANIFESTED_CARTON for a carton the manifest does not list. subject = the sellerId. Analytics only.'
+      contentType: application/cloudevents+json
+      tags:
+      - name: seller
+      payload:
+        $ref: '#/components/schemas/SellerComplianceViolationRecordedEvent'
+      examples:
+      - name: sellerComplianceViolationRecorded
+        summary: A compliance violation of a seller was recorded.
+        payload:
+          specversion: '1.0'
+          id: 3f6c2a9e-8b1d-4c7a-9e55-0d2f6b7a1cd1
+          source: /retailnetwork/seller-inbound
+          type: com.retailnetwork.partner.seller-inbound.seller.SellerComplianceViolationRecorded
+          subject: seller-77
+          time: '2026-10-24T13:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:seller-inbound:analytics:SellerComplianceViolationRecorded:v1
+          data:
+            sellerId: seller-77
+            shipmentId: shp-0f3a91
+            code: CARTON_CRUSHED
+            recordedAt: '2026-10-24T13:00:00Z'
+    NodeRegistered:
+      name: NodeRegistered
+      title: A node was registered
+      summary: A node was registered.
+      description: Consumed. `type` = `com.retailnetwork.logistics.node-topology.node.NodeRegistered`; subject and key = the aggregate root id. Only the fields below are relied on; unknown fields are ignored.
+      contentType: application/cloudevents+json
+      tags:
+      - name: seller-inbound
+      payload:
+        $ref: '#/components/schemas/NodeRegisteredIn'
+      examples:
+      - name: nodeRegistered
+        summary: A node was registered.
+        payload:
+          specversion: '1.0'
+          id: 9d1a7c52-0b9e-4f36-a8c1-6e2b9d3f5a70
+          source: /retailnetwork/node-topology
+          type: com.retailnetwork.logistics.node-topology.node.NodeRegistered
+          subject: node-0f3a91
+          time: '2026-10-24T13:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:node-topology:events:NodeRegistered:v1
+          data:
+            nodeId: node-0f3a91
+            nodeType: FULFILLMENT_CENTER
+    NodeOperationalProfileDeclared:
+      name: NodeOperationalProfileDeclared
+      title: A node declared a profile revision
+      summary: A node declared a profile revision.
+      description: Consumed. `type` = `com.retailnetwork.logistics.node-topology.node.NodeOperationalProfileDeclared`; subject and key = the aggregate root id. Only the fields below are relied on; unknown
+        fields are ignored.
+      contentType: application/cloudevents+json
+      tags:
+      - name: seller-inbound
+      payload:
+        $ref: '#/components/schemas/NodeOperationalProfileDeclaredIn'
+      examples:
+      - name: nodeOperationalProfileDeclared
+        summary: A node declared a profile revision.
+        payload:
+          specversion: '1.0'
+          id: 9d1a7c52-0b9e-4f36-a8c1-6e2b9d3f5a70
+          source: /retailnetwork/node-topology
+          type: com.retailnetwork.logistics.node-topology.node.NodeOperationalProfileDeclared
+          subject: node-0f3a91
+          time: '2026-10-24T13:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:node-topology:events:NodeOperationalProfileDeclared:v1
+          data:
+            nodeId: node-0f3a91
+            profileRevision: 2
+            inbound:
+              maxCartonWeightG: 25000
+              maxCartonDimsMm:
+                l: 600
+                w: 400
+                h: 400
+              acceptsPallets: true
+              requiresSscc: true
+    NodeActivated:
+      name: NodeActivated
+      title: A node became ACTIVE
+      summary: A node became ACTIVE.
+      description: Consumed. `type` = `com.retailnetwork.logistics.node-topology.node.NodeActivated`; subject and key = the aggregate root id. Only the fields below are relied on; unknown fields are ignored.
+      contentType: application/cloudevents+json
+      tags:
+      - name: seller-inbound
+      payload:
+        $ref: '#/components/schemas/NodeActivatedIn'
+      examples:
+      - name: nodeActivated
+        summary: A node became ACTIVE.
+        payload:
+          specversion: '1.0'
+          id: 9d1a7c52-0b9e-4f36-a8c1-6e2b9d3f5a70
+          source: /retailnetwork/node-topology
+          type: com.retailnetwork.logistics.node-topology.node.NodeActivated
+          subject: node-0f3a91
+          time: '2026-10-24T13:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:node-topology:events:NodeActivated:v1
+          data:
+            nodeId: node-0f3a91
+            activatedAt: '2026-10-24T13:00:00Z'
+    NodeSuspended:
+      name: NodeSuspended
+      title: A node became SUSPENDED
+      summary: A node became SUSPENDED.
+      description: Consumed. `type` = `com.retailnetwork.logistics.node-topology.node.NodeSuspended`; subject and key = the aggregate root id. Only the fields below are relied on; unknown fields are ignored.
+      contentType: application/cloudevents+json
+      tags:
+      - name: seller-inbound
+      payload:
+        $ref: '#/components/schemas/NodeSuspendedIn'
+      examples:
+      - name: nodeSuspended
+        summary: A node became SUSPENDED.
+        payload:
+          specversion: '1.0'
+          id: 9d1a7c52-0b9e-4f36-a8c1-6e2b9d3f5a70
+          source: /retailnetwork/node-topology
+          type: com.retailnetwork.logistics.node-topology.node.NodeSuspended
+          subject: node-0f3a91
+          time: '2026-10-24T13:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:node-topology:events:NodeSuspended:v1
+          data:
+            nodeId: node-0f3a91
+            reason: maintenance
+            suspendedAt: '2026-10-24T13:00:00Z'
+    NodeRetired:
+      name: NodeRetired
+      title: A node was retired
+      summary: A node was retired.
+      description: Consumed. `type` = `com.retailnetwork.logistics.node-topology.node.NodeRetired`; subject and key = the aggregate root id. Only the fields below are relied on; unknown fields are ignored.
+      contentType: application/cloudevents+json
+      tags:
+      - name: seller-inbound
+      payload:
+        $ref: '#/components/schemas/NodeRetiredIn'
+      examples:
+      - name: nodeRetired
+        summary: A node was retired.
+        payload:
+          specversion: '1.0'
+          id: 9d1a7c52-0b9e-4f36-a8c1-6e2b9d3f5a70
+          source: /retailnetwork/node-topology
+          type: com.retailnetwork.logistics.node-topology.node.NodeRetired
+          subject: node-0f3a91
+          time: '2026-10-24T13:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:node-topology:events:NodeRetired:v1
+          data:
+            nodeId: node-0f3a91
+            retiredAt: '2026-10-24T13:00:00Z'
+    CatalogItemPackagingDeclared:
+      name: CatalogItemPackagingDeclared
+      title: A pack level of a catalogue item was declared
+      summary: A pack level of a catalogue item was declared.
+      description: Consumed. `type` = `com.retailnetwork.commerce.offer-availability.catalogitem.CatalogItemPackagingDeclared`; subject and key = the aggregate root id. Only the fields below are relied
+        on; unknown fields are ignored.
+      contentType: application/cloudevents+json
+      tags:
+      - name: seller-inbound
+      payload:
+        $ref: '#/components/schemas/CatalogItemPackagingDeclaredIn'
+      examples:
+      - name: catalogItemPackagingDeclared
+        summary: A pack level of a catalogue item was declared.
+        payload:
+          specversion: '1.0'
+          id: 9d1a7c52-0b9e-4f36-a8c1-6e2b9d3f5a70
+          source: /retailnetwork/offer-availability
+          type: com.retailnetwork.commerce.offer-availability.catalogitem.CatalogItemPackagingDeclared
+          subject: item-004512
+          time: '2026-10-24T13:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:offer-availability:events:CatalogItemPackagingDeclared:v1
+          data:
+            catalogItemId: item-004512
+            level: CASE
+            gtin: '00614141000036'
+            childGtin: '00614141000012'
+            unitsPerPack: 12
+            declaredAt: '2026-10-24T13:00:00Z'
+    CatalogItemPackLevelRetired:
+      name: CatalogItemPackLevelRetired
+      title: A pack level of a catalogue item was retired
+      summary: A pack level of a catalogue item was retired.
+      description: Consumed. `type` = `com.retailnetwork.commerce.offer-availability.catalogitem.CatalogItemPackLevelRetired`; subject and key = the aggregate root id. Only the fields below are relied on;
+        unknown fields are ignored.
+      contentType: application/cloudevents+json
+      tags:
+      - name: seller-inbound
+      payload:
+        $ref: '#/components/schemas/CatalogItemPackLevelRetiredIn'
+      examples:
+      - name: catalogItemPackLevelRetired
+        summary: A pack level of a catalogue item was retired.
+        payload:
+          specversion: '1.0'
+          id: 9d1a7c52-0b9e-4f36-a8c1-6e2b9d3f5a70
+          source: /retailnetwork/offer-availability
+          type: com.retailnetwork.commerce.offer-availability.catalogitem.CatalogItemPackLevelRetired
+          subject: item-004512
+          time: '2026-10-24T13:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:offer-availability:events:CatalogItemPackLevelRetired:v1
+          data:
+            catalogItemId: item-004512
+            level: CASE
+            gtin: '00614141000036'
+            retiredAt: '2026-10-24T13:00:00Z'
+    InboundReceiptSubmitted:
+      name: InboundReceiptSubmitted
+      title: A vendor reported what its dock received against an inbound shipment
+      summary: A vendor reported what its dock received against an inbound shipment.
+      description: Consumed. `type` = `com.retailnetwork.partner.vendor-connectivity.inboundreceipt.InboundReceiptSubmitted`; subject and key = the aggregate root id. Only the fields below are relied on;
+        unknown fields are ignored.
+      contentType: application/cloudevents+json
+      tags:
+      - name: seller-inbound
+      payload:
+        $ref: '#/components/schemas/InboundReceiptSubmittedIn'
+      examples:
+      - name: inboundReceiptSubmitted
+        summary: A vendor reported what its dock received against an inbound shipment.
+        payload:
+          specversion: '1.0'
+          id: 9d1a7c52-0b9e-4f36-a8c1-6e2b9d3f5a70
+          source: /retailnetwork/vendor-connectivity
+          type: com.retailnetwork.partner.vendor-connectivity.inboundreceipt.InboundReceiptSubmitted
+          subject: shp-0f3a91
+          time: '2026-10-24T13:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:vendor-connectivity:events:InboundReceiptSubmitted:v1
+          data:
+            transactionId: tx-01J9Z6K4M2
+            vendorId: V-WS
+            nodeId: node-0f3a91
+            shipmentId: shp-0f3a91
+            receivedAt: '2026-10-25T09:30:00Z'
+            cartons:
+            - sscc: '006141410000000012'
+              status: RECEIVED
+              items:
+              - gtin: '00614141000036'
+                qtyEaches: 12
+              complianceCodes: []
+            - sscc: 006141410000000029
+              status: DAMAGED
+              items:
+              - gtin: '00614141000036'
+                qtyEaches: 10
+              complianceCodes:
+              - CARTON_CRUSHED
+  schemas:
+    CloudEventEnvelope:
+      type: object
+      required:
+      - specversion
+      - id
+      - source
+      - type
+      - subject
+      - time
+      - datacontenttype
+      - dataschema
+      - data
+      properties:
+        specversion:
+          type: string
+          const: '1.0'
+        id:
+          type: string
+          format: uuid
+        source:
+          type: string
+        type:
+          type: string
+        subject:
+          type: string
+          description: The aggregate root id (sellerId, planId, shipmentId or the producer's own root id).
+        time:
+          type: string
+          format: date-time
+        datacontenttype:
+          type: string
+          const: application/json
+        dataschema:
+          type: string
+    PackLevel:
+      type: string
+      enum:
+      - EACH
+      - INNER
+      - CASE
+      - PALLET
+      description: Packaging level, lowest first.
+    CartonReceiptStatus:
+      type: string
+      enum:
+      - RECEIVED
+      - MISSING
+      - UNEXPECTED
+      - DAMAGED
+    PlanLine:
+      type: object
+      required:
+      - catalogItemId
+      - gtin
+      - qtyEaches
+      properties:
+        catalogItemId:
+          type: string
+        gtin:
+          type: string
+          pattern: ^[0-9]{14}$
+        qtyEaches:
+          type: integer
+          minimum: 1
+    CartonContent:
+      type: object
+      required:
+      - catalogItemId
+      - gtin
+      - qtyEaches
+      properties:
+        catalogItemId:
+          type: string
+        gtin:
+          type: string
+          pattern: ^[0-9]{14}$
+        qtyEaches:
+          type: integer
+          minimum: 1
+        lot:
+          type: string
+          maxLength: 20
+        expiry:
+          type: string
+          format: date
+    Carton:
+      type: object
+      required:
+      - sscc
+      - kind
+      - contents
+      - grossWeightG
+      - dimsMm
+      properties:
+        sscc:
+          type: string
+          pattern: ^[0-9]{18}$
+        parentSscc:
+          type: string
+          pattern: ^[0-9]{18}$
+        kind:
+          type: string
+          enum:
+          - HOMOGENEOUS_CASE
+          - MIXED
+        contents:
+          type: array
+          items:
+            $ref: '#/components/schemas/CartonContent'
+        grossWeightG:
+          type: integer
+          minimum: 1
+        dimsMm:
+          type: object
+          required:
+          - l
+          - w
+          - h
+          properties:
+            l:
+              type: integer
+            w:
+              type: integer
+            h:
+              type: integer
+    InboundLimits:
+      type: object
+      description: Optional inbound limits of the node; every field is optional.
+      properties:
+        maxCartonWeightG:
+          type: integer
+        maxCartonDimsMm:
+          type: object
+          required:
+          - l
+          - w
+          - h
+          properties:
+            l:
+              type: integer
+            w:
+              type: integer
+            h:
+              type: integer
+        acceptsPallets:
+          type: boolean
+        requiresSscc:
+          type: boolean
+    SellerOnboardedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - sellerId
+            - name
+            - onboardedAt
+            properties:
+              sellerId:
+                type: string
+              name:
+                type: string
+              onboardedAt:
+                type: string
+                format: date-time
+    SellerSuspendedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - sellerId
+            - suspendedAt
+            properties:
+              sellerId:
+                type: string
+              suspendedAt:
+                type: string
+                format: date-time
+              reason:
+                type: string
+                description: Optional; omitted when empty.
+    SellerReinstatedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - sellerId
+            - reinstatedAt
+            properties:
+              sellerId:
+                type: string
+              reinstatedAt:
+                type: string
+                format: date-time
+    InboundPlanConfirmedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - planId
+            - sellerId
+            - destinationNodeId
+            - packingOption
+            - lines
+            - confirmedAt
+            properties:
+              planId:
+                type: string
+              sellerId:
+                type: string
+              destinationNodeId:
+                type: string
+              packingOption:
+                type: string
+                enum:
+                - INDIVIDUAL
+                - CASE_PACKED
+              lines:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PlanLine'
+              confirmedAt:
+                type: string
+                format: date-time
+    InboundShipmentLabelledEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - shipmentId
+            - planId
+            - sellerId
+            - nodeId
+            - cartons
+            - labelledAt
+            properties:
+              shipmentId:
+                type: string
+              planId:
+                type: string
+              sellerId:
+                type: string
+              nodeId:
+                type: string
+              cartons:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Carton'
+              labelledAt:
+                type: string
+                format: date-time
+    InboundShipmentShippedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - shipmentId
+            - planId
+            - sellerId
+            - nodeId
+            - shippedAt
+            properties:
+              shipmentId:
+                type: string
+              planId:
+                type: string
+              sellerId:
+                type: string
+              nodeId:
+                type: string
+              shippedAt:
+                type: string
+                format: date-time
+    InboundShipmentReceivedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - shipmentId
+            - sellerId
+            - nodeId
+            - status
+            - cartons
+            - receivedAt
+            properties:
+              shipmentId:
+                type: string
+              sellerId:
+                type: string
+              nodeId:
+                type: string
+              status:
+                type: string
+                enum:
+                - CLOSED
+                - CLOSED_WITH_DISCREPANCY
+              cartons:
+                type: array
+                items:
+                  type: object
+                  required:
+                  - sscc
+                  - status
+                  properties:
+                    sscc:
+                      type: string
+                    status:
+                      $ref: '#/components/schemas/CartonReceiptStatus'
+              receivedAt:
+                type: string
+                format: date-time
+    InboundDiscrepancyRecordedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - shipmentId
+            - sellerId
+            - nodeId
+            - kind
+            - recordedAt
+            properties:
+              shipmentId:
+                type: string
+              sellerId:
+                type: string
+              nodeId:
+                type: string
+              sscc:
+                type: string
+              kind:
+                type: string
+              expected:
+                type: string
+              actual:
+                type: string
+              recordedAt:
+                type: string
+                format: date-time
+    SellerComplianceViolationRecordedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - sellerId
+            - code
+            - recordedAt
+            properties:
+              sellerId:
+                type: string
+              shipmentId:
+                type: string
+              code:
+                type: string
+              recordedAt:
+                type: string
+                format: date-time
+    NodeRegisteredIn:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - nodeId
+            - nodeType
+            properties:
+              nodeId:
+                type: string
+              nodeType:
+                type: string
+    NodeOperationalProfileDeclaredIn:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - nodeId
+            - profileRevision
+            properties:
+              nodeId:
+                type: string
+              profileRevision:
+                type: integer
+              inbound:
+                $ref: '#/components/schemas/InboundLimits'
+    NodeActivatedIn:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - nodeId
+            properties:
+              nodeId:
+                type: string
+    NodeSuspendedIn:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - nodeId
+            properties:
+              nodeId:
+                type: string
+    NodeRetiredIn:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - nodeId
+            properties:
+              nodeId:
+                type: string
+    CatalogItemPackagingDeclaredIn:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - catalogItemId
+            - level
+            - gtin
+            - unitsPerPack
+            properties:
+              catalogItemId:
+                type: string
+              level:
+                $ref: '#/components/schemas/PackLevel'
+              gtin:
+                type: string
+              childGtin:
+                type: string
+              unitsPerPack:
+                type: integer
+              declaredAt:
+                type: string
+                format: date-time
+    CatalogItemPackLevelRetiredIn:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - catalogItemId
+            - level
+            - gtin
+            properties:
+              catalogItemId:
+                type: string
+              level:
+                $ref: '#/components/schemas/PackLevel'
+              gtin:
+                type: string
+              retiredAt:
+                type: string
+                format: date-time
+    InboundReceiptSubmittedIn:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - shipmentId
+            - nodeId
+            - receivedAt
+            - cartons
+            properties:
+              shipmentId:
+                type: string
+              nodeId:
+                type: string
+              receivedAt:
+                type: string
+                format: date-time
+              cartons:
+                type: array
+                items:
+                  type: object
+                  required:
+                  - sscc
+                  - status
+                  properties:
+                    sscc:
+                      type: string
+                    status:
+                      $ref: '#/components/schemas/CartonReceiptStatus'
+                    items:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          gtin:
+                            type: string
+                          qtyEaches:
+                            type: integer
+                    complianceCodes:
+                      type: array
+                      items:
+                        type: string
