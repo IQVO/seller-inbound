@@ -242,7 +242,7 @@ func postgresAdapters(pool *pgxpool.Pool, issuer *sscc.Issuer) adapters {
 		idempotency: inboundhttp.RequireIdempotencyKey(pool, pgtx.With),
 		deps: usecases.Deps{
 			UoW: postgres.NewUnitOfWork(pool), Sellers: postgres.NewSellerRepo(pool), Plans: postgres.NewPlanRepo(pool),
-			Shipments: postgres.NewShipmentRepo(pool), Nodes: postgres.NewNodeViewRepo(pool), Packaging: postgres.NewPackagingViewRepo(pool),
+			Shipments: postgres.NewShipmentRepo(pool), Nodes: postgres.NewNodeViewRepo(pool), Scorecard: postgres.NewScorecardFacts(pool), Packaging: postgres.NewPackagingViewRepo(pool),
 			Outbox: postgres.NewEventOutbox(ob, outboundkafka.NewEncoder()), Inbox: postgres.NewProcessedEventRepo(pool),
 			Clock: clock.System{}, IDs: ids.UUID{}, SSCC: issuer,
 		},

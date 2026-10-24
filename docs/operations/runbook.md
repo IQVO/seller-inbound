@@ -5,7 +5,7 @@ a seller is onboarded, declares an inbound plan in eaches, packs cartons identif
 SSCC, has the label data produced and ships; the vendor's carton-level receipt closes the
 shipment and every discrepancy and compliance violation is recorded, never corrected.
 Sources: `README.md`, `docs/adr/0002` (aggregates), `0003` (consumed contracts),
-`0004` (event catalogue), `docs/runtime.md` (probes, shutdown, outbox).
+`0004` (event catalogue), `0005` (scorecard), `docs/runtime.md` (probes, shutdown, outbox).
 
 ## Runtime shape
 
@@ -14,7 +14,8 @@ One component, one process: the `api` Deployment runs `cmd/api` (chart
 projector or reports component). Inside that process (`cmd/api/main.go`):
 
 - REST seller API on `:8080` (`internal/adapters/inbound/http/server.go`): sellers, inbound
-  plans, inbound shipments and cartons, label data; every write behind an
+  plans, inbound shipments and cartons, label data, the seller compliance scorecard
+  (`GET /sellers/{id}/scorecard`, a pure read); every write behind an
   `Idempotency-Key` header (24h replay).
 - Transactional outbox relay draining `outbox_events` to Kafka
   (`internal/adapters/outbound/outbox/relay.go`).
@@ -143,6 +144,36 @@ change rolls the pods); secret keys come from the `seller-inbound-db` Secret.
   configured prefix (`16 - len(prefix)` digits); an exhausted range fails carton creation
   with an internal error naming `sscc serial range exhausted`. Never reset the sequence:
   issued SSCCs are recorded in `sscc_registry` and must stay unique.
+
+## Seller compliance scorecard
+
+`GET /sellers/{id}/scorecard?window=7d|30d` (default `30d`; ADR 0005) is a read over two
+tables, `seller_scorecard_receipts` (one row per closed shipment) and
+`seller_scorecard_occurrences` (one row per discrepancy or compliance violation), both
+written in the same transaction as the vendor receipt that raised them. It publishes
+nothing and changes nothing: the `complianceTier` (`GOOD`, `WATCH`, `AT_RISK`) is for people,
+and suspending a seller stays the manual `POST /sellers/{id}:suspend`.
+
+- **Reading a scorecard with a database shell.** Facts are dated by `recorded_at` (when this
+  service applied the receipt, not the vendor's `receivedAt`). A seller's last 30 days:
+  `SELECT code, count(*) FROM seller_scorecard_occurrences WHERE seller_id = '<id>' AND
+  occurrence_type = 'DISCREPANCY' AND recorded_at >= now() - interval '30 days' GROUP BY code;`
+- **`400 invalid-window`.** The `window` query value is not `7d` or `30d`. **`404 not-found`**
+  means the seller was never onboarded; a suspended seller has a scorecard.
+- **A rate is missing from the answer.** By design: no shipment closed in the window
+  (`discrepancyRatePerShipment`) or no carton was reported (`receiptAccuracyRate`). It is never
+  `0` or `NaN`.
+- **A seller looks worse (or better) than the shipments it sees.** Discrepancies count when they
+  are recorded, shipments when they close, so a partial receipt shows its discrepancies first
+  (ADR 0005 Consequences). The tier is the worst of three signals; the thresholds are the
+  constants of `internal/domain/scorecard/scorecard.go` and the table in ADR 0005 A3. Changing
+  one needs a new ADR, not a config change: there is no environment variable for it.
+- **Scorecard counts look empty after an upgrade.** Migration `0002` backfills from the
+  published events in `outbox_events`; if rows were deleted from the outbox before the upgrade,
+  those facts are not in the scorecard. Nothing else rebuilds them.
+- **Failure.** A receipt whose scorecard facts cannot be written fails as a whole (shipment,
+  outbox and inbox roll back together) and is retried by the consumer like any transient
+  database error.
 
 ## Operational actions
 

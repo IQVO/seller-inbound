@@ -22,6 +22,9 @@ info:
     - **Destination node.** The plan's node must be `ACTIVE` and have the INBOUND capability in the local view fed by node-topology events (`node-cannot-receive`).
       Cartons are checked against the node's declared inbound limits (`carton-overweight`, `carton-oversize`).
     - **Suspension.** A suspended seller creates no plan, shipment or carton and ships nothing (`seller-suspended`).
+    - **Scorecard.** `GET /sellers/{sellerId}/scorecard?window=7d|30d` answers the seller's rolling-window compliance scorecard, computed from the facts this service recorded when it applied
+      the vendor's receipts (shipments closed, cartons received, discrepancies by kind, compliance violations). It is **informational**: the derived `complianceTier` (`GOOD`, `WATCH`,
+      `AT_RISK`) suspends and blocks nothing; suspension stays the human `:suspend` command (ADR 0005). A rate whose denominator is zero is omitted, never `NaN`.
     - **No authentication** (consistent with the fleet): the seller is named in the request body and checked against its account.
     - Every state-changing `POST` takes `Idempotency-Key` (1 to 128 characters); a repeat replays the first response, a different body under the same key is `idempotency-key-reused`.
     - Errors are RFC 9457 `application/problem+json`; the shared problem types are `not-found` 404, `illegal-transition` 409, `concurrent-update` 409 and
@@ -38,7 +41,7 @@ servers:
 - url: http://localhost:8000/api/retail-network/seller-inbound
 tags:
 - name: Sellers
-  description: Seller onboarding, suspension and reinstatement (network partner managers).
+  description: Seller onboarding, suspension and reinstatement (network partner managers), and the seller's informational compliance scorecard.
 - name: Inbound Plans
   description: What a seller will send, to which node, in eaches.
 - name: Inbound Shipments
@@ -143,6 +146,69 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/StateConflict'
+  /sellers/{sellerId}/scorecard:
+    get:
+      tags:
+      - Sellers
+      operationId: getSellerScorecard
+      summary: Get a seller's compliance scorecard (GetSellerScorecard)
+      description: |
+        The seller's compliance scorecard over a rolling window that ends now, derived from this service's own facts (ADR 0005): the shipments that closed in the window, the
+        cartons they reported and how many were `RECEIVED`, the discrepancies recorded by kind, and the compliance violations recorded. Facts are dated by the instant this service
+        recorded them, not by the `receivedAt` the vendor reports.
+
+        `receiptAccuracyRate` is `cartonsReceived / cartonsReported` and is omitted when no carton was reported; `discrepancyRatePerShipment` is the discrepancies recorded divided by
+        `shipmentsReceived` and is omitted when no shipment closed. Rates are rounded to four decimals.
+
+        `complianceTier` is the worst of three signals (thresholds are declared in code and in ADR 0005 A3): `AT_RISK` when `receiptAccuracyRate` is below 0.90, `discrepancyRatePerShipment`
+        is 2.0 or more, or there are 5 or more violations; otherwise `WATCH` when the rate is below 0.98, the discrepancy rate is 0.5 or more, or there is at least 1 violation; otherwise `GOOD`.
+        The tier is **informational**: it changes nothing about the seller, who stays `ACTIVE` or `SUSPENDED` by the human commands only. A suspended seller has a scorecard too.
+        The read publishes no event.
+      parameters:
+      - $ref: '#/components/parameters/SellerIdPath'
+      - $ref: '#/components/parameters/ScorecardWindow'
+      responses:
+        '200':
+          description: The seller's scorecard.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SellerScorecard'
+              examples:
+                withDiscrepancies:
+                  summary: A seller with a short carton and a damaged carton
+                  value:
+                    sellerId: seller-77
+                    window: 30d
+                    windowStart: '2026-09-24T13:00:00Z'
+                    windowEnd: '2026-10-24T13:00:00Z'
+                    shipmentsReceived: 4
+                    cartonsReported: 40
+                    cartonsReceived: 38
+                    receiptAccuracyRate: 0.95
+                    discrepancyRatePerShipment: 0.75
+                    discrepanciesByKind:
+                      Damaged: 1
+                      Short: 2
+                    complianceViolations: 1
+                    complianceTier: WATCH
+                noShipments:
+                  summary: A seller with no closed shipment in the window; the rates are omitted
+                  value:
+                    sellerId: seller-78
+                    window: 7d
+                    windowStart: '2026-10-17T13:00:00Z'
+                    windowEnd: '2026-10-24T13:00:00Z'
+                    shipmentsReceived: 0
+                    cartonsReported: 0
+                    cartonsReceived: 0
+                    discrepanciesByKind: {}
+                    complianceViolations: 0
+                    complianceTier: GOOD
+        '400':
+          $ref: '#/components/responses/InvalidWindow'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /inbound-plans:
     post:
       tags:
@@ -589,6 +655,18 @@ components:
       schema:
         type: string
       example: shp-0f3a91
+    ScorecardWindow:
+      name: window
+      in: query
+      required: false
+      description: The rolling window that ends now. Defaults to `30d`. Any other value is `invalid-window`.
+      schema:
+        type: string
+        enum:
+        - 7d
+        - 30d
+        default: 30d
+      example: 30d
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -606,6 +684,18 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
+    InvalidWindow:
+      description: The `window` query value is not `7d` or `30d` (`invalid-window`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: invalid-window
+            title: The window must be 7d or 30d
+            status: 400
+            detail: 'validation failed: window: "90d" (use 7d or 30d)'
+            instance: /sellers/seller-77/scorecard
     StateConflict:
       description: 'The write conflicts with the state of a resource. Problem types: `seller-exists`, `seller-suspended` (`ErrSellerSuspended`), `node-cannot-receive` (`ErrNodeCannotReceive`), `sscc-not-unique`
         (`ErrSsccNotUnique`), `shipment-not-labelled` (`ErrShipmentNotLabelled`), `illegal-transition` and `concurrent-update` (optimistic-concurrency conflict; re-read and retry).'
@@ -701,6 +791,88 @@ components:
         suspendReason:
           type: string
           example: repeated label violations
+    SellerScorecard:
+      type: object
+      description: The informational compliance scorecard of a seller over a rolling window (ADR 0005). Additive; no event carries it.
+      required:
+      - sellerId
+      - window
+      - windowStart
+      - windowEnd
+      - shipmentsReceived
+      - cartonsReported
+      - cartonsReceived
+      - discrepanciesByKind
+      - complianceViolations
+      - complianceTier
+      properties:
+        sellerId:
+          type: string
+          example: seller-77
+        window:
+          type: string
+          enum:
+          - 7d
+          - 30d
+          example: 30d
+        windowStart:
+          type: string
+          format: date-time
+          description: The start of the window (inclusive).
+          example: '2026-09-24T13:00:00Z'
+        windowEnd:
+          type: string
+          format: date-time
+          description: The end of the window (inclusive); the instant the scorecard was computed.
+          example: '2026-10-24T13:00:00Z'
+        shipmentsReceived:
+          type: integer
+          minimum: 0
+          description: Shipments that closed (`CLOSED` or `CLOSED_WITH_DISCREPANCY`) in the window.
+          example: 4
+        cartonsReported:
+          type: integer
+          minimum: 0
+          description: Cartons the closing receipts reported, whatever their status.
+          example: 40
+        cartonsReceived:
+          type: integer
+          minimum: 0
+          description: Of those, the cartons with status `RECEIVED`.
+          example: 38
+        receiptAccuracyRate:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: '`cartonsReceived / cartonsReported`, four decimals. Omitted when `cartonsReported` is 0.'
+          example: 0.95
+        discrepancyRatePerShipment:
+          type: number
+          minimum: 0
+          description: Discrepancies recorded in the window divided by `shipmentsReceived`, four decimals. Omitted when `shipmentsReceived` is 0.
+          example: 0.75
+        discrepanciesByKind:
+          type: object
+          description: Discrepancies recorded in the window per kind. The kind is the carton discrepancy kind string passed through (`MissingCarton`, `UnexpectedCarton`, `Damaged`, `Short`, `Over`); an open vocabulary. Always present, empty when there is none.
+          additionalProperties:
+            type: integer
+            minimum: 1
+          example:
+            Damaged: 1
+            Short: 2
+        complianceViolations:
+          type: integer
+          minimum: 0
+          description: Compliance violations recorded in the window.
+          example: 1
+        complianceTier:
+          type: string
+          description: Derived, informational. The worst of three signals; it suspends and blocks nothing.
+          enum:
+          - GOOD
+          - WATCH
+          - AT_RISK
+          example: WATCH
     PlanLine:
       type: object
       description: One line of an inbound plan, in eaches.

@@ -7,6 +7,7 @@ import (
 	"github.com/claudioed/seller-inbound/internal/application/ports"
 	"github.com/claudioed/seller-inbound/internal/domain/inboundshipment"
 	"github.com/claudioed/seller-inbound/internal/domain/network"
+	"github.com/claudioed/seller-inbound/internal/domain/scorecard"
 	"github.com/claudioed/seller-inbound/internal/domain/seller"
 	"github.com/claudioed/seller-inbound/internal/domain/shared"
 )
@@ -43,6 +44,7 @@ var problemCatalogue = []struct {
 	err error
 	p   problem
 }{
+	{scorecard.ErrInvalidWindow, problem{http.StatusBadRequest, "invalid-window", "The window must be 7d or 30d"}},
 	{errMalformedRequest, problem{http.StatusUnprocessableEntity, "validation-failed", "Validation failed"}},
 	{shared.ErrValidation, problem{http.StatusUnprocessableEntity, "validation-failed", "Validation failed"}},
 	{inboundshipment.ErrCasePackNotUniform, problem{http.StatusUnprocessableEntity, "case-pack-not-uniform", "A case-packed carton holds one item at one quantity"}},

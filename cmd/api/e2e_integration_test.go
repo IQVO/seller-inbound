@@ -614,6 +614,46 @@ func phaseAnalytics(t *testing.T, w *world) {
 	}
 }
 
+// Phase 5b: the scorecard is computed from the facts the receipt recorded, on real Postgres,
+// reading it publishes nothing, and the tier it derives (AT_RISK here) suspends nobody.
+func phaseScorecard(t *testing.T, s *service, w *world) {
+	t.Helper()
+	outbox := w.db.count(`SELECT count(*) FROM outbox_events`)
+	body := s.call(http.MethodGet, "/sellers/seller-77/scorecard?window=7d", "", "", http.StatusOK)
+	var sc struct {
+		Window                     string         `json:"window"`
+		ShipmentsReceived          int            `json:"shipmentsReceived"`
+		CartonsReported            int            `json:"cartonsReported"`
+		CartonsReceived            int            `json:"cartonsReceived"`
+		ReceiptAccuracyRate        *float64       `json:"receiptAccuracyRate"`
+		DiscrepancyRatePerShipment *float64       `json:"discrepancyRatePerShipment"`
+		DiscrepanciesByKind        map[string]int `json:"discrepanciesByKind"`
+		ComplianceViolations       int            `json:"complianceViolations"`
+		ComplianceTier             string         `json:"complianceTier"`
+	}
+	mustDecode(t, body, &sc)
+	if sc.Window != "7d" || sc.ShipmentsReceived != 1 || sc.CartonsReported != 2 || sc.CartonsReceived != 1 ||
+		sc.ReceiptAccuracyRate == nil || *sc.ReceiptAccuracyRate != 0.5 || sc.DiscrepancyRatePerShipment == nil || *sc.DiscrepancyRatePerShipment != 2 ||
+		sc.DiscrepanciesByKind["Damaged"] != 1 || sc.DiscrepanciesByKind["Short"] != 1 || len(sc.DiscrepanciesByKind) != 2 ||
+		sc.ComplianceViolations != 1 || sc.ComplianceTier != "AT_RISK" {
+		t.Fatalf("scorecard = %s", body)
+	}
+	if n := w.db.count(`SELECT count(*) FROM seller_scorecard_receipts WHERE seller_id = 'seller-77'`); n != 1 {
+		t.Fatalf("%d scorecard receipt rows, want 1 (the duplicate receipt event must not count twice)", n)
+	}
+	if n := w.db.count(`SELECT count(*) FROM seller_scorecard_occurrences WHERE seller_id = 'seller-77'`); n != 3 {
+		t.Fatalf("%d scorecard occurrence rows, want 3", n)
+	}
+	assertProblem(t, s.call(http.MethodGet, "/sellers/seller-77/scorecard?window=90d", "", "", http.StatusBadRequest), "invalid-window")
+	assertProblem(t, s.call(http.MethodGet, "/sellers/ghost/scorecard", "", "", http.StatusNotFound), "not-found")
+	if n := w.db.count(`SELECT count(*) FROM outbox_events`); n != outbox {
+		t.Fatalf("reading the scorecard wrote %d outbox rows", n-outbox)
+	}
+	if n := w.db.count(`SELECT count(*) FROM sellers WHERE seller_id = 'seller-77' AND state = 'ACTIVE'`); n != 1 {
+		t.Fatal("an AT_RISK tier must leave the seller ACTIVE")
+	}
+}
+
 // Phase 6: /readyz follows Kafka going away and the service exits so the orchestrator restarts it.
 func phaseKafkaGoesAway(t *testing.T, s *service, w *world) {
 	t.Helper()
@@ -665,5 +705,6 @@ func TestRunOnRealPostgresAndKafka(t *testing.T) {
 	phasePublished(t, w)
 	phaseReceipt(t, s, w)
 	phaseAnalytics(t, w)
+	phaseScorecard(t, s, w)
 	phaseKafkaGoesAway(t, s, w)
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/cucumber/godog"
 )
@@ -133,6 +134,10 @@ func registerWhen(sc *godog.ScenarioContext, w *world) {
 				return err
 			}
 		}
+		return nil
+	})
+	sc.Step(`^the service clock advances (\d+) days?$`, func(days int) error {
+		w.clock.Advance(time.Duration(days) * 24 * time.Hour)
 		return nil
 	})
 	sc.Step(`^the vendor reports a receipt for the unknown shipment "([^"]*)"$`, func(id string) error {

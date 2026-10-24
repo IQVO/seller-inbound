@@ -51,6 +51,7 @@ var start = time.Date(2026, 10, 24, 13, 0, 0, 0, time.UTC)
 type world struct {
 	server *httptest.Server
 	store  *memory.Store
+	clock  *memory.Clock
 	svc    *usecases.Service
 	nodes  *inboundkafka.Consumer
 	catalg *inboundkafka.Consumer
@@ -70,10 +71,11 @@ func newWorld() *world {
 	w := &world{}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	w.store = memory.NewStore()
+	w.clock = memory.NewClock(start)
 	s := w.store
 	w.svc = usecases.New(usecases.Deps{
-		UoW: s.UnitOfWork(), Sellers: s.Sellers(), Plans: s.Plans(), Shipments: s.Shipments(), Nodes: s.Nodes(), Packaging: s.Packaging(),
-		Outbox: s.Outbox(), Inbox: s.Inbox(), Clock: memory.NewClock(start), IDs: &memory.SequentialIDs{}, SSCC: &memory.SsccIssuer{},
+		UoW: s.UnitOfWork(), Sellers: s.Sellers(), Plans: s.Plans(), Shipments: s.Shipments(), Nodes: s.Nodes(), Scorecard: s.Scorecard(), Packaging: s.Packaging(),
+		Outbox: s.Outbox(), Inbox: s.Inbox(), Clock: w.clock, IDs: &memory.SequentialIDs{}, SSCC: &memory.SsccIssuer{},
 	}, usecases.Config{Logger: logger})
 	w.nodes = &inboundkafka.Consumer{Name: "node", Topic: "nodes", Handlers: inboundkafka.NodeHandlers(w.svc), Logger: logger}
 	w.catalg = &inboundkafka.Consumer{Name: "catalog", Topic: "catalog", Handlers: inboundkafka.CatalogHandlers(w.svc), Logger: logger}

@@ -32,6 +32,7 @@ type Deps struct {
 	Plans     ports.PlanRepository
 	Shipments ports.ShipmentRepository
 	Nodes     ports.NodeViewRepository
+	Scorecard ports.ScorecardFacts
 	Packaging ports.PackagingViewRepository
 	Outbox    ports.EventOutbox
 	Inbox     ports.ProcessedEvents
