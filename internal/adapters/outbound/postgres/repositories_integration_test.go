@@ -131,6 +131,15 @@ func TestShipmentRepoRoundTripRegistryAndConcurrency(t *testing.T) {
 	if err != nil || len(got.Cartons()) != 1 || got.Cartons()[0].Contents[0].Lot != "L1" || got.Cartons()[0].Dims.L != 10 {
 		t.Fatalf("%v %+v", err, got)
 	}
+}
+
+func TestShipmentRepoRefusesATakenSsccAndKeepsLabelledState(t *testing.T) {
+	ctx := context.Background()
+	repo := postgres.NewShipmentRepo(pgtest.NewPool(t))
+	got := newShipment(t, repo, "shp-1", mustSSCC(t, "0001"))
+	if err := repo.Save(ctx, got); err != nil {
+		t.Fatal(err)
+	}
 	// another shipment cannot register an SSCC that is taken
 	b := newShipment(t, repo, "shp-2", mustSSCC(t, "0001"))
 	if err := repo.Save(ctx, b); !errors.Is(err, ports.ErrSsccTaken) {
@@ -150,7 +159,25 @@ func TestShipmentRepoRoundTripRegistryAndConcurrency(t *testing.T) {
 	if err != nil || len(list) != 2 || list[0].State() != inboundshipment.Labelled || list[1].State() != inboundshipment.Draft {
 		t.Fatalf("%v %+v", err, list)
 	}
-	// stale writers
+}
+
+func TestShipmentRepoRejectsStaleWriters(t *testing.T) {
+	ctx := context.Background()
+	repo := postgres.NewShipmentRepo(pgtest.NewPool(t))
+	first := newShipment(t, repo, "shp-1", mustSSCC(t, "0001"))
+	if err := repo.Save(ctx, first); err != nil {
+		t.Fatal(err)
+	}
+	first, err := repo.Get(ctx, "shp-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := first.Label(inboundshipment.PlanRules{}, t0.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Save(ctx, first); err != nil {
+		t.Fatal(err)
+	}
 	stale, _ := repo.Get(ctx, "shp-1")
 	fresh, _ := repo.Get(ctx, "shp-1")
 	_, _ = fresh.Ship(t0.Add(2 * time.Hour))
@@ -224,6 +251,11 @@ func TestViewReposAndInbox(t *testing.T) {
 		t.Fatal(err)
 	}
 
+}
+
+func TestPackagingViewRepoAndInbox(t *testing.T) {
+	ctx := context.Background()
+	pool := pgtest.NewPool(t)
 	pk := postgres.NewPackagingViewRepo(pool)
 	row := network.PackLevel{CatalogItemID: "item-1", Level: network.Case, GTIN: "00614141000036", ChildGTIN: "00614141000012", UnitsPerPack: 12, Active: true, DeclaredAt: t0}
 	_ = pk.Save(ctx, row)
