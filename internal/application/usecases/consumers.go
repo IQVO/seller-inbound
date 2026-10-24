@@ -9,6 +9,7 @@ import (
 	"github.com/claudioed/seller-inbound/internal/application/requests"
 	"github.com/claudioed/seller-inbound/internal/domain/inboundshipment"
 	"github.com/claudioed/seller-inbound/internal/domain/network"
+	"github.com/claudioed/seller-inbound/internal/domain/scorecard"
 	"github.com/claudioed/seller-inbound/internal/domain/shared"
 	"github.com/claudioed/seller-inbound/internal/domain/shared/gs1"
 )
@@ -172,7 +173,11 @@ func (s *Service) ApplyInboundReceipt(ctx context.Context, eventID string, in re
 		if err := s.d.Shipments.Save(ctx, sh); err != nil {
 			return mapSave(err)
 		}
-		return s.d.Outbox.Append(ctx, evs...)
+		if err := s.d.Outbox.Append(ctx, evs...); err != nil {
+			return err
+		}
+		// The scorecard facts are the events just appended, recorded in the same unit.
+		return s.d.Scorecard.Record(ctx, scorecard.FactsFrom(evs))
 	})
 }
 

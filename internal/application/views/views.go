@@ -102,3 +102,20 @@ type Labels struct {
 	DestinationNodeID string
 	Labels            []Label
 }
+
+// SellerScorecard is the informational compliance scorecard of a seller over a
+// rolling window. A rate is nil when its denominator is zero.
+type SellerScorecard struct {
+	SellerID                   string
+	Window                     string
+	WindowStart                time.Time
+	WindowEnd                  time.Time
+	ShipmentsReceived          int
+	CartonsReported            int
+	CartonsReceived            int
+	ReceiptAccuracyRate        *float64
+	DiscrepancyRatePerShipment *float64
+	DiscrepanciesByKind        map[string]int
+	ComplianceViolations       int
+	ComplianceTier             string
+}

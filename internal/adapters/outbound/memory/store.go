@@ -26,6 +26,7 @@ import (
 	"github.com/claudioed/seller-inbound/internal/domain/inboundplan"
 	"github.com/claudioed/seller-inbound/internal/domain/inboundshipment"
 	"github.com/claudioed/seller-inbound/internal/domain/network"
+	"github.com/claudioed/seller-inbound/internal/domain/scorecard"
 	"github.com/claudioed/seller-inbound/internal/domain/seller"
 	"github.com/claudioed/seller-inbound/internal/domain/shared"
 )
@@ -38,6 +39,7 @@ var (
 	_ ports.NodeViewRepository      = (*NodeViewRepository)(nil)
 	_ ports.PackagingViewRepository = (*PackagingViewRepository)(nil)
 	_ ports.ProcessedEvents         = (*Inbox)(nil)
+	_ ports.ScorecardFacts          = (*ScorecardFacts)(nil)
 	_ ports.EventOutbox             = (*Outbox)(nil)
 	_ ports.UnitOfWork              = (*UnitOfWork)(nil)
 	_ ports.Clock                   = (*Clock)(nil)
@@ -62,6 +64,8 @@ type Store struct {
 	packaging map[packKey]network.PackLevel
 	inbox     map[string]string
 	outbox    []shared.Event
+	receipts  map[string]scorecard.Receipt
+	occurs    []scorecard.Occurrence
 }
 
 // NewStore returns an empty store.
@@ -70,6 +74,7 @@ func NewStore() *Store {
 		sellers: map[seller.ID]seller.Snapshot{}, plans: map[inboundplan.ID]inboundplan.Snapshot{},
 		shipments: map[inboundshipment.ID]inboundshipment.Snapshot{}, sscc: map[string]inboundshipment.ID{},
 		nodes: map[string]network.Node{}, packaging: map[packKey]network.PackLevel{}, inbox: map[string]string{},
+		receipts: map[string]scorecard.Receipt{},
 	}
 }
 
@@ -84,6 +89,8 @@ type state struct {
 	packaging map[packKey]network.PackLevel
 	inbox     map[string]string
 	outbox    []shared.Event
+	receipts  map[string]scorecard.Receipt
+	occurs    []scorecard.Occurrence
 }
 
 func cloneMap[K comparable, V any](m map[K]V) map[K]V {
@@ -96,12 +103,14 @@ func cloneMap[K comparable, V any](m map[K]V) map[K]V {
 
 func (s *Store) capture() state {
 	return state{sellers: cloneMap(s.sellers), plans: cloneMap(s.plans), shipments: cloneMap(s.shipments), sscc: cloneMap(s.sscc),
-		nodes: cloneMap(s.nodes), packaging: cloneMap(s.packaging), inbox: cloneMap(s.inbox), outbox: slices.Clone(s.outbox)}
+		nodes: cloneMap(s.nodes), packaging: cloneMap(s.packaging), inbox: cloneMap(s.inbox), outbox: slices.Clone(s.outbox),
+		receipts: cloneMap(s.receipts), occurs: slices.Clone(s.occurs)}
 }
 
 func (s *Store) restore(st state) {
 	s.sellers, s.plans, s.shipments, s.sscc = st.sellers, st.plans, st.shipments, st.sscc
 	s.nodes, s.packaging, s.inbox, s.outbox = st.nodes, st.packaging, st.inbox, st.outbox
+	s.receipts, s.occurs = st.receipts, st.occurs
 }
 
 // txKey marks a ctx that carries the open unit of work of one store.
@@ -120,6 +129,8 @@ func (s *Store) enter(ctx context.Context) func() {
 // Counts is how many rows each table of the store holds.
 type Counts struct {
 	Sellers, Plans, Shipments, Nodes, Packaging, Inbox, OutboxEvents, Ssccs int
+	// ScorecardReceipts and ScorecardOccurrences are the scorecard fact rows.
+	ScorecardReceipts, ScorecardOccurrences int
 	// VersionSum is the sum of every aggregate version: any saved change moves it.
 	VersionSum int64
 }
@@ -130,7 +141,8 @@ func (s *Store) Counts() Counts {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	c := Counts{Sellers: len(s.sellers), Plans: len(s.plans), Shipments: len(s.shipments), Nodes: len(s.nodes),
-		Packaging: len(s.packaging), Inbox: len(s.inbox), OutboxEvents: len(s.outbox), Ssccs: len(s.sscc)}
+		Packaging: len(s.packaging), Inbox: len(s.inbox), OutboxEvents: len(s.outbox), Ssccs: len(s.sscc),
+		ScorecardReceipts: len(s.receipts), ScorecardOccurrences: len(s.occurs)}
 	for _, v := range s.sellers {
 		c.VersionSum += v.Version
 	}
@@ -474,4 +486,49 @@ func checkDigit(payload string) int {
 		sum += d
 	}
 	return (10 - sum%10) % 10
+}
+
+// Scorecard returns the ScorecardFacts double.
+func (s *Store) Scorecard() *ScorecardFacts { return &ScorecardFacts{s} }
+
+// ScorecardFacts is the in-memory ports.ScorecardFacts. It follows the SQL
+// contract of the Postgres adapter: a closed shipment is kept once, a window
+// is inclusive on both ends.
+type ScorecardFacts struct{ s *Store }
+
+// Record appends the facts.
+func (f *ScorecardFacts) Record(ctx context.Context, facts scorecard.Facts) error {
+	defer f.s.enter(ctx)()
+	for _, r := range facts.Receipts {
+		if _, kept := f.s.receipts[r.ShipmentID]; !kept {
+			f.s.receipts[r.ShipmentID] = r
+		}
+	}
+	f.s.occurs = append(f.s.occurs, facts.Occurrences...)
+	return nil
+}
+
+// Counts sums the seller's facts recorded in [since, until].
+func (f *ScorecardFacts) Counts(ctx context.Context, sellerID string, since, until time.Time) (scorecard.Counts, error) {
+	defer f.s.enter(ctx)()
+	in := func(at time.Time) bool { return !at.Before(since) && !at.After(until) }
+	out := scorecard.Counts{Discrepancies: map[string]int{}}
+	for _, r := range f.s.receipts {
+		if r.SellerID == sellerID && in(r.At) {
+			out.ShipmentsReceived++
+			out.CartonsReported += r.CartonsReported
+			out.CartonsReceived += r.CartonsReceived
+		}
+	}
+	for _, o := range f.s.occurs {
+		if o.SellerID != sellerID || !in(o.At) {
+			continue
+		}
+		if o.Type == scorecard.Discrepancy {
+			out.Discrepancies[o.Code]++
+		} else {
+			out.Violations++
+		}
+	}
+	return out, nil
 }

@@ -32,7 +32,7 @@ func newFixture(t *testing.T) *fixture {
 	t.Helper()
 	s := memory.NewStore()
 	svc := usecases.New(usecases.Deps{
-		UoW: s.UnitOfWork(), Sellers: s.Sellers(), Plans: s.Plans(), Shipments: s.Shipments(), Nodes: s.Nodes(), Packaging: s.Packaging(),
+		UoW: s.UnitOfWork(), Sellers: s.Sellers(), Plans: s.Plans(), Shipments: s.Shipments(), Nodes: s.Nodes(), Scorecard: s.Scorecard(), Packaging: s.Packaging(),
 		Outbox: s.Outbox(), Inbox: s.Inbox(), Clock: memory.NewClock(t0), IDs: &memory.SequentialIDs{}, SSCC: &memory.SsccIssuer{},
 	}, usecases.Config{Logger: testLogger()})
 	return &fixture{store: s, svc: svc, dlq: &fakeDLQWriter{}}

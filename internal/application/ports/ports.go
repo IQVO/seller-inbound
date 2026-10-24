@@ -16,6 +16,7 @@ import (
 	"github.com/claudioed/seller-inbound/internal/domain/inboundplan"
 	"github.com/claudioed/seller-inbound/internal/domain/inboundshipment"
 	"github.com/claudioed/seller-inbound/internal/domain/network"
+	"github.com/claudioed/seller-inbound/internal/domain/scorecard"
 	"github.com/claudioed/seller-inbound/internal/domain/seller"
 	"github.com/claudioed/seller-inbound/internal/domain/shared"
 )
@@ -64,6 +65,19 @@ type PackagingViewRepository interface {
 	Save(ctx context.Context, p network.PackLevel) error
 	// ListByItem returns every row of the catalogue item, active or not.
 	ListByItem(ctx context.Context, catalogItemID string) ([]network.PackLevel, error)
+}
+
+// ScorecardFacts stores and sums the facts of the seller compliance scorecard
+// (ADR 0005): one row per closed shipment and one per discrepancy or compliance
+// violation, written from the events a receipt raised.
+type ScorecardFacts interface {
+	// Record appends the facts. Called with the ctx handed to UnitOfWork.Do it
+	// joins the SAME transaction as the shipment save and the outbox append.
+	// Recording a closed shipment twice keeps the first row. No facts is a no-op.
+	Record(ctx context.Context, f scorecard.Facts) error
+	// Counts sums the seller's facts recorded in [since, until], both inclusive.
+	// A seller with no facts answers zero counts and a non-nil empty map.
+	Counts(ctx context.Context, sellerID string, since, until time.Time) (scorecard.Counts, error)
 }
 
 // EventOutbox is the write side of the transactional outbox. Called with the
