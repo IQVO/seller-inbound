@@ -1,0 +1,12 @@
+apiVersion: v2
+name: seller-inbound
+description: Seller Inbound - the seller-facing front door for stock coming into the retail network (SellerAccount, InboundPlan, InboundShipment with SSCC-labelled cartons); publishes events on retailnetwork.seller-inbound.events
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/IQVO/seller-inbound
+keywords:
+  - ddd
+  - hexagonal-architecture
+  - retail-network
+  - golang

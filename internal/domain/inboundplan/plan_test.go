@@ -87,6 +87,16 @@ func TestCreateValidation(t *testing.T) {
 	if _, err := newPlan(t, ok); err != nil {
 		t.Errorf("ceiling is inclusive: %v", err)
 	}
+	exactly := func(in *NewPlan) { in.Lines = many[:MaxLines] }
+	if _, err := newPlan(t, exactly); err != nil {
+		t.Errorf("MaxLines lines are allowed: %v", err)
+	}
+	one := func(in *NewPlan) {
+		in.Lines = []Line{{CatalogItemID: "item-1", GTIN: gtin(t, "0614141000012"), QtyEaches: 1}}
+	}
+	if _, err := newPlan(t, one); err != nil {
+		t.Errorf("one line of one each is allowed: %v", err)
+	}
 	if !Individual.Valid() || !CasePacked.Valid() || PackingOption("").Valid() {
 		t.Error("PackingOption.Valid")
 	}

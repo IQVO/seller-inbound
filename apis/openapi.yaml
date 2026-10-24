@@ -26,8 +26,8 @@ info:
     - Every state-changing `POST` takes `Idempotency-Key` (1 to 128 characters); a repeat replays the first response, a different body under the same key is `idempotency-key-reused`.
     - Errors are RFC 9457 `application/problem+json`; the shared problem types are `not-found` 404, `illegal-transition` 409, `concurrent-update` 409 and
       `validation-failed` 422, plus one slug per model `Err...` name.
-    - Commands that find the state already in effect (suspend of a suspended seller, confirm of a confirmed plan, label of a labelled shipment) answer `200` with the
-      resource and publish no event (ADR 0002 A3).
+    - Suspending a suspended seller and reinstating an active one answer `200` with the account and publish no event (ADR 0002 A3). Every other command finds the state it
+      needs or answers `illegal-transition`.
     - Events (AsyncAPI `apis/asyncapi.yaml`): `InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived` on the events topic; the other six on the analytics topic.
   contact:
     name: seller-inbound maintainers
@@ -227,8 +227,7 @@ paths:
       - Inbound Plans
       operationId: confirmInboundPlan
       summary: Confirm an inbound plan (ConfirmInboundPlan)
-      description: Moves a `DRAFT` plan to `CONFIRMED` and publishes `InboundPlanConfirmed`. Shipments are opened only against a confirmed plan. Confirming a confirmed plan answers `200` and publishes nothing;
-        a cancelled plan is `illegal-transition`.
+      description: Moves a `DRAFT` plan to `CONFIRMED` and publishes `InboundPlanConfirmed`. Shipments are opened only against a confirmed plan. Confirming a confirmed or cancelled plan is `illegal-transition`.
       parameters:
       - $ref: '#/components/parameters/PlanIdPath'
       - $ref: '#/components/parameters/IdempotencyKey'
@@ -261,7 +260,7 @@ paths:
       - Inbound Plans
       operationId: cancelInboundPlan
       summary: Cancel an inbound plan (CancelInboundPlan)
-      description: Moves a `DRAFT` plan to `CANCELLED`. A confirmed plan cannot be cancelled (`illegal-transition`); cancelling a cancelled plan answers `200`.
+      description: Moves a `DRAFT` plan to `CANCELLED`. Only a `DRAFT` plan can be cancelled (`illegal-transition` otherwise).
       parameters:
       - $ref: '#/components/parameters/PlanIdPath'
       - $ref: '#/components/parameters/IdempotencyKey'
@@ -401,7 +400,7 @@ paths:
       operationId: labelInboundShipment
       summary: Label an inbound shipment (LabelShipment)
       description: 'Moves a `DRAFT` shipment to `LABELLED`: the cartons must add up to the confirmed plan (`carton-contents-mismatch-plan`) and the manifest is frozen. Publishes `InboundShipmentLabelled`.
-        Labelling a labelled shipment answers `200` and publishes nothing.'
+        Only a `DRAFT` shipment can be labelled (`illegal-transition` otherwise).'
       parameters:
       - $ref: '#/components/parameters/ShipmentIdPath'
       - $ref: '#/components/parameters/IdempotencyKey'
@@ -485,7 +484,7 @@ paths:
       operationId: shipInboundShipment
       summary: Ship an inbound shipment (ShipInboundShipment)
       description: Moves a `LABELLED` shipment to `SHIPPED` and publishes `InboundShipmentShipped`. A shipment that is not labelled is `shipment-not-labelled`; a suspended seller ships nothing (`seller-suspended`).
-        Shipping a shipped shipment answers `200` and publishes nothing.
+        Only a `LABELLED` shipment ships.
       parameters:
       - $ref: '#/components/parameters/ShipmentIdPath'
       - $ref: '#/components/parameters/IdempotencyKey'

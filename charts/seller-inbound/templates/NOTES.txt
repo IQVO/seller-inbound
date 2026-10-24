@@ -1,0 +1,28 @@
+{{ .Chart.Name }} has been deployed.
+
+Release:   {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+Service:   {{ include "seller-inbound.fullname" . }} ({{ .Values.service.type }}, port {{ .Values.service.port }})
+
+{{- if .Values.ingress.enabled }}
+{{- range .Values.ingress.hosts }}
+Ingress:   http://{{ .host }}{{ (index .paths 0).path }}
+{{- end }}
+{{- else if .Values.gatewayApi.enabled }}
+Gateway API HTTPRoute enabled: routed via the parentRefs/hosts configured
+in gatewayApi.*.
+{{- else }}
+To reach it locally:
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "seller-inbound.fullname" . }} 8080:{{ .Values.service.port }}
+  curl http://localhost:8080/healthz
+{{- end }}
+
+Inbound shipment events are relayed from the transactional outbox onto
+retailnetwork.seller-inbound.events ({{ .Values.kafka.brokers }}); Postgres and Kafka are
+the only runtime.
+
+The three consumers are ON, each under its stable group id:
+  node-topology       group {{ .Values.config.nodeConsumerGroup }}
+  offer-availability  group {{ .Values.config.catalogConsumerGroup }} (packaging)
+  vendor-connectivity group {{ .Values.config.receiptConsumerGroup }} (receipts)
