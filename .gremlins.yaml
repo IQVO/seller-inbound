@@ -27,5 +27,9 @@ unleash:
     # differs. See HARNESS.md's mutation-testing section for the
     # tagless-switch-under-reports pitfall before assuming a low number
     # means missing tests.
-    efficacy: "0"
-    mutant-coverage: "0"
+    # Measured 2026-10-24, `gremlins unleash` per package: inboundplan, network, seller and shared
+    # report efficacy 100.00% and mutator coverage 100.00%; inboundshipment reports 99.23% and
+    # 100.00% (one surviving mutant, CONDITIONALS_BOUNDARY at receipt.go:195, is equivalent:
+    # the receipt normalisation already drops zero-quantity items, so `> 0` and `>= 0` behave alike).
+    efficacy: "99"
+    mutant-coverage: "99"
