@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS idempotency_keys;
+DROP TABLE IF EXISTS processed_events;
+DROP TABLE IF EXISTS outbox_events;
+DROP TABLE IF EXISTS catalog_pack_levels;
+DROP TABLE IF EXISTS node_inbound_views;
+DROP SEQUENCE IF EXISTS sscc_serial_seq;
+DROP TABLE IF EXISTS sscc_registry;
+DROP TABLE IF EXISTS inbound_shipments;
+DROP TABLE IF EXISTS inbound_plans;
+DROP TABLE IF EXISTS sellers;
