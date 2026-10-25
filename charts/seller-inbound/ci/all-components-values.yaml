@@ -1,6 +1,6 @@
 # Used by `helm lint` / `ct lint`: every optional value and component set at
-# once (api + mcp, plus the optional gateway routes and the api HPA). Dummy
-# values, no password.
+# once (api + mcp + frontend, plus the optional gateway routes and the api
+# HPA). Dummy values, no password.
 database:
   existingSecret: "seller-inbound-db"
   migrationsExistingSecretKey: "MIGRATIONS_DATABASE_URL"
@@ -36,3 +36,5 @@ mcp:
       - name: warehouse-gateway
         namespace: kong
         sectionName: http
+frontend:
+  enabled: true

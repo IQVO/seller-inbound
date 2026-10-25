@@ -182,6 +182,12 @@ default_render="$(helm template "$release" "$chart_dir" "${base[@]}")"
 if grep -q 'app.kubernetes.io/component: mcp$' <<<"$default_render"; then
   fail "the mcp component must not render while mcp.enabled is false"
 fi
+if grep -q 'app.kubernetes.io/component: frontend$' <<<"$default_render"; then
+  fail "the frontend component must not render while frontend.enabled is false"
+fi
+if grep -q 'seller-inbound-frontend' <<<"$default_render"; then
+  fail "the frontend Service/Deployment must not render by default"
+fi
 grep -q 'app.kubernetes.io/component: api' <<<"$default_render" || fail "the api component is missing from the default render"
 
 # binary_env_of <main.go>: the env literals one binary reads (os.Getenv
@@ -218,10 +224,24 @@ if grep -q 'seller-inbound-mcp' <<<"$default_render"; then fail "the mcp Service
 mcp_route="$(helm template "$release" "$chart_dir" "${base[@]}" --set mcp.enabled=true --set mcp.route.enabled=true --show-only templates/mcp-route.yaml)"
 grep -q 'value: /api/mcp/seller-inbound' <<<"$mcp_route" || fail "the mcp HTTPRoute must match the /api/mcp/seller-inbound prefix"
 grep -q 'replacePrefixMatch: /mcp' <<<"$mcp_route" || fail "the mcp HTTPRoute must rewrite the prefix to /mcp"
+
+# --- optional component: the console web remote (ADR 0007) ---------------------
+# The web remote: its own nginx Deployment + ClusterIP Service, no DB/Kafka
+# env, and no route in this chart (the web gateway owns /mfes/seller-inbound/).
+frontend_dep="$(helm template "$release" "$chart_dir" "${base[@]}" --set frontend.enabled=true --show-only templates/frontend-deployment.yaml)"
+frontend_svc="$(helm template "$release" "$chart_dir" "${base[@]}" --set frontend.enabled=true --show-only templates/frontend-service.yaml)"
+grep -q 'app.kubernetes.io/component: frontend' <<<"$frontend_dep" || fail "the frontend Deployment was not rendered with frontend.enabled=true"
+grep -q 'type: ClusterIP' <<<"$frontend_svc" || fail "the frontend Service must stay ClusterIP"
+if grep -Eq 'name: (DATABASE_URL|KAFKA_BROKERS)$' <<<"$frontend_dep"; then fail "the frontend Deployment must not get database/Kafka env"; fi
+if grep -q 'configMapRef:' <<<"$frontend_dep"; then fail "frontend-deployment.yaml must not mount the api ConfigMap"; fi
+
 # ALL components render TOGETHER (the ci/all-components-values.yaml file).
-together="$(helm template "$release" "$chart_dir" "${base[@]}" --set mcp.enabled=true)"
-for component in api mcp; do
+together="$(helm template "$release" "$chart_dir" "${base[@]}" --set mcp.enabled=true --set frontend.enabled=true)"
+for component in api mcp frontend; do
   grep -q "app.kubernetes.io/component: $component\$" <<<"$together" || fail "the full render lacks the $component component"
 done
+if grep -E 'kind: (Ingress|HTTPRoute)' <<<"$together" | grep -q frontend; then
+  fail "frontend routing must not live in this chart"
+fi
 
 echo "PASS: seller-inbound chart render assertions"

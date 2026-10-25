@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-"""Assert this chart's Service selector isolates the api component.
+"""Assert this chart's Service selectors isolate each component.
 
 Why this exists (fleet-wide): `app.kubernetes.io/name` + `instance` are identical
 on every pod a release creates. A Service that selects on those two alone selects
 ALL of them (a Kong request for an api /healthz was once answered by the wrong
-pod). The Deployment carries `app.kubernetes.io/component` in selector.matchLabels
-and its pod labels, and the Service selects on it, so each Service selects
+pod). Every Deployment carries `app.kubernetes.io/component` in selector.matchLabels
+and its pod labels, and every Service selects on it, so each Service selects
 EXACTLY ONE Deployment. This test fails if that ever stops being true.
 
-This chart has two components: api (always) and the optional, default-off mcp
-(ADR 0006, the read-only MCP server), rendered TOGETHER in the mcp check
-below. The optional HPA, Ingress and api HTTPRoute are turned on together and
+This chart has three components: api (always), the optional, default-off mcp
+(ADR 0006, the read-only MCP server) and the optional, default-off frontend
+(the nginx pod serving the seller_inbound_mfe remote, ADR 0007), rendered
+TOGETHER in their checks below. The frontend is never routed by this chart.
+The optional HPA, Ingress and api HTTPRoute are turned on together and
 must all point at the api workload. Run:
 python3 charts/seller-inbound/tests/test_service_selectors.py
 Needs: helm, PyYAML (a missing PyYAML prints SKIP, which CI treats as a failure).
@@ -59,6 +61,11 @@ ENABLE_EVERYTHING = BASE + [
 ENABLE_MCP = BASE + [
     "--set", "mcp.enabled=true",
     "--set", "mcp.route.enabled=true",
+]
+# The frontend component (ADR 0007): the nginx pod of the seller_inbound_mfe
+# web remote, rendered together with the api it belongs to.
+ENABLE_FRONTEND = BASE + [
+    "--set", "frontend.enabled=true",
 ]
 
 # Exactly the env vars cmd/mcp/main.go reads (its own contract; the api
@@ -205,6 +212,55 @@ def check_mcp(docs: list[dict], failures: list[str]) -> None:
                     failures.append("the mcp HTTPRoute backend is not the mcp Service")
 
 
+def check_frontend(docs: list[dict], failures: list[str]) -> None:
+    """The frontend component (ADR 0007): its own nginx Deployment + ClusterIP
+    Service (component=frontend pinned everywhere), zero env (it serves
+    static bytes; no database, no Kafka), and no route of this chart naming
+    it (the web gateway owns /mfes/seller-inbound/)."""
+    name = f"{RELEASE}-frontend"
+    services = {d["metadata"]["name"]: d for d in docs if d.get("kind") == "Service"}
+    deployments = {d["metadata"]["name"]: d for d in docs if d.get("kind") == "Deployment"}
+
+    if set(deployments) != {RELEASE, name}:
+        failures.append(f"with frontend.enabled: expected exactly the api and frontend Deployments, got {sorted(deployments)}")
+    if set(services) != {RELEASE, name}:
+        failures.append(f"with frontend.enabled: expected exactly the api and frontend Services, got {sorted(services)}")
+
+    # The real invariant, again: each Service selects exactly one Deployment.
+    for svc_name, svc in services.items():
+        sel = selector_of(svc)
+        hit = [d for d, dep in deployments.items() if matches(sel, pod_labels_of(dep))]
+        if len(hit) != 1:
+            failures.append(f"Service {svc_name} selects {len(hit)} Deployments {sorted(hit)}; expected exactly 1")
+
+    if name in services:
+        if selector_of(services[name]).get("app.kubernetes.io/component") != "frontend":
+            failures.append("the frontend Service selector must pin component=frontend")
+        if services[name]["spec"].get("type") != "ClusterIP":
+            failures.append("the frontend Service must be ClusterIP")
+    else:
+        failures.append("the frontend Service must exist with frontend.enabled=true")
+    if name not in deployments:
+        failures.append("the frontend Deployment was not rendered with frontend.enabled=true")
+        return
+    if deployments[name]["spec"]["selector"].get("matchLabels", {}).get("app.kubernetes.io/component") != "frontend":
+        failures.append("the frontend Deployment selector.matchLabels must pin component=frontend")
+    if not matches(deployments[name]["spec"]["selector"].get("matchLabels", {}), pod_labels_of(deployments[name])):
+        failures.append("the frontend Deployment pod labels do not satisfy its own selector")
+
+    containers = deployments[name]["spec"]["template"]["spec"]["containers"]
+    env = [e["name"] for e in (containers[0].get("env", []) if containers else []) if "name" in e]
+    if env:
+        failures.append(f"the frontend Deployment must render no env at all (it serves static bytes), got {sorted(env)}")
+    ports = {p["name"] for p in (containers[0].get("ports", []) if containers else [])}
+    if "http" not in ports:
+        failures.append("the frontend Deployment does not expose the named port 'http'")
+
+    for d in docs:
+        if d.get("kind") in {"Ingress", "HTTPRoute"} and "frontend" in d["metadata"]["name"]:
+            failures.append(f"{d['kind']} {d['metadata']['name']}: frontend routing must not live in this chart")
+
+
 def check_refusals(failures: list[str]) -> None:
     cases: list[tuple[str, list[str], str]] = [
         ("without a database source", runtime("database"), "requires database.url or database.existingSecret"),
@@ -230,14 +286,18 @@ def main() -> int:
 
     check_components(render(ENABLE_EVERYTHING), failures)
     check_mcp(render(ENABLE_MCP), failures)
+    check_frontend(render(ENABLE_FRONTEND), failures)
 
-    # Default values must not deploy an HPA, a route, an Ingress or the mcp.
+    # Default values must not deploy an HPA, a route, an Ingress, the mcp or
+    # the frontend.
     defaults = render(BASE)
     stray = [d["kind"] for d in defaults if d.get("kind") in {"HorizontalPodAutoscaler", "Ingress", "HTTPRoute"}]
     if stray:
         failures.append(f"optional resources rendered with default values: {stray}")
     if any(d.get("metadata", {}).get("name", "").endswith("-mcp") for d in defaults):
         failures.append("the mcp component must not render with default values (mcp.enabled=false)")
+    if any(d.get("metadata", {}).get("name", "").endswith("-frontend") for d in defaults):
+        failures.append("the frontend component must not render with default values (frontend.enabled=false)")
 
     check_refusals(failures)
 
@@ -247,8 +307,10 @@ def main() -> int:
         return 1
 
     print("PASS: the api Service selects exactly one Deployment (component=api) and so does the mcp Service "
-          "(component=mcp, ADR 0006, with exactly the env cmd/mcp reads); the HPA, Ingress, HTTPRoute and the mcp "
-          "component are off by default and target their own component; the chart refuses to render without a "
+          "(component=mcp, ADR 0006, with exactly the env cmd/mcp reads) and the frontend Service "
+          "(component=frontend, ADR 0007, ClusterIP, no env, never routed by this chart); the HPA, Ingress, "
+          "HTTPRoute and the mcp and frontend components are off by default and target their own component; "
+          "the chart refuses to render without a "
           "database source, brokers, any consumer group or neighbour URL, with a log/unknown publisher or a "
           "*_MODE in extraEnv, or with a grace period under 40s")
     return 0
