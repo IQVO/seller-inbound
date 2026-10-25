@@ -2,6 +2,10 @@
 
 Retail network, bounded context **Seller Inbound** (Supporting, partner tier).
 
+## Disclaimer
+
+This project is a domain-driven design study. It is not associated with, endorsed by or affiliated with any company, and it uses no company's code, data, logos or trademarks. All names, figures and examples are illustrative or synthetic.
+
 PROPOSED. The seller-facing front door for stock coming into the network: a seller is onboarded, plans an inbound shipment to a vendor node in eaches (loose or case-packed), packs it into cartons each identified by an SSCC and a printed label, and ships it. The context checks the plan against the destination node's declared inbound limits and the catalogue item's packaging hierarchy, hands the vendor the shipment as a carton manifest through the Vendor API, and closes the shipment from the vendor's carton-level receipt, recording every discrepancy and compliance violation instead of correcting it. It absorbs the idea reserved earlier as the inventory-placement context; automated placement advice is not modelled (see the gap register).
 
 Status: implemented, merged and deployed (the packaging checklist is `docs/before-first-release.md`). The design is proposed in
@@ -30,9 +34,5 @@ Contracts: `apis/openapi.yaml` (REST), `apis/asyncapi.yaml` (nine published and 
 ## Develop
 
 `make check` (format, vet, lint, unit, handler and godog scenarios), `make coverage`, `make mutation`, `make integration` (testcontainers Postgres and Kafka, needs Docker).
-
-## Disclaimer
-
-This project is a domain-driven design study. It is not associated with, endorsed by or affiliated with any company, and it uses no company's code, data, logos or trademarks. All names, figures and examples are illustrative or synthetic.
 
 See `docs/adr/` for decisions and `docs/before-first-release.md` for the packaging checklist.
