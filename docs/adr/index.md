@@ -12,3 +12,4 @@ The *Status* column is copied from each ADR's own `## Status` section.
 | [0004](./0004-cloudevents-envelope-and-type-catalogue.md) | CloudEvents envelope and type catalogue | Accepted (2026-10-24) |
 | [0005](./0005-seller-compliance-scorecard.md) | Seller compliance scorecard (informational) | Accepted (2026-10-24) |
 | [0006](./0006-read-only-mcp-server.md) | A read-only MCP server | Accepted (2026-10-25) |
+| [0007](./0007-console-web-remote.md) | A web console remote | Accepted (2026-10-25) |

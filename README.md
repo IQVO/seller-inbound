@@ -29,7 +29,15 @@ Contracts: `apis/openapi.yaml` (REST), `apis/asyncapi.yaml` (nine published and 
 
 ## Run
 
-`cmd/api` needs Postgres and Kafka; there is no in-memory mode. Mandatory environment: `DATABASE_URL`, `KAFKA_BROKERS`, `NODE_CONSUMER_GROUP`, `CATALOG_CONSUMER_GROUP`, `RECEIPT_CONSUMER_GROUP`, `SSCC_COMPANY_PREFIX` (6 to 11 digits). A missing one is a boot error naming it. Deploy with `charts/seller-inbound`. `cmd/mcp` ([ADR 0006](docs/adr/0006-read-only-mcp-server.md)) is the optional second binary: the read-only MCP server (`get_seller_scorecard`, `get_inbound_plan`, `get_shipment_labels`, `get_inbound_shipment`) over the same reads as the REST GETs, Postgres only, `mcp.enabled` in the chart (default off).
+`cmd/api` needs Postgres and Kafka; there is no in-memory mode. Mandatory environment: `DATABASE_URL`, `KAFKA_BROKERS`, `NODE_CONSUMER_GROUP`, `CATALOG_CONSUMER_GROUP`, `RECEIPT_CONSUMER_GROUP`, `SSCC_COMPANY_PREFIX` (6 to 11 digits). A missing one is a boot error naming it. Deploy with `charts/seller-inbound`. `cmd/mcp` ([ADR 0006](docs/adr/0006-read-only-mcp-server.md)) is the optional second binary: the read-only MCP server (`get_seller_scorecard`, `get_inbound_plan`, `get_shipment_labels`, `get_inbound_shipment`) over the same reads as the REST GETs, Postgres only, `mcp.enabled` in the chart (default off). `frontend.enabled=true` adds the web remote's nginx Deployment + ClusterIP Service; it needs no database and no Kafka, and this chart never routes it (the web gateway owns `/mfes/seller-inbound/`).
+
+## Web remote
+
+[ADR 0007](docs/adr/0007-console-web-remote.md). `web/` is the `seller_inbound_mfe` Module Federation remote the warehouse-console shell mounts under `/seller-inbound/*` (federation name `seller_inbound_mfe`, exposes `./App`, dev/preview port 4022, build base `/mfes/seller-inbound/`). Two read-only lookup screens — the seller compliance scorecard (7d/30d window, tier, discrepancies by kind) and the inbound plan browser (state, facts, lines) — over this context's own GET routes; `apiOrigin` comes from the shell's `/config.json` at runtime. The image is the two-stage uikit named-context build (`docker build --build-context uikit=../../warehouse-ui-kit -t ghcr.io/iqvo/seller-inbound-frontend:local .` from `web/`).
+
+```sh
+cd web && npm ci && npm run lint && npx tsc -b && npm test && npm run build
+```
 
 ## Develop
 
