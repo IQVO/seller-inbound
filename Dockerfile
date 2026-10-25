@@ -40,7 +40,9 @@ WORKDIR /app
 # filesystem read-only. Logs go to stdout.
 COPY --from=build --chown=app:app /out/ ./
 USER 1000
-EXPOSE 8080
+# 8080 api (cmd/api), 8090 mcp (cmd/mcp: Streamable HTTP + /healthz). The web
+# remote has its own image (web/Dockerfile).
+EXPOSE 8080 8090
 # cmd/api is the service's main binary (HTTP on :8080). Additional cmd/*
 # binaries are run by the chart with `command: ["/app/<dirname>"]`.
 ENTRYPOINT ["./api"]

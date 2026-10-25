@@ -1,6 +1,9 @@
-# Default values for seller-inbound. One component: the api Deployment
-# (cmd/api). The outbox relay, the three Kafka consumers and the three loops run
-# inside it; there is no MCP, frontend, projector or reports component.
+# Default values for seller-inbound. Three components: the api Deployment
+# (cmd/api, always), the optional, default-off mcp Deployment (cmd/mcp,
+# ADR 0006 — the read-only MCP server) and the optional, default-off frontend
+# Deployment (the seller_inbound_mfe web remote, ADR 0007). The outbox relay,
+# the three Kafka consumers and the three loops run inside the api only; there
+# is no projector or reports component.
 
 replicaCount: 1
 
@@ -176,3 +179,68 @@ terminationGracePeriodSeconds: 40
 nodeSelector: {}
 tolerations: []
 affinity: {}
+
+# The read-only MCP server (ADR 0006): cmd/mcp serving the four read tools
+# over Streamable HTTP. It needs the database ONLY (no Kafka: it never dials
+# it) and is OFF by default.
+mcp:
+  enabled: false
+  replicaCount: 1
+  httpAddr: ":8090"                  # MCP_ADDR
+  serviceVersion: "dev"              # SERVICE_VERSION (logged at boot)
+  environment: "dev"                 # ENVIRONMENT (logged at boot)
+  service:
+    type: ClusterIP
+    port: 8090
+    targetPort: 8090
+  # Gateway exposure: /api/mcp/seller-inbound -> Service :8090, prefix
+  # rewritten to /mcp. Needs the Gateway parentRef from the environment that
+  # deploys the chart. No auth plugin anywhere (fleet-wide revert).
+  route:
+    enabled: false
+    path: "/api/mcp/seller-inbound"
+    parentRefs:
+      - name: ""
+        namespace: ""
+        sectionName: "http"
+  extraEnv: []
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# The console web remote (ADR 0007): the seller_inbound_mfe Module Federation
+# remote (web/), a static nginx pod serving the SPA the warehouse-console
+# shell mounts under /seller-inbound/*. OFF by default: the api alone is the
+# default runtime. It needs no database and no Kafka, and this chart never
+# routes it -- the web gateway owns the public /mfes/seller-inbound/ path.
+frontend:
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: ghcr.io/iqvo/seller-inbound-frontend
+    pullPolicy: IfNotPresent
+    tag: ""
+  service:
+    port: 80
+    targetPort: 8080
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 101
+    runAsGroup: 101
+    fsGroup: 101
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: ["ALL"]
+  resources:
+    limits:
+      cpu: 200m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi

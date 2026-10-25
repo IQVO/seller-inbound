@@ -1,7 +1,11 @@
 # Runtime: configuration, probes, shutdown and the outbox
 
-`cmd/api` is the only binary. It runs on real PostgreSQL and real Kafka; there is no
-alternative runtime and no log sink.
+`cmd/api` is the main binary. It runs on real PostgreSQL and real Kafka; there is no
+alternative runtime and no log sink. `cmd/mcp` (ADR 0006) is the second, optional
+binary: the read-only MCP server, which needs `DATABASE_URL` only (it never dials
+Kafka and can never write), serves Streamable HTTP on `MCP_ADDR` (default `:8090`)
+plus an open `GET /healthz`, and is deployed by the same chart behind
+`mcp.enabled` (default off).
 
 ## Environment
 
@@ -59,7 +63,7 @@ the orchestrator restarts it.
 
 ## Deployment (Helm chart)
 
-`charts/seller-inbound/` runs `cmd/api` as one Deployment (`component=api`); the relay, the consumers and the loop live in that process. `config.*` values map 1:1 to the variables above and are rendered both into the chart ConfigMap (`envFrom`) and into the container env from one helper; `tests/render_test.sh` fails when `cmd/api` reads a variable the chart does not render, or the chart renders one the binary does not read.
+`charts/seller-inbound/` runs `cmd/api` as one Deployment (`component=api`); the relay, the consumers and the loop live in that process. `config.*` values map 1:1 to the variables above and are rendered both into the chart ConfigMap (`envFrom`) and into the container env from one helper; `tests/render_test.sh` fails when `cmd/api` reads a variable the chart does not render, or the chart renders one the binary does not read. The optional `mcp` component (`component=mcp`, `mcp.enabled`, default off) runs `cmd/mcp` with its OWN env — exactly `MCP_ADDR`, `LOG_LEVEL`, `SERVICE_VERSION`, `ENVIRONMENT`, `DATABASE_URL` and `MIGRATIONS_DATABASE_URL` — and never mounts the api ConfigMap, so no Kafka, relay or consumer variable can reach it; `tests/render_test.sh` checks that contract against `cmd/mcp/main.go` the same way.
 
 | Value | Variable | Rule |
 | --- | --- | --- |
