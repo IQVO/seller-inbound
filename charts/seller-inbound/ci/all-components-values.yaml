@@ -1,0 +1,38 @@
+# Used by `helm lint` / `ct lint`: every optional value and component set at
+# once (api + mcp, plus the optional gateway routes and the api HPA). Dummy
+# values, no password.
+database:
+  existingSecret: "seller-inbound-db"
+  migrationsExistingSecretKey: "MIGRATIONS_DATABASE_URL"
+kafka:
+  brokers: "kafka-0.kafka.warehouse-systems.svc.cluster.local:9092,kafka-1.kafka.warehouse-systems.svc.cluster.local:9092"
+config:
+  logLevel: "debug"
+  outboxRelayInterval: "500ms"
+  outboxMaxAttempts: 20
+  shutdownDrainDelay: "5s"
+  nodeConsumerGroup: "seller-inbound-node"
+  catalogConsumerGroup: "seller-inbound-catalog"
+  receiptConsumerGroup: "seller-inbound-receipt"
+  ssccCompanyPrefix: "0614141"
+  ssccExtensionDigit: "3"
+gatewayApi:
+  enabled: true
+  parentRefs:
+    - name: warehouse-gateway
+      namespace: kong
+      sectionName: http
+  hosts:
+    - path: /api/seller-inbound
+      pathType: PathPrefix
+autoscaling:
+  api:
+    enabled: true
+mcp:
+  enabled: true
+  route:
+    enabled: true
+    parentRefs:
+      - name: warehouse-gateway
+        namespace: kong
+        sectionName: http

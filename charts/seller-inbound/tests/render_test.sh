@@ -176,4 +176,52 @@ helm template "$release" "$chart_dir" "${base[@]}" --set terminationGracePeriodS
 helm template "$release" "$chart_dir" "${base[@]}" --set config.shutdownDrainDelay=30s --set terminationGracePeriodSeconds=61 >/dev/null \
   || fail "a 30s drain delay with a 61s grace period must render"
 
+# --- optional component: the read-only MCP server (ADR 0006) -------------------
+# The mcp component is OFF by default: a default render is the api alone.
+default_render="$(helm template "$release" "$chart_dir" "${base[@]}")"
+if grep -q 'app.kubernetes.io/component: mcp$' <<<"$default_render"; then
+  fail "the mcp component must not render while mcp.enabled is false"
+fi
+grep -q 'app.kubernetes.io/component: api' <<<"$default_render" || fail "the api component is missing from the default render"
+
+# binary_env_of <main.go>: the env literals one binary reads (os.Getenv
+# included; comment prose does not match).
+binary_env_of() {
+  grep -hoE '[Gg]etenv\("[A-Z][A-Z0-9_]*"' "$1" | sed -E 's/.*"([A-Z0-9_]+)".*/\1/' | sort -u
+}
+# mcp: its OWN env (exactly what cmd/mcp reads), never the api ConfigMap,
+# never Kafka, relay, consumer or SSCC env (ADR 0006).
+mcp_dep="$(helm template "$release" "$chart_dir" "${base[@]}" --set mcp.enabled=true --show-only templates/mcp-deployment.yaml)"
+grep -q 'app.kubernetes.io/component: mcp' <<<"$mcp_dep" || fail "the mcp Deployment was not rendered with mcp.enabled=true"
+grep -q 'command: \["/app/mcp"\]' <<<"$mcp_dep" || fail "the mcp Deployment must run /app/mcp"
+if grep -q 'configMapRef:' <<<"$mcp_dep"; then fail "mcp-deployment.yaml must not mount the api ConfigMap"; fi
+if grep -Eq 'name: (KAFKA_BROKERS|EVENT_PUBLISHER|OUTBOX_[A-Z_]+|SSCC_[A-Z_]+|[A-Z]+_CONSUMER_GROUP)$' <<<"$mcp_dep"; then
+  fail "the mcp Deployment must not get Kafka/relay/consumer/SSCC env (read-only, never dials Kafka)"
+fi
+# shellcheck disable=SC2207
+mcp_vars=($(binary_env_of "$repo_dir/cmd/mcp/main.go"))
+(( ${#mcp_vars[@]} >= 6 )) || fail "found only ${#mcp_vars[@]} env literals in cmd/mcp/main.go; the scan is looking in the wrong place"
+mcp_known=" ${mcp_vars[*]} "
+for var in "${mcp_vars[@]}" DATABASE_URL MIGRATIONS_DATABASE_URL; do
+  grep -q "name: $var\$" <<<"$mcp_dep" || fail "the mcp Deployment does not render $var, which cmd/mcp reads"
+done
+# No dead keys: every env name the mcp Deployment renders is one cmd/mcp reads.
+while read -r name; do
+  [[ "$mcp_known" == *" $name "* ]] || fail "the mcp Deployment renders $name, which cmd/mcp does not read"
+done < <(grep -oE '^ +- name: [A-Z][A-Z0-9_]+$' <<<"$mcp_dep" | awk '{print $3}' | sort -u)
+# The mcp Service is ClusterIP and selects the mcp component only.
+mcp_svc="$(helm template "$release" "$chart_dir" "${base[@]}" --set mcp.enabled=true --show-only templates/mcp-service.yaml)"
+grep -q 'type: ClusterIP' <<<"$mcp_svc" || fail "the mcp Service must stay ClusterIP"
+grep -q 'app.kubernetes.io/component: mcp' <<<"$mcp_svc" || fail "the mcp Service must select component=mcp"
+# The optional host route is off by default and rewrites the prefix to /mcp.
+if grep -q 'seller-inbound-mcp' <<<"$default_render"; then fail "the mcp Service/Route must not render by default"; fi
+mcp_route="$(helm template "$release" "$chart_dir" "${base[@]}" --set mcp.enabled=true --set mcp.route.enabled=true --show-only templates/mcp-route.yaml)"
+grep -q 'value: /api/mcp/seller-inbound' <<<"$mcp_route" || fail "the mcp HTTPRoute must match the /api/mcp/seller-inbound prefix"
+grep -q 'replacePrefixMatch: /mcp' <<<"$mcp_route" || fail "the mcp HTTPRoute must rewrite the prefix to /mcp"
+# ALL components render TOGETHER (the ci/all-components-values.yaml file).
+together="$(helm template "$release" "$chart_dir" "${base[@]}" --set mcp.enabled=true)"
+for component in api mcp; do
+  grep -q "app.kubernetes.io/component: $component\$" <<<"$together" || fail "the full render lacks the $component component"
+done
+
 echo "PASS: seller-inbound chart render assertions"

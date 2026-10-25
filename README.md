@@ -29,7 +29,7 @@ Contracts: `apis/openapi.yaml` (REST), `apis/asyncapi.yaml` (nine published and 
 
 ## Run
 
-`cmd/api` needs Postgres and Kafka; there is no in-memory mode. Mandatory environment: `DATABASE_URL`, `KAFKA_BROKERS`, `NODE_CONSUMER_GROUP`, `CATALOG_CONSUMER_GROUP`, `RECEIPT_CONSUMER_GROUP`, `SSCC_COMPANY_PREFIX` (6 to 11 digits). A missing one is a boot error naming it. Deploy with `charts/seller-inbound`.
+`cmd/api` needs Postgres and Kafka; there is no in-memory mode. Mandatory environment: `DATABASE_URL`, `KAFKA_BROKERS`, `NODE_CONSUMER_GROUP`, `CATALOG_CONSUMER_GROUP`, `RECEIPT_CONSUMER_GROUP`, `SSCC_COMPANY_PREFIX` (6 to 11 digits). A missing one is a boot error naming it. Deploy with `charts/seller-inbound`. `cmd/mcp` ([ADR 0006](docs/adr/0006-read-only-mcp-server.md)) is the optional second binary: the read-only MCP server (`get_seller_scorecard`, `get_inbound_plan`, `get_shipment_labels`, `get_inbound_shipment`) over the same reads as the REST GETs, Postgres only, `mcp.enabled` in the chart (default off).
 
 ## Develop
 

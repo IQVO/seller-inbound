@@ -1,0 +1,472 @@
+[
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Read one inbound plan: the seller, the destination node, the packing option (INDIVIDUAL or CASE_PACKED), the state (DRAFT, CONFIRMED or CANCELLED) and the declared lines in eaches (catalog item, GTIN, quantity), with the created, confirmed and cancelled instants. Read-only; an unknown id fails with not-found.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "planId": {
+          "description": "the inbound plan id, e.g. pln-0f3a91",
+          "type": "string"
+        }
+      },
+      "required": [
+        "planId"
+      ],
+      "type": "object"
+    },
+    "name": "get_inbound_plan",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "cancelledAt": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "confirmedAt": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "destinationNodeId": {
+          "type": "string"
+        },
+        "lines": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "catalogItemId": {
+                "type": "string"
+              },
+              "gtin": {
+                "type": "string"
+              },
+              "qtyEaches": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "catalogItemId",
+              "gtin",
+              "qtyEaches"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "packingOption": {
+          "type": "string"
+        },
+        "planId": {
+          "type": "string"
+        },
+        "sellerId": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "planId",
+        "sellerId",
+        "destinationNodeId",
+        "packingOption",
+        "state",
+        "lines",
+        "createdAt"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Read one inbound shipment: its plan, seller and destination node, the state (PLANNED, PACKING, LABELLED, SHIPPED or RECEIVED) and every carton packed so far (SSCC, optional parent SSCC, kind, contents in eaches, gross weight, dimensions, seal and receipt status). Read-only; an unknown id fails with not-found.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "shipmentId": {
+          "description": "the inbound shipment id, e.g. shp-0f3a91",
+          "type": "string"
+        }
+      },
+      "required": [
+        "shipmentId"
+      ],
+      "type": "object"
+    },
+    "name": "get_inbound_shipment",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "cartons": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "contents": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "catalogItemId": {
+                      "type": "string"
+                    },
+                    "expiry": {
+                      "type": "string"
+                    },
+                    "gtin": {
+                      "type": "string"
+                    },
+                    "lot": {
+                      "type": "string"
+                    },
+                    "qtyEaches": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "catalogItemId",
+                    "gtin",
+                    "qtyEaches"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "dimsMm": {
+                "additionalProperties": false,
+                "properties": {
+                  "h": {
+                    "type": "integer"
+                  },
+                  "l": {
+                    "type": "integer"
+                  },
+                  "w": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "l",
+                  "w",
+                  "h"
+                ],
+                "type": "object"
+              },
+              "grossWeightG": {
+                "type": "integer"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "parentSscc": {
+                "type": "string"
+              },
+              "receiptStatus": {
+                "type": "string"
+              },
+              "sealed": {
+                "type": "boolean"
+              },
+              "sscc": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "sscc",
+              "kind",
+              "contents",
+              "grossWeightG",
+              "dimsMm",
+              "sealed"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "labelledAt": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "nodeId": {
+          "type": "string"
+        },
+        "planId": {
+          "type": "string"
+        },
+        "receivedAt": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "sellerId": {
+          "type": "string"
+        },
+        "shipmentId": {
+          "type": "string"
+        },
+        "shippedAt": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "shipmentId",
+        "planId",
+        "sellerId",
+        "nodeId",
+        "state",
+        "cartons",
+        "createdAt"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Answer a seller's rolling-window compliance scorecard from the facts this service recorded (ADR 0005): shipments received in the window, cartons reported and how many were RECEIVED, receiptAccuracyRate (omitted when nothing was reported), discrepancies by kind, discrepancyRatePerShipment (omitted when no shipment closed), compliance violations and the derived complianceTier (GOOD, WATCH or AT_RISK), which is informational only. window is 7d or 30d and defaults to 30d. Read-only; an unknown seller fails with not-found, a bad window with invalid-window.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "sellerId": {
+          "description": "the seller id whose compliance scorecard is answered, e.g. seller-77",
+          "type": "string"
+        },
+        "window": {
+          "description": "optional rolling window that ends now: 7d or 30d; omitted means 30d",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sellerId"
+      ],
+      "type": "object"
+    },
+    "name": "get_seller_scorecard",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "cartonsReceived": {
+          "type": "integer"
+        },
+        "cartonsReported": {
+          "type": "integer"
+        },
+        "complianceTier": {
+          "type": "string"
+        },
+        "complianceViolations": {
+          "type": "integer"
+        },
+        "discrepanciesByKind": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object"
+        },
+        "discrepancyRatePerShipment": {
+          "type": [
+            "null",
+            "number"
+          ]
+        },
+        "receiptAccuracyRate": {
+          "type": [
+            "null",
+            "number"
+          ]
+        },
+        "sellerId": {
+          "type": "string"
+        },
+        "shipmentsReceived": {
+          "type": "integer"
+        },
+        "window": {
+          "type": "string"
+        },
+        "windowEnd": {
+          "type": "string"
+        },
+        "windowStart": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sellerId",
+        "window",
+        "windowStart",
+        "windowEnd",
+        "shipmentsReceived",
+        "cartonsReported",
+        "cartonsReceived",
+        "discrepanciesByKind",
+        "complianceViolations",
+        "complianceTier"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Read the label data of a labelled inbound shipment, one entry per carton: the SSCC, the GS1-128 element string (00)\u003csscc\u003e, the human readable line, the contents in eaches with lot and expiry when declared, the content summary, the total eaches and the destination node. Read-only; an unknown id fails with not-found.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "shipmentId": {
+          "description": "the inbound shipment id, e.g. shp-0f3a91",
+          "type": "string"
+        }
+      },
+      "required": [
+        "shipmentId"
+      ],
+      "type": "object"
+    },
+    "name": "get_shipment_labels",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "destinationNodeId": {
+          "type": "string"
+        },
+        "labels": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "contentSummary": {
+                "type": "string"
+              },
+              "contents": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "catalogItemId": {
+                      "type": "string"
+                    },
+                    "expiry": {
+                      "type": "string"
+                    },
+                    "gtin": {
+                      "type": "string"
+                    },
+                    "lot": {
+                      "type": "string"
+                    },
+                    "qtyEaches": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "catalogItemId",
+                    "gtin",
+                    "qtyEaches"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "destinationNodeId": {
+                "type": "string"
+              },
+              "gs1128": {
+                "type": "string"
+              },
+              "humanReadable": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "labelRef": {
+                "type": "string"
+              },
+              "parentSscc": {
+                "type": "string"
+              },
+              "sscc": {
+                "type": "string"
+              },
+              "totalEaches": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "labelRef",
+              "sscc",
+              "gs1128",
+              "humanReadable",
+              "kind",
+              "contents",
+              "contentSummary",
+              "totalEaches",
+              "destinationNodeId"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "shipmentId": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "shipmentId",
+        "state",
+        "destinationNodeId",
+        "labels"
+      ],
+      "type": "object"
+    }
+  }
+]

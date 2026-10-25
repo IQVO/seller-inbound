@@ -200,6 +200,16 @@ config.shutdownDrainDelay must be whole seconds ("5s", "0") so this can be check
 {{- end -}}
 
 {{/*
+The mcp component's fullname (<release>-seller-inbound-mcp): the mcp
+Deployment and Service. The Service ALSO pins app.kubernetes.io/component
+(mcp), so the api Service never selects it
+(tests/test_service_selectors.py).
+*/}}
+{{- define "seller-inbound.mcpFullname" -}}
+{{- include "seller-inbound.fullname" . }}-mcp
+{{- end }}
+
+{{/*
 Every render-time requirement of the real runtime, in one include. The api
 Deployment includes it, so a mis-set release fails `helm template` / `helm install`.
 */}}

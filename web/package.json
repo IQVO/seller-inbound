@@ -1,0 +1,7 @@
+{
+  "name": "seller-inbound-web",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Placeholder package for the weekly drift job's knip step (.github/workflows/ci.yml). seller-inbound ships no web remote yet; when one lands (an MCP-fed console remote, say), it grows here and knip starts checking it for unused exports, files and dependencies.",
+  "license": "UNLICENSED"
+}

@@ -11,3 +11,4 @@ The *Status* column is copied from each ADR's own `## Status` section.
 | [0003](./0003-consumed-contracts-and-local-read-models.md) | Consumed contracts and local read models | Accepted (2026-10-24) |
 | [0004](./0004-cloudevents-envelope-and-type-catalogue.md) | CloudEvents envelope and type catalogue | Accepted (2026-10-24) |
 | [0005](./0005-seller-compliance-scorecard.md) | Seller compliance scorecard (informational) | Accepted (2026-10-24) |
+| [0006](./0006-read-only-mcp-server.md) | A read-only MCP server | Accepted (2026-10-25) |
