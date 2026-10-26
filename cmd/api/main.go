@@ -111,6 +111,13 @@ func run(ctx context.Context) error {
 	}
 	defer closeAdapters()
 
+	// The business counter binds to the MeterProvider telemetry.Setup installed.
+	shipmentMetrics, err := telemetry.NewShipmentMetrics()
+	if err != nil {
+		return err
+	}
+	ad.deps.Metrics = shipmentMetrics
+
 	svc := buildService(ad, logger)
 	readiness := newReadiness(ad.pool.Ping, rt.brokers)
 	httpServer := &http.Server{
