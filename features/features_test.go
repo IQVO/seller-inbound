@@ -80,7 +80,7 @@ func newWorld() *world {
 	w.nodes = &inboundkafka.Consumer{Name: "node", Topic: "nodes", Handlers: inboundkafka.NodeHandlers(w.svc), Logger: logger}
 	w.catalg = &inboundkafka.Consumer{Name: "catalog", Topic: "catalog", Handlers: inboundkafka.CatalogHandlers(w.svc), Logger: logger}
 	w.receip = &inboundkafka.Consumer{Name: "receipt", Topic: "receipts", Handlers: inboundkafka.ReceiptHandlers(w.svc, logger), Logger: logger, DLQ: &recordingDLQ{}}
-	w.server = httptest.NewServer(inboundhttp.NewRouter(&inboundhttp.Server{Service: w.svc}))
+	w.server = httptest.NewServer(inboundhttp.NewRouter(&inboundhttp.Server{Service: w.svc}, slog.New(slog.DiscardHandler), ""))
 	return w
 }
 
