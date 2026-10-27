@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -33,7 +34,11 @@ type api struct {
 	svc *usecases.Service
 }
 
-func newAPI(t *testing.T) *api {
+func newAPI(t *testing.T) *api { return newAPILogged(t, slog.New(slog.DiscardHandler)) }
+
+// newAPILogged is newAPI with the router's request logger set (newAPI discards
+// it so the access lines do not flood the test output).
+func newAPILogged(t *testing.T, logger *slog.Logger) *api {
 	t.Helper()
 	s := memory.NewStore()
 	svc := usecases.New(usecases.Deps{
@@ -50,7 +55,7 @@ func newAPI(t *testing.T) *api {
 			t.Fatal(err)
 		}
 	}
-	return &api{t: t, svc: svc, h: sihttp.NewRouter(&sihttp.Server{Service: svc})}
+	return &api{t: t, svc: svc, h: sihttp.NewRouter(&sihttp.Server{Service: svc}, logger, "")}
 }
 
 type result struct {

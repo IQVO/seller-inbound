@@ -23,6 +23,9 @@ plus an open `GET /healthz`, and is deployed by the same chart behind
 | `OUTBOX_MAX_ATTEMPTS` | `20` | Failures before the relay excludes a row; `0` = unlimited. |
 | `SHUTDOWN_DRAIN_DELAY` | `5s` | Wait between flipping `/readyz` to 503 and closing the listener; `0` disables. |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error`. |
+| `OTEL_SERVICE_NAME` | `seller-inbound` | `service.name` of spans and metrics (ADR 0008). |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `localhost:4317` | Collector OTLP/gRPC, `host:port` or URL; export never blocks. |
+| `SERVICE_VERSION` / `ENVIRONMENT` | `dev` / `local` | `service.version` / `deployment.environment.name`. |
 
 Configuration errors are raised before anything is opened or bound.
 
@@ -63,7 +66,7 @@ the orchestrator restarts it.
 
 ## Deployment (Helm chart)
 
-`charts/seller-inbound/` runs `cmd/api` as one Deployment (`component=api`); the relay, the consumers and the loop live in that process. `config.*` values map 1:1 to the variables above and are rendered both into the chart ConfigMap (`envFrom`) and into the container env from one helper; `tests/render_test.sh` fails when `cmd/api` reads a variable the chart does not render, or the chart renders one the binary does not read. The optional `mcp` component (`component=mcp`, `mcp.enabled`, default off) runs `cmd/mcp` with its OWN env — exactly `MCP_ADDR`, `LOG_LEVEL`, `SERVICE_VERSION`, `ENVIRONMENT`, `DATABASE_URL` and `MIGRATIONS_DATABASE_URL` — and never mounts the api ConfigMap, so no Kafka, relay or consumer variable can reach it; `tests/render_test.sh` checks that contract against `cmd/mcp/main.go` the same way.
+`charts/seller-inbound/` runs `cmd/api` as one Deployment (`component=api`); the relay, the consumers and the loop live in that process. `config.*` values map 1:1 to the variables above and are rendered both into the chart ConfigMap (`envFrom`) and into the container env from one helper; `tests/render_test.sh` fails when `cmd/api` reads a variable the chart does not render, or the chart renders one the binary does not read. The optional `mcp` component (`component=mcp`, `mcp.enabled`, default off) runs `cmd/mcp` with its OWN env — exactly `MCP_ADDR`, `LOG_LEVEL`, `SERVICE_VERSION`, `ENVIRONMENT`, `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `DATABASE_URL` and `MIGRATIONS_DATABASE_URL` — and never mounts the api ConfigMap, so no Kafka, relay or consumer variable can reach it; `tests/render_test.sh` checks that contract against `cmd/mcp/main.go` and `telemetry.go` the same way. The observability variables (`OTEL_*`, `SERVICE_VERSION`, `ENVIRONMENT`) come from `otel.endpoint`, `otel.serviceName` (`<name>-mcp` for mcp), `image.tag` or appVersion and `environment`, go straight into the container env (not the ConfigMap) and are refused in `extraEnv`.
 
 | Value | Variable | Rule |
 | --- | --- | --- |

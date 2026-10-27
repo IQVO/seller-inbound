@@ -129,3 +129,14 @@ type SsccIssuer interface {
 	// Next returns a fresh 18-digit SSCC with a valid check digit.
 	Next(ctx context.Context) (string, error)
 }
+
+// ShipmentMetrics is the Tier 2 business counter of the context (ADR 0008):
+// every attempt to ship an inbound shipment, counted once by outcome. It is
+// fire-and-forget; the zero Deps value gets a no-op (usecases.Deps.Metrics).
+type ShipmentMetrics interface {
+	// ShipmentShipped counts a shipment that moved to SHIPPED.
+	ShipmentShipped(ctx context.Context)
+	// ShipmentRejected counts a ship attempt that shipped nothing; reason is
+	// the problem slug of apis/openapi.yaml (internal-error for any other).
+	ShipmentRejected(ctx context.Context, reason string)
+}

@@ -68,9 +68,10 @@ ENABLE_FRONTEND = BASE + [
     "--set", "frontend.enabled=true",
 ]
 
-# Exactly the env vars cmd/mcp/main.go reads (its own contract; the api
-# ConfigMap is deliberately not mounted on that Deployment).
-MCP_ENV = {"MCP_ADDR", "LOG_LEVEL", "SERVICE_VERSION", "ENVIRONMENT", "DATABASE_URL", "MIGRATIONS_DATABASE_URL"}
+# Exactly the env vars cmd/mcp (main.go, telemetry.go) reads (its own contract;
+# the api ConfigMap is deliberately not mounted on that Deployment).
+MCP_ENV = {"MCP_ADDR", "LOG_LEVEL", "SERVICE_VERSION", "ENVIRONMENT", "DATABASE_URL", "MIGRATIONS_DATABASE_URL",
+           "OTEL_SERVICE_NAME", "OTEL_EXPORTER_OTLP_ENDPOINT"}
 # Never rendered on the mcp Deployment: the binary is read-only and never
 # dials Kafka.
 MCP_STRAY = {"KAFKA_BROKERS", "EVENT_PUBLISHER", "SSCC_COMPANY_PREFIX", "SSCC_EXTENSION_DIGIT",

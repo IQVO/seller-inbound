@@ -139,9 +139,25 @@ database:
 kafka:
   brokers: ""
 
+# Observability (ADR 0008): the fleet pipeline is pod --OTLP/gRPC--> Collector
+# --> Jaeger (traces) and Prometheus (metrics); logs are stdout JSON for Alloy
+# and Loki. Export never blocks, so a Collector that is down costs telemetry and
+# nothing else, but otel.enabled=false renders no OTEL_* env at all (the binaries
+# then fall back to localhost:4317). serviceName is OTEL_SERVICE_NAME of the api;
+# the mcp component gets "<serviceName>-mcp". SERVICE_VERSION is the image tag
+# (appVersion when empty), ENVIRONMENT is `environment`.
+otel:
+  enabled: true
+  endpoint: "otel-collector.observability.svc.cluster.local:4317"
+  serviceName: "seller-inbound"
+
+# ENVIRONMENT of the api: deployment.environment.name on every span, metric and
+# log of the api. (mcp.environment sets the same for the mcp component.)
+environment: "production"
+
 # Extra env vars appended to the api container as a raw list. The chart refuses
-# EVENT_PUBLISHER other than "kafka" and any *_MODE variable here: the service
-# has no mode switches.
+# EVENT_PUBLISHER other than "kafka", any *_MODE variable and any variable the
+# chart renders itself (the observability env): the service has no mode switches.
 extraEnv: []
 
 # The Postgres dial at boot is wrapped in a bounded retry (15 s of backoff);
@@ -187,8 +203,11 @@ mcp:
   enabled: false
   replicaCount: 1
   httpAddr: ":8090"                  # MCP_ADDR
-  serviceVersion: "dev"              # SERVICE_VERSION (logged at boot)
-  environment: "dev"                 # ENVIRONMENT (logged at boot)
+  # SERVICE_VERSION / ENVIRONMENT: the labels cmd/mcp logs at boot and puts on
+  # its telemetry. serviceVersion empty = the image tag (appVersion when
+  # empty), like the api; set it only to override.
+  serviceVersion: ""
+  environment: "dev"
   service:
     type: ClusterIP
     port: 8090
