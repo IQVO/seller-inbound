@@ -136,7 +136,7 @@ tagged="$(helm template "$release" "$chart_dir" "${base[@]}" --set image.tag=v9.
 [[ "$(env_value "$tagged" OTEL_EXPORTER_OTLP_ENDPOINT)" == "http://collector:4317" ]] || fail "OTEL_EXPORTER_OTLP_ENDPOINT must follow otel.endpoint"
 [[ "$(env_value "$tagged" ENVIRONMENT)" == "staging" ]] || fail "ENVIRONMENT must follow environment"
 # otel.enabled=false renders no OTEL_* env (SERVICE_VERSION stays: it also labels the logs' build).
-otel_off="$(helm template "$release" "$chart_dir" "${base[@]}" --set otel.enabled=false --set mcp.enabled=true)"
+otel_off="$(helm template "$release" "$chart_dir" "${base[@]}" --set otel.enabled=false --set mcp.enabled=true --set a2a.enabled=true)"
 if grep -q 'name: OTEL_' <<<"$otel_off"; then fail "otel.enabled=false must render no OTEL_* env in any component"; fi
 grep -q 'name: SERVICE_VERSION$' <<<"$otel_off" || fail "SERVICE_VERSION must still render with otel.enabled=false"
 # The values are chart-owned: extraEnv may not set them a second time.
@@ -262,6 +262,70 @@ mcp_route="$(helm template "$release" "$chart_dir" "${base[@]}" --set mcp.enable
 grep -q 'value: /api/mcp/seller-inbound' <<<"$mcp_route" || fail "the mcp HTTPRoute must match the /api/mcp/seller-inbound prefix"
 grep -q 'replacePrefixMatch: /mcp' <<<"$mcp_route" || fail "the mcp HTTPRoute must rewrite the prefix to /mcp"
 
+# --- optional component: the read-only A2A agent (ADR 0009) --------------------
+# The a2a component is OFF by default, runs /app/a2a with its OWN env (exactly
+# what cmd/a2a reads), never mounts the api ConfigMap and never gets Kafka env.
+if grep -q 'app.kubernetes.io/component: a2a$' <<<"$default_render"; then
+  fail "the a2a component must not render while a2a.enabled is false"
+fi
+if grep -q 'seller-inbound-a2a' <<<"$default_render"; then fail "the a2a Service/Route must not render by default"; fi
+a2a_dep="$(helm template "$release" "$chart_dir" "${base[@]}" --set a2a.enabled=true --show-only templates/a2a-deployment.yaml)"
+grep -q 'app.kubernetes.io/component: a2a' <<<"$a2a_dep" || fail "the a2a Deployment was not rendered with a2a.enabled=true"
+grep -q 'command: \["/app/a2a"\]' <<<"$a2a_dep" || fail "the a2a Deployment must run /app/a2a"
+if grep -q 'configMapRef:' <<<"$a2a_dep"; then fail "a2a-deployment.yaml must not mount the api ConfigMap"; fi
+if grep -Eq 'name: (KAFKA_BROKERS|EVENT_PUBLISHER|OUTBOX_[A-Z_]+|SSCC_[A-Z_]+|[A-Z]+_CONSUMER_GROUP)$' <<<"$a2a_dep"; then
+  fail "the a2a Deployment must not get Kafka/relay/consumer/SSCC env (read-only, never dials Kafka)"
+fi
+# Chart vs binary, both ways: every env literal cmd/a2a reads is rendered, and
+# nothing else is (no dead keys).
+# shellcheck disable=SC2207
+a2a_vars=($(binary_env_of "$repo_dir/cmd/a2a/main.go" "$repo_dir/cmd/a2a/telemetry.go"))
+(( ${#a2a_vars[@]} >= 7 )) || fail "found only ${#a2a_vars[@]} env literals in cmd/a2a; the scan is looking in the wrong place"
+a2a_known=" ${a2a_vars[*]} "
+for var in "${a2a_vars[@]}" DATABASE_URL MIGRATIONS_DATABASE_URL; do
+  grep -q "name: $var\$" <<<"$a2a_dep" || fail "the a2a Deployment does not render $var, which cmd/a2a reads"
+done
+while read -r name; do
+  [[ "$a2a_known" == *" $name "* ]] || fail "the a2a Deployment renders $name, which cmd/a2a does not read"
+done < <(grep -oE '^ +- name: [A-Z][A-Z0-9_]+$' <<<"$a2a_dep" | awk '{print $3}' | sort -u)
+# Every mandatory variable cmd/a2a names in a boot error is rendered (the
+# regex allows digits: A2A_AGENT_URL must not be read as A_AGENT_URL).
+# shellcheck disable=SC2207
+a2a_required=($(grep -hoE 'errors\.New\("[A-Z][A-Z0-9_]+ is required' "$repo_dir/cmd/a2a/main.go" | sed -E 's/errors\.New\("//; s/ is required//' | sort -u || true))
+(( ${#a2a_required[@]} >= 2 )) || fail "found only ${#a2a_required[@]} mandatory variables in cmd/a2a; the scan is looking in the wrong place"
+for var in "${a2a_required[@]}"; do
+  grep -q "name: $var\$" <<<"$a2a_dep" || fail "the a2a Deployment does not render $var, which cmd/a2a requires"
+done
+[[ " ${a2a_required[*]} " == *" A2A_AGENT_URL "* ]] || fail "A2A_AGENT_URL must be a mandatory variable of cmd/a2a (got: ${a2a_required[*]})"
+# A2A_AGENT_URL: the in-cluster Service DNS name by default (the namespace is
+# the release's), a2a.agentUrl overrides it, the Service port is in the URL.
+agent_url="$(env_value "$a2a_dep" A2A_AGENT_URL || true)"
+[[ "$agent_url" =~ ^http://seller-inbound-a2a\.[a-z0-9-]+\.svc\.cluster\.local:8093/$ ]] \
+  || fail "A2A_AGENT_URL must default to the in-cluster Service URL, got: $agent_url"
+a2a_ns="$(helm template "$release" "$chart_dir" "${base[@]}" --namespace warehouse-systems --set a2a.enabled=true --show-only templates/a2a-deployment.yaml)"
+[[ "$(env_value "$a2a_ns" A2A_AGENT_URL)" == "http://seller-inbound-a2a.warehouse-systems.svc.cluster.local:8093/" ]] \
+  || fail "A2A_AGENT_URL must carry the release namespace"
+a2a_port="$(helm template "$release" "$chart_dir" "${base[@]}" --set a2a.enabled=true --set a2a.service.port=9100 --show-only templates/a2a-deployment.yaml)"
+[[ "$(env_value "$a2a_port" A2A_AGENT_URL)" == *":9100/" ]] || fail "A2A_AGENT_URL must carry a2a.service.port"
+a2a_override="$(helm template "$release" "$chart_dir" "${base[@]}" --set a2a.enabled=true --set a2a.agentUrl=https://agents.example.invalid/si/ --show-only templates/a2a-deployment.yaml)"
+[[ "$(env_value "$a2a_override" A2A_AGENT_URL)" == "https://agents.example.invalid/si/" ]] || fail "a2a.agentUrl must override A2A_AGENT_URL"
+[[ "$(env_value "$a2a_dep" A2A_ADDR)" == ":8093" ]] || fail "A2A_ADDR must default to :8093"
+[[ "$(env_value "$a2a_dep" SERVICE_VERSION)" == "0.1.0" ]] || fail "the a2a SERVICE_VERSION must default to the image tag / appVersion, like the api"
+[[ "$(env_value "$a2a_dep" OTEL_SERVICE_NAME)" == "seller-inbound-a2a" ]] || fail "the a2a component must export as <otel.serviceName>-a2a"
+[[ "$(env_value "$a2a_dep" OTEL_EXPORTER_OTLP_ENDPOINT)" == "$otel_endpoint" ]] || fail "the a2a component must export to otel.endpoint"
+# The a2a Service is ClusterIP, selects the a2a component only and serves 8093.
+a2a_svc="$(helm template "$release" "$chart_dir" "${base[@]}" --set a2a.enabled=true --show-only templates/a2a-service.yaml)"
+grep -q 'type: ClusterIP' <<<"$a2a_svc" || fail "the a2a Service must stay ClusterIP"
+grep -q 'app.kubernetes.io/component: a2a' <<<"$a2a_svc" || fail "the a2a Service must select component=a2a"
+grep -q 'port: 8093' <<<"$a2a_svc" || fail "the a2a Service must serve port 8093"
+# The optional host route is off by default and rewrites the prefix to /.
+a2a_route="$(helm template "$release" "$chart_dir" "${base[@]}" --set a2a.enabled=true --set a2a.route.enabled=true --show-only templates/a2a-route.yaml)"
+grep -q 'value: /api/a2a/seller-inbound' <<<"$a2a_route" || fail "the a2a HTTPRoute must match the /api/a2a/seller-inbound prefix"
+grep -qE '^ +replacePrefixMatch: /$' <<<"$a2a_route" || fail "the a2a HTTPRoute must rewrite the prefix to /"
+if helm template "$release" "$chart_dir" "${base[@]}" --set a2a.route.enabled=true | grep -q 'seller-inbound-a2a'; then
+  fail "a2a.route.enabled without a2a.enabled must render nothing"
+fi
+
 # --- optional component: the console web remote (ADR 0007) ---------------------
 # The web remote: its own nginx Deployment + ClusterIP Service, no DB/Kafka
 # env, and no route in this chart (the web gateway owns /mfes/seller-inbound/).
@@ -273,8 +337,8 @@ if grep -Eq 'name: (DATABASE_URL|KAFKA_BROKERS)$' <<<"$frontend_dep"; then fail 
 if grep -q 'configMapRef:' <<<"$frontend_dep"; then fail "frontend-deployment.yaml must not mount the api ConfigMap"; fi
 
 # ALL components render TOGETHER (the ci/all-components-values.yaml file).
-together="$(helm template "$release" "$chart_dir" "${base[@]}" --set mcp.enabled=true --set frontend.enabled=true)"
-for component in api mcp frontend; do
+together="$(helm template "$release" "$chart_dir" "${base[@]}" --set mcp.enabled=true --set a2a.enabled=true --set frontend.enabled=true)"
+for component in api mcp a2a frontend; do
   grep -q "app.kubernetes.io/component: $component\$" <<<"$together" || fail "the full render lacks the $component component"
 done
 if grep -E 'kind: (Ingress|HTTPRoute)' <<<"$together" | grep -q frontend; then

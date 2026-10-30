@@ -215,6 +215,16 @@ Deployment and Service. The Service ALSO pins app.kubernetes.io/component
 {{- end }}
 
 {{/*
+The a2a component's fullname (<release>-seller-inbound-a2a): the a2a
+Deployment and Service. The Service ALSO pins app.kubernetes.io/component
+(a2a), so neither the api nor the mcp Service selects it
+(tests/test_service_selectors.py).
+*/}}
+{{- define "seller-inbound.a2aFullname" -}}
+{{- include "seller-inbound.fullname" . }}-a2a
+{{- end }}
+
+{{/*
 Every render-time requirement of the real runtime, in one include. The api
 Deployment includes it, so a mis-set release fails `helm template` / `helm install`.
 */}}
