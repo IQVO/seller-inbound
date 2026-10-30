@@ -29,7 +29,7 @@ Contracts: `apis/openapi.yaml` (REST), `apis/asyncapi.yaml` (nine published and 
 
 ## Run
 
-`cmd/api` needs Postgres and Kafka; there is no in-memory mode. Mandatory environment: `DATABASE_URL`, `KAFKA_BROKERS`, `NODE_CONSUMER_GROUP`, `CATALOG_CONSUMER_GROUP`, `RECEIPT_CONSUMER_GROUP`, `SSCC_COMPANY_PREFIX` (6 to 11 digits). A missing one is a boot error naming it. Deploy with `charts/seller-inbound`. `cmd/mcp` ([ADR 0006](docs/adr/0006-read-only-mcp-server.md)) is the optional second binary: the read-only MCP server (`get_seller_scorecard`, `get_inbound_plan`, `get_shipment_labels`, `get_inbound_shipment`) over the same reads as the REST GETs, Postgres only, `mcp.enabled` in the chart (default off). `frontend.enabled=true` adds the web remote's nginx Deployment + ClusterIP Service; it needs no database and no Kafka, and this chart never routes it (the web gateway owns `/mfes/seller-inbound/`).
+`cmd/api` needs Postgres and Kafka; there is no in-memory mode. Mandatory environment: `DATABASE_URL`, `KAFKA_BROKERS`, `NODE_CONSUMER_GROUP`, `CATALOG_CONSUMER_GROUP`, `RECEIPT_CONSUMER_GROUP`, `SSCC_COMPANY_PREFIX` (6 to 11 digits). A missing one is a boot error naming it. Deploy with `charts/seller-inbound`. `cmd/mcp` ([ADR 0006](docs/adr/0006-read-only-mcp-server.md)) is the optional second binary: the read-only MCP server (`get_seller_scorecard`, `get_inbound_plan`, `get_shipment_labels`, `get_inbound_shipment`) over the same reads as the REST GETs, Postgres only, `mcp.enabled` in the chart (default off). `cmd/a2a` ([ADR 0009](docs/adr/0009-a2a-inbound-adapter.md)) is the optional third binary: a read-only A2A agent (Agent2Agent, JSON-RPC 2.0, Agent Card at `/.well-known/agent-card.json`, port 8093) with two goal-shaped skills, `seller_compliance` and `inbound_status`, over the same reads; Postgres only, `A2A_AGENT_URL` is mandatory (absolute http(s) URL the card advertises), `a2a.enabled` in the chart (default off), unauthenticated like REST and MCP. `frontend.enabled=true` adds the web remote's nginx Deployment + ClusterIP Service; it needs no database and no Kafka, and this chart never routes it (the web gateway owns `/mfes/seller-inbound/`).
 
 ## Web remote
 
@@ -42,7 +42,7 @@ cd web && npm ci && npm run lint && npx tsc -b && npm test && npm run build
 ## Observability
 
 Logs, metrics and traces follow the fleet standard ([ADR 0008](docs/adr/0008-fleet-observability-standard.md)): JSON logs on stdout carry `trace_id`/`span_id`
-and a `request_id`; `cmd/api` and `cmd/mcp` export OTLP/gRPC to the Collector (`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, `SERVICE_VERSION`, `ENVIRONMENT`;
+and a `request_id`; `cmd/api`, `cmd/mcp` and `cmd/a2a` export OTLP/gRPC to the Collector (`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, `SERVICE_VERSION`, `ENVIRONMENT`;
 export never blocks, so no Collector costs telemetry, nothing else) with HTTP request duration, Go runtime metrics and the business counter
 `seller_inbound.shipment.shipped` (`outcome`, `reason`); the trace continues across Kafka in the `traceparent` header of each published event and is picked up by
 the consumers. The chart's `otel.*` values render the env.

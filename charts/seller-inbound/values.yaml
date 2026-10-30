@@ -231,6 +231,48 @@ mcp:
       cpu: 100m
       memory: 128Mi
 
+# The read-only A2A agent (ADR 0009): cmd/a2a answering two goal-shaped
+# skills (seller_compliance, inbound_status) over JSON-RPC 2.0, with the Agent
+# Card at /.well-known/agent-card.json. Like mcp it needs the database ONLY
+# (no Kafka: it never dials it, so no KAFKA_BROKERS / EVENT_PUBLISHER is
+# rendered) and it is OFF by default. A2A is unauthenticated (fleet-wide).
+a2a:
+  enabled: false
+  replicaCount: 1
+  httpAddr: ":8093"                  # A2A_ADDR
+  # A2A_AGENT_URL: the absolute http(s) URL the Agent Card advertises (the
+  # binary refuses to boot without one). Empty = this release's in-cluster
+  # Service, http://<release>-seller-inbound-a2a.<namespace>.svc.cluster.local:<service.port>/ ;
+  # set it only to advertise another address (e.g. the gateway's).
+  agentUrl: ""
+  # SERVICE_VERSION / ENVIRONMENT: the labels cmd/a2a logs at boot and puts on
+  # its telemetry. serviceVersion empty = the image tag (appVersion when
+  # empty), like the api; set it only to override.
+  serviceVersion: ""
+  environment: "dev"
+  service:
+    type: ClusterIP
+    port: 8093
+    targetPort: 8093
+  # Gateway exposure: /api/a2a/seller-inbound -> Service :8093, prefix
+  # rewritten to /. Needs the Gateway parentRef from the environment that
+  # deploys the chart. No auth plugin anywhere (fleet-wide revert).
+  route:
+    enabled: false
+    path: "/api/a2a/seller-inbound"
+    parentRefs:
+      - name: ""
+        namespace: ""
+        sectionName: "http"
+  extraEnv: []
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
 # The console web remote (ADR 0007): the seller_inbound_mfe Module Federation
 # remote (web/), a static nginx pod serving the SPA the warehouse-console
 # shell mounts under /seller-inbound/*. OFF by default: the api alone is the

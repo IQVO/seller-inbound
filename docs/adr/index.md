@@ -14,3 +14,4 @@ The *Status* column is copied from each ADR's own `## Status` section.
 | [0006](./0006-read-only-mcp-server.md) | A read-only MCP server | Accepted (2026-10-25) |
 | [0007](./0007-console-web-remote.md) | A web console remote | Accepted (2026-10-25) |
 | [0008](./0008-fleet-observability-standard.md) | Adopt the fleet observability standard (logs, metrics, traces) | Accepted (2026-10-26) |
+| [0009](./0009-a2a-inbound-adapter.md) | A2A inbound adapter | Accepted (2026-10-30) |

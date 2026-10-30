@@ -5,7 +5,12 @@ alternative runtime and no log sink. `cmd/mcp` (ADR 0006) is the second, optiona
 binary: the read-only MCP server, which needs `DATABASE_URL` only (it never dials
 Kafka and can never write), serves Streamable HTTP on `MCP_ADDR` (default `:8090`)
 plus an open `GET /healthz`, and is deployed by the same chart behind
-`mcp.enabled` (default off).
+`mcp.enabled` (default off). `cmd/a2a` (ADR 0009) is the third, optional binary:
+the read-only A2A agent, `DATABASE_URL` only (no Kafka, can never write), JSON-RPC on
+`A2A_ADDR` (default `:8093`) at `/` and `/a2a`, the Agent Card at
+`/.well-known/agent-card.json` and an open `GET /healthz`. `A2A_AGENT_URL` (an
+absolute http(s) URL the card advertises) is mandatory; the chart deploys it behind
+`a2a.enabled` (default off).
 
 ## Environment
 
