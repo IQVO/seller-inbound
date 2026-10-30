@@ -1,5 +1,7 @@
 # seller-inbound
 
+[![CI](https://github.com/IQVO/seller-inbound/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/IQVO/seller-inbound/actions/workflows/ci.yml?query=branch%3Adevelop) [![coverage gate](https://img.shields.io/badge/coverage%20gate-90%25-brightgreen)](https://github.com/IQVO/seller-inbound/blob/develop/Makefile) [![Go](https://img.shields.io/badge/go-1.27.3-00ADD8?logo=go&logoColor=white)](https://github.com/IQVO/seller-inbound/blob/develop/go.mod) [![docs](https://img.shields.io/badge/docs-iqvo.github.io-blue)](https://iqvo.github.io/seller-inbound/) [![license](https://img.shields.io/badge/license-MIT-blue)](https://github.com/IQVO/seller-inbound/blob/develop/LICENSE)
+
 Retail network, bounded context **Seller Inbound** (Supporting, partner tier).
 
 The seller-facing front door for stock coming into the network: a seller is onboarded, plans an inbound shipment to a vendor node in eaches (loose or case-packed), packs it into cartons each identified by an SSCC and a printed label, and ships it. The context checks the plan against the destination node's declared inbound limits and the catalogue item's packaging hierarchy, hands the vendor the shipment as a carton manifest through the Vendor API, and closes the shipment from the vendor's carton-level receipt, recording every discrepancy and compliance violation instead of correcting it. It absorbs the idea reserved earlier as the inventory-placement context; automated placement advice is not modelled (see the gap register).
