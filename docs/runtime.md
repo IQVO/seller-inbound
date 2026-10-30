@@ -5,7 +5,12 @@ alternative runtime and no log sink. `cmd/mcp` (ADR 0006) is the second, optiona
 binary: the read-only MCP server, which needs `DATABASE_URL` only (it never dials
 Kafka and can never write), serves Streamable HTTP on `MCP_ADDR` (default `:8090`)
 plus an open `GET /healthz`, and is deployed by the same chart behind
-`mcp.enabled` (default off).
+`mcp.enabled` (default off). `cmd/a2a` (ADR 0009) is the third, optional binary:
+the read-only A2A agent, `DATABASE_URL` only (no Kafka, can never write), JSON-RPC on
+`A2A_ADDR` (default `:8093`) at `/` and `/a2a`, the Agent Card at
+`/.well-known/agent-card.json` and an open `GET /healthz`. `A2A_AGENT_URL` (an
+absolute http(s) URL the card advertises) is mandatory; the chart deploys it behind
+`a2a.enabled` (default off).
 
 ## Environment
 
@@ -23,6 +28,9 @@ plus an open `GET /healthz`, and is deployed by the same chart behind
 | `OUTBOX_MAX_ATTEMPTS` | `20` | Failures before the relay excludes a row; `0` = unlimited. |
 | `SHUTDOWN_DRAIN_DELAY` | `5s` | Wait between flipping `/readyz` to 503 and closing the listener; `0` disables. |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error`. |
+| `OTEL_SERVICE_NAME` | `seller-inbound` | `service.name` of spans and metrics (ADR 0008). |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `localhost:4317` | Collector OTLP/gRPC, `host:port` or URL; export never blocks. |
+| `SERVICE_VERSION` / `ENVIRONMENT` | `dev` / `local` | `service.version` / `deployment.environment.name`. |
 
 Configuration errors are raised before anything is opened or bound.
 
@@ -63,7 +71,7 @@ the orchestrator restarts it.
 
 ## Deployment (Helm chart)
 
-`charts/seller-inbound/` runs `cmd/api` as one Deployment (`component=api`); the relay, the consumers and the loop live in that process. `config.*` values map 1:1 to the variables above and are rendered both into the chart ConfigMap (`envFrom`) and into the container env from one helper; `tests/render_test.sh` fails when `cmd/api` reads a variable the chart does not render, or the chart renders one the binary does not read. The optional `mcp` component (`component=mcp`, `mcp.enabled`, default off) runs `cmd/mcp` with its OWN env — exactly `MCP_ADDR`, `LOG_LEVEL`, `SERVICE_VERSION`, `ENVIRONMENT`, `DATABASE_URL` and `MIGRATIONS_DATABASE_URL` — and never mounts the api ConfigMap, so no Kafka, relay or consumer variable can reach it; `tests/render_test.sh` checks that contract against `cmd/mcp/main.go` the same way.
+`charts/seller-inbound/` runs `cmd/api` as one Deployment (`component=api`); the relay, the consumers and the loop live in that process. `config.*` values map 1:1 to the variables above and are rendered both into the chart ConfigMap (`envFrom`) and into the container env from one helper; `tests/render_test.sh` fails when `cmd/api` reads a variable the chart does not render, or the chart renders one the binary does not read. The optional `mcp` component (`component=mcp`, `mcp.enabled`, default off) runs `cmd/mcp` with its OWN env — exactly `MCP_ADDR`, `LOG_LEVEL`, `SERVICE_VERSION`, `ENVIRONMENT`, `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `DATABASE_URL` and `MIGRATIONS_DATABASE_URL` — and never mounts the api ConfigMap, so no Kafka, relay or consumer variable can reach it; `tests/render_test.sh` checks that contract against `cmd/mcp/main.go` and `telemetry.go` the same way. The observability variables (`OTEL_*`, `SERVICE_VERSION`, `ENVIRONMENT`) come from `otel.endpoint`, `otel.serviceName` (`<name>-mcp` for mcp), `image.tag` or appVersion and `environment`, go straight into the container env (not the ConfigMap) and are refused in `extraEnv`.
 
 | Value | Variable | Rule |
 | --- | --- | --- |

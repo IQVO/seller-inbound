@@ -254,6 +254,12 @@ func (s *Service) LabelShipment(ctx context.Context, shipmentID string) (views.S
 // ShipInboundShipment moves a LABELLED shipment to SHIPPED and publishes
 // InboundShipmentShipped. The seller must be ACTIVE and the node able to receive.
 func (s *Service) ShipInboundShipment(ctx context.Context, shipmentID string) (views.Shipment, error) {
+	out, err := s.shipInboundShipment(ctx, shipmentID)
+	s.recordShipOutcome(ctx, err)
+	return out, err
+}
+
+func (s *Service) shipInboundShipment(ctx context.Context, shipmentID string) (views.Shipment, error) {
 	var out views.Shipment
 	err := s.atomically(ctx, func(ctx context.Context) error {
 		sh, err := s.d.Shipments.Get(ctx, inboundshipment.ID(shipmentID))

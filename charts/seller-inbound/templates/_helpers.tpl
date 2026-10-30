@@ -160,11 +160,16 @@ company prefix and cmd/api exits at boot without it (6 to 11 digits).
 
 {{/*
 extraEnv may not bring back a log publisher or a mode switch: no EVENT_PUBLISHER
-other than kafka and no *_MODE variable at all (this service has no modes).
+other than kafka and no *_MODE variable at all (this service has no modes). It
+may not set a variable the chart renders itself either (the observability env).
 */}}
 {{- define "seller-inbound.requireNoInMemoryEnv" -}}
+{{- $owned := list "ENVIRONMENT" "SERVICE_VERSION" "OTEL_SERVICE_NAME" "OTEL_EXPORTER_OTLP_ENDPOINT" -}}
 {{- range .Values.extraEnv -}}
 {{- $name := toString .name -}}
+{{- if has $name $owned -}}
+{{- fail (printf "extraEnv sets %s: the chart renders it itself (otel.*, environment, image.tag); set the value there, never twice." $name) -}}
+{{- end -}}
 {{- $value := toString (default "" .value) -}}
 {{- if and (eq $name "EVENT_PUBLISHER") (ne $value "kafka") -}}
 {{- fail (printf "extraEnv sets EVENT_PUBLISHER=%s: the only publisher is \"kafka\"." $value) -}}
@@ -207,6 +212,16 @@ Deployment and Service. The Service ALSO pins app.kubernetes.io/component
 */}}
 {{- define "seller-inbound.mcpFullname" -}}
 {{- include "seller-inbound.fullname" . }}-mcp
+{{- end }}
+
+{{/*
+The a2a component's fullname (<release>-seller-inbound-a2a): the a2a
+Deployment and Service. The Service ALSO pins app.kubernetes.io/component
+(a2a), so neither the api nor the mcp Service selects it
+(tests/test_service_selectors.py).
+*/}}
+{{- define "seller-inbound.a2aFullname" -}}
+{{- include "seller-inbound.fullname" . }}-a2a
 {{- end }}
 
 {{/*

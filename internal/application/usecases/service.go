@@ -39,6 +39,8 @@ type Deps struct {
 	Clock     ports.Clock
 	IDs       ports.IDGenerator
 	SSCC      ports.SsccIssuer
+	// Metrics is the Tier 2 business counter; nil is a no-op.
+	Metrics ports.ShipmentMetrics
 }
 
 // Service is the application service of seller-inbound.

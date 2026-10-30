@@ -215,7 +215,7 @@ func toLabels(v views.Labels) labelsView {
 func (d Deps) getSellerScorecard(ctx context.Context, in scorecardInput) (scorecardView, error) {
 	v, err := d.Reads.GetSellerScorecard(ctx, in.SellerID, in.Window)
 	if err != nil {
-		return scorecardView{}, mapError(err)
+		return scorecardView{}, mapError(ctx, err)
 	}
 	return toScorecard(v), nil
 }
@@ -223,7 +223,7 @@ func (d Deps) getSellerScorecard(ctx context.Context, in scorecardInput) (scorec
 func (d Deps) getInboundPlan(ctx context.Context, in planIDInput) (planView, error) {
 	v, err := d.Reads.GetInboundPlan(ctx, in.PlanID)
 	if err != nil {
-		return planView{}, mapError(err)
+		return planView{}, mapError(ctx, err)
 	}
 	return toPlan(v), nil
 }
@@ -231,7 +231,7 @@ func (d Deps) getInboundPlan(ctx context.Context, in planIDInput) (planView, err
 func (d Deps) getShipmentLabels(ctx context.Context, in shipmentIDInput) (labelsView, error) {
 	v, err := d.Reads.GetLabels(ctx, in.ShipmentID)
 	if err != nil {
-		return labelsView{}, mapError(err)
+		return labelsView{}, mapError(ctx, err)
 	}
 	return toLabels(v), nil
 }
@@ -239,7 +239,7 @@ func (d Deps) getShipmentLabels(ctx context.Context, in shipmentIDInput) (labels
 func (d Deps) getInboundShipment(ctx context.Context, in shipmentIDInput) (shipmentView, error) {
 	v, err := d.Reads.GetInboundShipment(ctx, in.ShipmentID)
 	if err != nil {
-		return shipmentView{}, mapError(err)
+		return shipmentView{}, mapError(ctx, err)
 	}
 	return toShipment(v), nil
 }
