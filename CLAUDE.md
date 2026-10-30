@@ -32,3 +32,5 @@ Aggregates, invariants and assumptions in docs/adr/0002; consumed contracts in 0
 ## Workflow
 GitFlow: feature/* -> PR into develop, CI green before merge, never push develop or main. lefthook: pre-commit fmt/vet/lint, pre-push `make check`. Commit and push after each step.
 Helm chart: charts/seller-inbound (mcp and frontend both default OFF — ADRs 0006/0007; ci/all-components-values.yaml renders everything on; tests in charts/seller-inbound/tests: render_test.sh + test_service_selectors.py + the python suites, run by the chart-tests job). The web remote ships its own image (ghcr.io/iqvo/seller-inbound-frontend), not the api Dockerfile.
+
+A2A: `cmd/a2a` (port 8093) is this context's read-only Agent2Agent agent, skills `seller_compliance` (read), `inbound_status` (read), decided in `docs/adr/0009-a2a-inbound-adapter.md`; delegation only (facts stay CloudEvents on Kafka), unauthenticated like REST and MCP; rules in `.claude/rules/fleet/a2a.md`.
