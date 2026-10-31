@@ -1,0 +1,70 @@
+---
+id: create-inbound-plan
+title: "Create an inbound plan (CreateInboundPlan)"
+description: "Declares what the seller will send to one destination node. The plan starts `DRAFT`. The seller must be `ACTIVE`; the node must be `ACTIVE` with the INBOUND capability (`node-cannot-receive`). Every line is in eaches; for `CASE_PACKED` each line's quantity must be a whole number of the case GTIN's units per pack."
+sidebar_label: "Create an inbound plan (CreateInboundPlan)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/rest/seller-inbound-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Create an inbound plan (CreateInboundPlan)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/inbound-plans"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Declares what the seller will send to one destination node. The plan starts `DRAFT`. The seller must be `ACTIVE`; the node must be `ACTIVE` with the INBOUND capability (`node-cannot-receive`). Every line is in eaches; for `CASE_PACKED` each line's quantity must be a whole number of the case GTIN's units per pack.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./create-inbound-plan.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./create-inbound-plan.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./create-inbound-plan.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

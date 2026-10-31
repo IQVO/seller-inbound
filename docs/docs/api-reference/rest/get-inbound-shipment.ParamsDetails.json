@@ -1,0 +1,1 @@
+{"parameters":[{"name":"shipmentId","in":"path","required":true,"description":"The inbound shipment id.","schema":{"type":"string"},"example":"shp-0f3a91"}]}

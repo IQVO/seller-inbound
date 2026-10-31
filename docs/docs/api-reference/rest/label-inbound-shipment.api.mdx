@@ -1,0 +1,70 @@
+---
+id: label-inbound-shipment
+title: "Label an inbound shipment (LabelShipment)"
+description: "Moves a `DRAFT` shipment to `LABELLED`: the cartons must add up to the confirmed plan (`carton-contents-mismatch-plan`) and the manifest is frozen. Publishes `InboundShipmentLabelled`. Only a `DRAFT` shipment can be labelled (`illegal-transition` otherwise)."
+sidebar_label: "Label an inbound shipment (LabelShipment)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/rest/seller-inbound-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Label an inbound shipment (LabelShipment)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/inbound-shipments/{shipmentId}:label"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Moves a `DRAFT` shipment to `LABELLED`: the cartons must add up to the confirmed plan (`carton-contents-mismatch-plan`) and the manifest is frozen. Publishes `InboundShipmentLabelled`. Only a `DRAFT` shipment can be labelled (`illegal-transition` otherwise).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./label-inbound-shipment.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./label-inbound-shipment.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./label-inbound-shipment.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

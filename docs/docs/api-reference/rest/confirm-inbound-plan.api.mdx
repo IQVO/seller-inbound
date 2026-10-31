@@ -1,0 +1,70 @@
+---
+id: confirm-inbound-plan
+title: "Confirm an inbound plan (ConfirmInboundPlan)"
+description: "Moves a `DRAFT` plan to `CONFIRMED` and publishes `InboundPlanConfirmed`. Shipments are opened only against a confirmed plan. Confirming a confirmed or cancelled plan is `illegal-transition`."
+sidebar_label: "Confirm an inbound plan (ConfirmInboundPlan)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/rest/seller-inbound-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Confirm an inbound plan (ConfirmInboundPlan)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/inbound-plans/{planId}:confirm"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Moves a `DRAFT` plan to `CONFIRMED` and publishes `InboundPlanConfirmed`. Shipments are opened only against a confirmed plan. Confirming a confirmed or cancelled plan is `illegal-transition`.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./confirm-inbound-plan.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./confirm-inbound-plan.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./confirm-inbound-plan.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

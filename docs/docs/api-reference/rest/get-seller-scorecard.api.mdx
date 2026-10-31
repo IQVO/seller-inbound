@@ -1,0 +1,81 @@
+---
+id: get-seller-scorecard
+title: "Get a seller's compliance scorecard (GetSellerScorecard)"
+description: "The seller's compliance scorecard over a rolling window that ends now, derived from this service's own facts (ADR 0005): the shipments that closed in the window, the"
+sidebar_label: "Get a seller's compliance scorecard (GetSellerScorecard)"
+hide_title: true
+hide_table_of_contents: true
+api: eJztWm1z27i1/itn+CWyLiVTjlMnSu+9o7W1qWZTx7Wc7PSud5YweWShJgEGAK2orv575wDgiyTK2XR6v3SSL5FJEDg4L895fQoMu9fB+JdgjlmGSge/hoEsUDHDpZilwTi4R+PezROpMGEqDcIgRZ0oXtCiYBzcLBG0XfNCQyLzIuNMJAi6+gLkIypgoGSWcXEPKy5SuQKzZAZQpBqEXIWQouKPmMJCyRzMkmvQqB55gi80yJWABUuMht7k4hqiKHp1NAZDBy95kaMw2m2XZFJjClzYl+6gkH7fioQpIwWtwzUoLKQymAITKSzlCnIm1rBChRBfT8+ns0/Ti9h+CCnXicKCiYSjBoWJVCmmcLeGBy7S0O5A61o3f+Qysyxs1g/hR0s/UwgpM24D+owLbZgwWze+FfUxZol5CEKaan2sMEFi1MTE9sEjilQqfyM9vBW3wq0pzCRJSsWS9TUzGAPXEHsmXPs94BjqJ44hsb0P1yBzbojM1RIFCOnXwYrpmnlvIW6YYw+5QjX3ArHnPcO/lD9yx8dbEddSrAg7SEa10kt6CHSsY6uSpbAsk7CQpYIUE56zzLOkEc8NR1VTt5JKG5ALMEuFCJrfC5Zp6NGfeimz1IsMk4wpp1mJTNGRJ6DSRpi8PBpDPLn57Xo2/yl25B4Uwx1mcgXR8E0UPsvCW8E1nAwjkApyqTCkH2ZJWkpEvaqetxTuLUhasOIaIf55cnP+J08MXVYxg1vnv95V8XW9Jhq+6jiWa2AGMmTawKg5duvUdx8+XMTDW0G4YDgq+qjf52IhVW5Xs6zfHwM3kCyZuEeyf7MkYGB3sjTOrC2ehLBaStCGrTXEk/Ob2adpTLTE84/zq+nlxfQirsxiWeaMRJPnjBBFimw9hAnoUhdotcLtCEumgbWgyUjpSVXIUijKu4zrpaUJ8BGFGd6KIAwKpliOhiBy/MtTIFiOwThwe84IEjkhYcHMMggDhZ9LrjANxkaVeBgugafDIAx0ssScBeOnwKwLu61RXNwHmzDALywvsuaowdlZsAnr8x2+Vad/LlGtt45fsEx3nv8cEg/hAheszAhSJcQvozQewkSsnYjhkWWl1YOYi0eW8XTgNomfu0oYoChzcjRnxKyXUUqeJnXnBGP7YOu69sGvdBddSKFR054nUUT/PeN9arkSMYkUBoWhT1hRZDyxynf8N03fPe3TKu/+honpdG9bynvAxy1Ir5xcu/1d47qGMElTbvgjvq31jABWEUJyM9wS4i9tNasl7n7MDVOm/msqaMkelhIrtkG+/aRes4XTP6x/4na35q6faozZekxoSsIsFAUOhjtR1SR3qUKnUldX+526s6Mq2wzp2MPJLxgH5HwHhufYHcfQ984dYC03LpKs1PwRj4Zb5J9EJ38YRG8GJ6c3o5fjKBpH0f81pJA0/nVCUKSHyXi7Ezm09ZAcNEmnNJh2kDuK9sjdV5iGbC4M3qMKwiDnguckh2iX3HlnCNaLz99/mBNCE2C737/9PLv5028Xs/n59fRqcnn+1/hoO1TbIvh0s6+430bZeRPyWbLIGL1PbqIYcjLMIJmsWSJXpAOm1NukRJt9k/k2Wj6QMKVG53GrYHTFzdIf2Ao8t85++XpDcLAXSbTOF2V+t3d8zr6436NdUn5HFBjuhFDwoR2HxXtBow0Y2lRHwzevNm1Q2Q1uvkb+NskX3UHklvK0QkroiCi/cqWOELTjUmfbl2qQ8qtu5HfdoEBls4ohEAbQrypO9eF3O1Kzrx2uQMG0ttmCkuX9Enrxn7kmdXcWEIcQfxT4pcDEYNo8u2A5u7esiedLqQz9+PCIKj56C0yALFDAo0zYXZkxRfFUtqJQrFCoUZgQMC/Mug4vXXgopEBiGrMejvzl1ZZnOGwyo3YE8BR44qz+WuqC8clmc8AjfSMuPJuqPQNJo82e6+uA+B3Bu7w23A4inIS7s4+3FBv7yFXbTOMuk8lDHScPWz6Rgu0gDGykH4SBT0C2PaR7Sbwz3Ngnuyl9w3nLSkKlLX21Lr3Mc6bWwTiYVHGORS8GmqRTaSiRyyB1wvMPgzCwYeN2ZNBy/433t+58x5t3O9otP9vt3Dp922mHVzmNOuD95esDuEvY9jy0EVAcxIlOxT6k16N9hWvJU8ja+T4nIkrfnVeu0+ctHX9bZ4cu2/VJ91fE9rottrMDUhtFg9HZv0FqUYfUuoQWHWL7QQ5HHRy2VrWx/8Lg9FDaEfvMB2zm1WRGVK2Jz1IX+VD+BL3dZOnomQSlUPIuw/y/vjVRuf7xHN6cvjoDvwGkaBjP9G46YXepsCAMXPSxH8K7w76Gblf+LFoFOivvq7KcrZbEQprBguoy5Fp4luE9ywZGMaGtc6CniRRJqRQKMyiL1JZICENiyy/LkcGC8cy6KalACneO9ZXxVKnhcBgDJcQORzmFv8LgF0MOX4HHNYi1TpIB0VMK/rnE7SAr2HkbNGD5XAJDWjCfn5/bukhGFYQ1lBotoHq+dnmmVlz5huIJK6evpEo6SaxiOfrGEEV/GJ2OTk8i/280ahNhzZsKihUkbahIQPlC8pUrHXNxRwIb1EZ4rJfFIFq8ZG9Gx97etpyJV4Fg233Xl27rfdB8ddNEPXmpDdwhnKUkYOcAKu6dRlHDoKDRCXA6MfZ7jOE2eBOltwH0St3a6Sho3zs4dtilj2vXc6wbJ+it/bTb2hVqWaoEIZWuZAX4hWsDvZaSfzfr72b9H2fWzi5yNEvpO0K2IGqWbYN6qgKETcuiwoAaGlXRtFRkwktjivHxcSYTli2lNuPXURQds4IfK8uvgUCzkuqhMlFPt60GUgRtr7kVxsLMLYHJ1YxCFlTaKfFoGA2jjuoK11VW1e/7MGlyNev3q4JLvH10DHe+s+A1EHqOVPCkhlAwZQQVEDgq35haKCkMpNKWzl1WtlryZNlUCe/RaNBGJg/AhZH2K7+jbVnUMZxvPlAqYAvp7rZFxkS/Dz2qXlDCsOJZBhqpJWWkP0vIFEOIZ5cXs0+zi4+T974aM5lPf7uanP80vYiPQrrWgqucSo+hTfp2TqpUpt8Hds9I3yytREAILE31rej3vQoRRciSpc8NhLMj2y0x3oSF0UehLcTTLhm7w4xySpmWCfp+Gp2oXYrk21u2tKRKX8xxPTBKfOmGkDGDdQcMKoZUjbJb0ZO+uuNLrdooZL6tZu1pcjU7qht52y0m1z66LjPUlX7QLRRLzJjeDKDf/0vJhOGEsDZ8Zi5NJjagZUj82ayn9q+Yar+QMI2DgiUPdYYErtVEKMgN5tRkod+f3cbrqsvITP3IeU38XLLMElUKYjChJ23sWp5gT4J3N7PLRol6sT3+s1kPcq5zZoiuwb3hIj4auvvQB/0+GcnoFFJ+TzsTAf0+SdO/ee3fhHAnTSVveDcfQS7TwSiCZInJg1vk96Wvh/0+tFogOVuDLosiW9fKIgXEVx/mN9CBWU883VRoFds8mdAxSbCgSg51fVw5wnqZVthNOBs3TSonbIe5lc0NVjy1POvt+ZTWh0P4mZsltamk8LU8/z1wrUtnpPYato9NnKPmNbGFsgzqMhcKF/yLpUChKZUgw/OnzmiPdAzUOKrF8d6aCDEuHltziSGXj3QUxBfXkx9v4kZnqWXzfvLD9P17W3qlEke73sjSFMoCPNp4w0cHJlYzaNmgMtNaQQb0fosNxKj43fSwkJxdx/UVHdzap9QAZ/2+VVav/j1imWPnu/loMDp5DZhh7o2VDD3uRdHRH4lH/+Mb867lR46R3WUIGa8E4sknEn1GTI7TmWNt5Slqw4WLJQlEjoZwTZ1CexiDQnFh3L6WZO8wWnMOIkElvIQudjarlJzY9kI7kKqi3LqRaUcP2KMT0Ozyhw8fLy8gYQW74xkZuE/RraeER44rWLjiJm03MLKQmbxfO0jTNgxNcZAwQYrrsS92gqrq4ARO1ipp8KGF5PTlC91ucjvgz3jOjW70gmB0hfx+aSuFrYea/71R17mtXJEPJjZ09GAThbbUIKT3IbX2StUuI1kvUDeHe5VbrvdrTqzbfmQjViufi0v+1+UM/32W/sNm50zoFaodAfvmnU9cOnt+Yd1oqYZW0E+ptIc5mrqiRSZuwGYF5JegNcDxQjetiV4z1eLqNmFtwJVTC3fmKupxlM4xlKMhzMyBPrwzBjd7szcl0XPd/LCaJQit3VdjDkfPVSnf+pekCL6H31htPPZfxlXPfrs96sYQVtQwgRSFzMm6pB0l+Dsq2ZoMCUHY3k18yS5jrw+XElhpliiMT77ICSdSaK4JGJyvstLKEE01SeR78tpmHXUVmFIsJMuV6drecteArHNMElkK5+amj1QMojQBB3bAwaIXObQYDHtADfEsxbyQBkWyHvyE6xh6I4JkQr1kySi0QKWpBk8xDVLgg0VWMXDBqWZcNcZDKrbyxQIp03JEUqzqoh1N6dMDrl27vnXoA64HCimlcSybKiWVw4c63YwPJa/x23YuWLQyRbdDKzuE0+i0O0OE0+hNd5Z4Gr0hPltF208W4fTkJIQiK/V2ypjLFLPtxNHezIFR6kB9D4mcD7YZlLFLBLCE+vJ2c4cLEJ9EUdzojJe1/daPizRN/EqJT2ggaOh1wQ1OVHq+4GQvxjWbadbGOiqBSPGfqsGoi2mVflm8n+i1SCZXMxIU18eM/mQFH65ZnsU0jOTToqpCbKMIl2/vvqL/i843TTNMiiaApsmQgidOD9ztNP9SLWGCZWvDE7/KDdCQT2aJLYpsDc9USRbkjBwuF5Qthq1cUY+Pj++5WZZ3w0Tmx7O/fPqwlxqGQcYTFBpb23+8fD87n17Opxc2qy2kNjkTrQXv0NS52KHBxd67vfHHo92E8qkp+Hwfhfw+Cvl9FPL7KOR/9CikrzFSIey4yBgXhL8Wr598VbCaWCMgH7eG15rC4K9hQLU/Wvr0dMc0flTZZkOP3RAjlQtTrin/OjDGuIu6/18TjZ23fcB1e/rSN0kDW6N8ZIoT3d94h961L+Ufwd6AaCcN/iET6zYFFW011ze/bsJgiSylvuYvT/71xFZMWh/uDUjSVeqS77vpTbDZ/BO/wsZI
+sidebar_class_name: "get api-method"
+info_path: docs/api-reference/rest/seller-inbound-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get a seller's compliance scorecard (GetSellerScorecard)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/sellers/{sellerId}/scorecard"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+The seller's compliance scorecard over a rolling window that ends now, derived from this service's own facts (ADR 0005): the shipments that closed in the window, the
+cartons they reported and how many were `RECEIVED`, the discrepancies recorded by kind, and the compliance violations recorded. Facts are dated by the instant this service
+recorded them, not by the `receivedAt` the vendor reports.
+
+`receiptAccuracyRate` is `cartonsReceived / cartonsReported` and is omitted when no carton was reported; `discrepancyRatePerShipment` is the discrepancies recorded divided by
+`shipmentsReceived` and is omitted when no shipment closed. Rates are rounded to four decimals.
+
+`complianceTier` is the worst of three signals (thresholds are declared in code and in ADR 0005 A3): `AT_RISK` when `receiptAccuracyRate` is below 0.90, `discrepancyRatePerShipment`
+is 2.0 or more, or there are 5 or more violations; otherwise `WATCH` when the rate is below 0.98, the discrepancy rate is 0.5 or more, or there is at least 1 violation; otherwise `GOOD`.
+The tier is **informational**: it changes nothing about the seller, who stays `ACTIVE` or `SUSPENDED` by the human commands only. A suspended seller has a scorecard too.
+The read publishes no event.
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./get-seller-scorecard.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./get-seller-scorecard.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./get-seller-scorecard.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

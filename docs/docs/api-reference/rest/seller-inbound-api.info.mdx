@@ -1,0 +1,84 @@
+---
+id: seller-inbound-api
+title: "Seller Inbound API"
+description: "This is the **seller API** of the `seller-inbound` bounded context (retail network, partner tier): the front door through which a seller gets stock into the network."
+sidebar_label: Introduction
+sidebar_position: 0
+hide_title: true
+custom_edit_url: null
+---
+
+import ApiLogo from "@theme/ApiLogo";
+import Heading from "@theme/Heading";
+import SchemaTabs from "@theme/SchemaTabs";
+import TabItem from "@theme/TabItem";
+import Export from "@theme/ApiExplorer/Export";
+
+<span
+  className={"theme-doc-version-badge badge badge--secondary"}
+  children={"Version: 1.0.0"}
+>
+</span>
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Seller Inbound API"}
+>
+</Heading>
+
+
+
+This is the **seller API** of the `seller-inbound` bounded context (retail network, partner tier): the front door through which a seller gets stock into the network.
+
+A seller declares an **inbound plan** (what it will send, to which node, `INDIVIDUAL` or `CASE_PACKED`), confirms it, opens an **inbound shipment** against the plan, adds
+**cartons** (each with an SSCC and its contents), has the labels produced, and ships. The vendor that runs the receiving node later reports what it received
+(over the event stream, not this API) and the shipment closes.
+
+Rules of the contract:
+
+- **Quantities are always eaches** (`qtyEaches`). A case-packed carton holds one item at one quantity, and that quantity must equal the units per pack the
+  case GTIN declares (`case-qty-mismatches-gtin`).
+- **GTIN** is 14 digits and **SSCC** is 18 digits, both with a GS1 mod-10 check digit.
+- **SSCC.** The seller may supply an SSCC on `POST /inbound-shipments/{id}/cartons`; it is accepted only when valid (`invalid-sscc` otherwise) and unique network-wide
+  (`sscc-not-unique` otherwise). Without one, the network issues an SSCC from its own GS1 company prefix and returns it (`ssccIssued: true`).
+- **Labels.** `:label` moves a `DRAFT` shipment to `LABELLED` once the cartons add up to the confirmed plan (`carton-contents-mismatch-plan` otherwise).
+  `GET /inbound-shipments/{id}/labels` returns the **label data** per carton (SSCC, the GS1-128 element string `(00)<sscc>`, the human readable line, the content
+  summary in eaches and the destination node). Rendering a printable label is the seller's concern.
+- **Destination node.** The plan's node must be `ACTIVE` and have the INBOUND capability in the local view fed by node-topology events (`node-cannot-receive`).
+  Cartons are checked against the node's declared inbound limits (`carton-overweight`, `carton-oversize`).
+- **Suspension.** A suspended seller creates no plan, shipment or carton and ships nothing (`seller-suspended`).
+- **Scorecard.** `GET /sellers/{sellerId}/scorecard?window=7d|30d` answers the seller's rolling-window compliance scorecard, computed from the facts this service recorded when it applied
+  the vendor's receipts (shipments closed, cartons received, discrepancies by kind, compliance violations). It is **informational**: the derived `complianceTier` (`GOOD`, `WATCH`,
+  `AT_RISK`) suspends and blocks nothing; suspension stays the human `:suspend` command (ADR 0005). A rate whose denominator is zero is omitted, never `NaN`.
+- **No authentication** (consistent with the fleet): the seller is named in the request body and checked against its account.
+- Every state-changing `POST` takes `Idempotency-Key` (1 to 128 characters); a repeat replays the first response, a different body under the same key is `idempotency-key-reused`.
+- Errors are RFC 9457 `application/problem+json`; the shared problem types are `not-found` 404, `illegal-transition` 409, `concurrent-update` 409 and
+  `validation-failed` 422, plus one slug per model `Err...` name.
+- Suspending a suspended seller and reinstating an active one answer `200` with the account and publish no event (ADR 0002 A3). Every other command finds the state it
+  needs or answers `illegal-transition`.
+- Events (AsyncAPI `apis/asyncapi.yaml`): `InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived` on the events topic; the other six on the analytics topic.
+
+
+<div
+  style={{"display":"flex","flexDirection":"column","marginBottom":"var(--ifm-paragraph-margin-bottom)"}}
+>
+  <h3
+    style={{"marginBottom":"0.25rem"}}
+  >
+    Contact
+  </h3><span>
+    seller-inbound maintainers: 
+  </span><span>
+    URL: [https://github.com/IQVO/seller-inbound](https://github.com/IQVO/seller-inbound)
+  </span>
+</div><div
+  style={{"marginBottom":"var(--ifm-paragraph-margin-bottom)"}}
+>
+  <h3
+    style={{"marginBottom":"0.25rem"}}
+  >
+    License
+  </h3>
+</div>
+      
