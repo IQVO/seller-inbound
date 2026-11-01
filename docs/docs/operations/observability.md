@@ -69,7 +69,7 @@ span (the `*Context` slog calls). Boot, shutdown and background-loop lines have 
 | Where | Level | `msg` | Fields |
 | --- | --- | --- | --- |
 | Request (`cmd/api`, `cmd/mcp`, `cmd/a2a`) | INFO / WARN (4xx) / ERROR (5xx) | `http request` | `method`, `route` (pattern or `unmatched`), `status`, `duration_ms`, `bytes`, `request_id`. `/healthz` and `/readyz` are not logged. |
-| REST | ERROR | `request failed` (an unmapped error, answered 500 `internal-error` with the fixed detail `an unexpected error occurred`) | `error`, `method`, `path` |
+| REST | ERROR | `request failed` (an unmapped error, answered 500 `internal-error` with the fixed detail `an unexpected error occurred`) | `error`, `method`, `path` (CR and LF removed by `sanitizeLog`, `internal/adapters/inbound/http/logsafe.go`) |
 | MCP | ERROR | `mcp tool failed with an unexpected error` | `error` |
 | Boot | INFO | `telemetry configured` | `service_name`, `otlp_endpoint` |
 | Boot | INFO | `postgres adapters configured`, `http server listening` | `addr` |

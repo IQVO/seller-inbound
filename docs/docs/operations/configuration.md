@@ -14,7 +14,7 @@ MCP and A2A are unauthenticated fleet-wide, so there is no token or key to confi
 in-cluster ClusterIP boundary.
 
 Every binary runs on real Postgres. `cmd/api` also needs real Kafka. A missing mandatory variable is a boot error that
-names it, raised before anything is opened or bound (`cmd/api/main.go` `loadRuntime`, `cmd/a2a/main.go`
+names it, raised before anything is opened or bound (`cmd/api/config.go` `loadRuntime`, `cmd/a2a/main.go`
 `validateBootConfig`). Test-only variables are not listed.
 
 A variable read by several binaries has a row in each table with that binary's own default.
@@ -22,7 +22,7 @@ A variable read by several binaries has a row in each table with that binary's o
 ## `cmd/api`
 
 Composition root of the REST API, the three Kafka consumers, the outbox relay and the retention sweeper
-(`cmd/api/main.go`, `cmd/api/telemetry.go`).
+(`cmd/api/main.go`, `config.go`, `wire_adapters.go`, `wire_background.go`, `telemetry.go`).
 
 | Variable | Default | Required? | Meaning |
 | --- | --- | --- | --- |

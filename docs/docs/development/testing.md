@@ -64,8 +64,12 @@ fitness tests enforce this (`TestPostgresIntegrationTestsUseTestcontainers`, `Te
 
 ## Contract tests
 
-- `TestEventCatalogueMatchesContract` (`internal/architecture/catalogue_fitness_test.go`) compares the event types the
-  code emits and consumes with `apis/asyncapi.yaml`.
+- `TestEventCatalogueMatchesContract` (`internal/architecture/catalogue_fitness_test.go`, a fleet-managed file) checks
+  that every `com.warehouse.(wms|wes).<service>...` type that `apis/asyncapi.yaml` declares for this module appears in
+  the ADR catalogue. seller-inbound's types are `com.retailnetwork.partner.seller-inbound...`, which that regular
+  expression does not match, so for this repository the test passes without checking any type; the catalogue is kept
+  honest by review (CLAUDE.md: a new event changes the domain struct, `apis/asyncapi.yaml` and the ADR 0004 `type:` line
+  in one commit).
 - `TestToolRegistryGolden` and `TestToolSurface` (`internal/adapters/inbound/mcp/governance_test.go`) pin the MCP tools
   to `internal/adapters/inbound/mcp/testdata/tool_registry.golden.json`; refresh it with `go test ./internal/adapters/inbound/mcp -update`
   and review the diff. The same file checks that no tool name is a write verb.
@@ -95,7 +99,7 @@ rule fails on a bad fixture.
 | Runtime binaries never import the in-memory adapters | `TestRuntimeBinaryHasNoInMemoryAdapters` |
 | No Go file at the repository root | `TestNoGoFilesAtRepoRoot` |
 | CloudEvents only, no flat envelope or toggle; replay consumers set a commit interval | `TestNoEventEnvelopeToggleOrFlatEnvelope`, `TestCloudEventsOnly`, `TestReplayConsumersSetCommitInterval` |
-| Event catalogue equals the AsyncAPI contract | `TestEventCatalogueMatchesContract` |
+| Event catalogue test (matches `com.warehouse.(wms\|wes)` types only, so it checks none here) | `TestEventCatalogueMatchesContract` |
 | Consumer group ids come from configuration, never a literal | `TestKafkaConsumerGroupNeverHardcodedInline` |
 | Kafka writers set `RequiredAcks`; a writer and its message never both set a topic; dead-letter calls guard cancellation | `TestKafkaWritersSetRequiredAcks`, `TestKafkaWriterTopicNotSetTwice`, `TestDeadLetterCallsGuardCancellation` |
 | Every outbox relay passes the attempt cap | `TestOutboxRelaysPassAttemptCap` |
@@ -132,6 +136,7 @@ Triggers: push and pull request on `main` and `develop`, a weekly Monday schedul
 | `lint` | golangci-lint v2.14.0 | blocking |
 | `guide-lint` | agent-guide sensor and hook tests | advisory (`continue-on-error`) |
 | `complexity` | gocyclo, gocognit, cyclop, funlen, nestif plus an informational gocyclo report | blocking |
+| `file-length` | revive `file-length-limit` (at most 300 code lines per production Go file, `.golangci.yml`) | blocking on pull requests into `develop` for the Go files the PR adds or touches; an informational report of the whole backlog on push, schedule and release PRs |
 | `test` | build, vet, `make coverage` | blocking |
 | `bdd` | `go test ./... -run TestFeatures -v` | blocking |
 | `integration` | `go test -tags=integration ./... -race -count=1` | blocking |

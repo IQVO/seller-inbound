@@ -23,7 +23,8 @@ Sources: [ADR 0002](/docs/adr/0002-aggregates-and-invariants) (aggregates),
 The chart `charts/seller-inbound` deploys up to four components. The `api` Deployment runs `cmd/api` and
 is always on (`replicaCount: 1`, HPA off by default). Three are optional and off by default: `mcp`
 (`cmd/mcp`, `mcp.enabled`), `a2a` (`cmd/a2a`, `a2a.enabled`) and `frontend` (the nginx pod serving the web remote,
-`frontend.enabled`). There is no projector or reports component. Inside the `api` process (`cmd/api/main.go`):
+`frontend.enabled`). There is no projector or reports component. Inside the `api` process (`cmd/api/main.go`, `wire_adapters.go`,
+`wire_background.go`):
 
 - REST seller API on `:8080` (`internal/adapters/inbound/http/server.go`): sellers, inbound
   plans, inbound shipments and cartons, label data, the seller compliance scorecard
@@ -35,7 +36,7 @@ is always on (`replicaCount: 1`, HPA off by default). Three are optional and off
   (`retailnetwork.offer-availability.events`), receipt
   (`retailnetwork.vendor-connectivity.events`) - `internal/adapters/inbound/kafka/consumers.go`.
 - One loop: a 24h retention sweeper for expired idempotency keys (`startBackground` in
-  `cmd/api/main.go`).
+  `cmd/api/wire_background.go`).
 
 If the relay, a consumer or the loop returns on its own, the process exits non-zero so
 the orchestrator restarts it (`watchWorkers`); it never sits "alive" with a dead worker.
@@ -59,7 +60,7 @@ the orchestrator restarts it (`watchWorkers`); it never sits "alive" with a dead
 
 ## Health
 
-`internal/adapters/inbound/http/readiness.go`, wired in `cmd/api/main.go`:
+`internal/adapters/inbound/http/readiness.go`, wired in `cmd/api/wire_adapters.go` (`newReadiness`):
 
 - `GET /healthz` - liveness only: `200 {"status":"ok"}` while the process serves, even
   while draining or with every dependency down.
