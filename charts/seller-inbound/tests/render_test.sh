@@ -8,7 +8,9 @@ set -euo pipefail
 chart_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 repo_dir="$(cd "$chart_dir/../.." && pwd)"
 release=seller-inbound
-main_go="$repo_dir/cmd/api/main.go"
+# Every non-test Go file of the cmd/api package (the composition root is split across files);
+# telemetry.go is excluded: its variables have their own section.
+api_go=($(ls "$repo_dir"/cmd/api/*.go | grep -v -E '_test\.go$|/telemetry\.go$'))
 
 # Dummy values, no password: the chart refuses to render without a database
 # source, Kafka brokers, the three consumer groups and the SSCC company prefix.
@@ -56,10 +58,10 @@ grep -q 'OUTBOX_MAX_ATTEMPTS: "0"' <<<"$unlimited" || fail "config.outboxMaxAtte
 # consumerGroups slice, so a new variable in cmd/api/main.go
 # fails this test until the chart renders it.
 literal_env() {
-  grep -ohE '(Getenv|getenv|env)\("[A-Z][A-Z0-9_]*"' "$main_go" | sed -E 's/.*\("//; s/"$//' | sort -u
+  grep -ohE '(Getenv|getenv|env)\("[A-Z][A-Z0-9_]*"' "${api_go[@]}" | sed -E 's/.*\("//; s/"$//' | sort -u
 }
 slice_env() { # slice_env <go slice variable>
-  grep -E "^var $1 = " "$main_go" | grep -oE '"[A-Z][A-Z0-9_]*"' | tr -d '"' | sort -u
+  grep -hE "^var $1 = " "${api_go[@]}" | grep -oE '"[A-Z][A-Z0-9_]*"' | tr -d '"' | sort -u
 }
 # Word splitting is safe: the names are [A-Z0-9_] only (bash 3.2 has no mapfile).
 # shellcheck disable=SC2207
@@ -81,7 +83,7 @@ while read -r key; do
   [[ "$api_known" == *" $key "* ]] || fail "ConfigMap key $key is read by no code in cmd/api (dead key)"
 done < <(awk '/^data:/ {d=1; next} d && /^  [A-Z]/ {sub(/:.*/, ""); sub(/^  /, ""); print}' <<<"$full_configmap")
 # Every mandatory variable cmd/api names in a boot error is rendered.
-for var in $(grep -ho 'errors.New("[A-Z_]* is required' "$main_go" | sed -E 's/errors.New\("//; s/ is required//' | sort -u); do
+for var in $(grep -ho 'errors.New("[A-Z_]* is required' "${api_go[@]}" | sed -E 's/errors.New\("//; s/ is required//' | sort -u); do
   grep -q "name: $var\$" <<<"$api_deployment" || fail "the api Deployment does not render $var, which cmd/api requires"
 done
 
