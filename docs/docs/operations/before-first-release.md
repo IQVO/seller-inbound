@@ -1,4 +1,19 @@
+---
+id: before-first-release
+title: Before the first release
+sidebar_label: Before the first release
+sidebar_position: 5
+description: "Packaging checklist for seller-inbound's first develop to main promotion, with the sensor that guards each row."
+---
+
 # Before the first release: seller-inbound
+
+There is no `main` branch yet, so the first `develop` to `main` promotion has not happened: `docker-publish` and
+`release` in `.github/workflows/ci.yml` run only on a push to `main`. The packaging parts below already exist on
+`develop`: the `Dockerfile`, `.dockerignore`, `charts/seller-inbound/` with its tests, and the fitness tests of
+rows 1 and 2. Row 3 names a `trivy-scan` job and row 10 a `docs-api-drift` job; **`ci.yml` in this repository
+has neither** (its jobs are listed in [Testing](/docs/development/testing)), so those two rows are guarded by review
+only. Treat the list as the packaging record, and re-check each row in the promotion PR.
 
 The first merge to `main` runs `docker-publish` and `release`. Two services built from
 this template (pick-face-replenishment, task-interleaving) each needed a rework because

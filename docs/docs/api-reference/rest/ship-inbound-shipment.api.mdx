@@ -1,0 +1,70 @@
+---
+id: ship-inbound-shipment
+title: "Ship an inbound shipment (ShipInboundShipment)"
+description: "Moves a `LABELLED` shipment to `SHIPPED` and publishes `InboundShipmentShipped`. A shipment that is not labelled is `shipment-not-labelled`; a suspended seller ships nothing (`seller-suspended`). Only a `LABELLED` shipment ships."
+sidebar_label: "Ship an inbound shipment (ShipInboundShipment)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/rest/seller-inbound-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Ship an inbound shipment (ShipInboundShipment)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/inbound-shipments/{shipmentId}:ship"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Moves a `LABELLED` shipment to `SHIPPED` and publishes `InboundShipmentShipped`. A shipment that is not labelled is `shipment-not-labelled`; a suspended seller ships nothing (`seller-suspended`). Only a `LABELLED` shipment ships.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./ship-inbound-shipment.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./ship-inbound-shipment.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./ship-inbound-shipment.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

@@ -1,0 +1,1 @@
+{"parameters":[{"name":"sellerId","in":"path","required":true,"description":"The seller id.","schema":{"type":"string"},"example":"seller-77"},{"name":"window","in":"query","required":false,"description":"The rolling window that ends now. Defaults to `30d`. Any other value is `invalid-window`.","schema":{"type":"string","enum":["7d","30d"],"default":"30d"},"example":"30d"}]}

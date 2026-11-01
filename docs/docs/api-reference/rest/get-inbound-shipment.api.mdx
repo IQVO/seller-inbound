@@ -1,0 +1,70 @@
+---
+id: get-inbound-shipment
+title: "Get an inbound shipment (GetInboundShipment)"
+description: "Reads one shipment with its cartons and, once the vendor reported, the receipt status of each carton."
+sidebar_label: "Get an inbound shipment (GetInboundShipment)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "get api-method"
+info_path: docs/api-reference/rest/seller-inbound-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get an inbound shipment (GetInboundShipment)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/inbound-shipments/{shipmentId}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Reads one shipment with its cartons and, once the vendor reported, the receipt status of each carton.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./get-inbound-shipment.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./get-inbound-shipment.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./get-inbound-shipment.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

@@ -1,0 +1,70 @@
+---
+id: add-carton
+title: "Add a carton (AddCarton)"
+description: "Adds one carton to a `DRAFT` shipment. `sscc` is optional: a supplied SSCC must be valid and unique network-wide, otherwise the network issues one and returns it. `kind` is `HOMOGENEOUS_CASE` (one item at one quantity, matching the case GTIN) or `MIXED`. `parentSscc` names the pallet SSCC when the node accepts pallets. The carton is checked against the node's inbound limits. The response carries the carton and its label data."
+sidebar_label: "Add a carton (AddCarton)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/rest/seller-inbound-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Add a carton (AddCarton)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/inbound-shipments/{shipmentId}/cartons"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Adds one carton to a `DRAFT` shipment. `sscc` is optional: a supplied SSCC must be valid and unique network-wide, otherwise the network issues one and returns it. `kind` is `HOMOGENEOUS_CASE` (one item at one quantity, matching the case GTIN) or `MIXED`. `parentSscc` names the pallet SSCC when the node accepts pallets. The carton is checked against the node's inbound limits. The response carries the carton and its label data.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./add-carton.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./add-carton.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./add-carton.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

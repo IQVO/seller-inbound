@@ -1,0 +1,70 @@
+---
+id: cancel-inbound-plan
+title: "Cancel an inbound plan (CancelInboundPlan)"
+description: "Moves a `DRAFT` plan to `CANCELLED`. Only a `DRAFT` plan can be cancelled (`illegal-transition` otherwise)."
+sidebar_label: "Cancel an inbound plan (CancelInboundPlan)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/rest/seller-inbound-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Cancel an inbound plan (CancelInboundPlan)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/inbound-plans/{planId}:cancel"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Moves a `DRAFT` plan to `CANCELLED`. Only a `DRAFT` plan can be cancelled (`illegal-transition` otherwise).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./cancel-inbound-plan.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./cancel-inbound-plan.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./cancel-inbound-plan.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

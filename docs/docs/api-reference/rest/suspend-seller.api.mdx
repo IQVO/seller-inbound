@@ -1,0 +1,70 @@
+---
+id: suspend-seller
+title: "Suspend a seller (SuspendSeller)"
+description: "Moves the account `ACTIVE` to `SUSPENDED` and publishes `SellerSuspended`. A seller already `SUSPENDED` gets the account back unchanged with `200` and no event. While suspended, the seller creates no plan, shipment or carton and ships nothing."
+sidebar_label: "Suspend a seller (SuspendSeller)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/rest/seller-inbound-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Suspend a seller (SuspendSeller)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/sellers/{sellerId}:suspend"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Moves the account `ACTIVE` to `SUSPENDED` and publishes `SellerSuspended`. A seller already `SUSPENDED` gets the account back unchanged with `200` and no event. While suspended, the seller creates no plan, shipment or carton and ships nothing.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./suspend-seller.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./suspend-seller.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./suspend-seller.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

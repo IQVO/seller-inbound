@@ -1,0 +1,1 @@
+{"parameters":[{"name":"planId","in":"path","required":true,"description":"The inbound plan id.","schema":{"type":"string"},"example":"pln-0f3a91"}]}
