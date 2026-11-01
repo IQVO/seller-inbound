@@ -1,4 +1,15 @@
+---
+id: runtime
+title: Runtime
+sidebar_label: Runtime
+sidebar_position: 2
+description: "Boot and stop sequence, probes, the outbox and consumers in operation, and the Helm chart of seller-inbound."
+---
+
 # Runtime: configuration, probes, shutdown and the outbox
+
+The authoritative per-binary variable list is [Configuration](/docs/operations/configuration); the table below is the
+`cmd/api` summary kept next to the boot sequence.
 
 `cmd/api` is the main binary. It runs on real PostgreSQL and real Kafka; there is no
 alternative runtime and no log sink. `cmd/mcp` (ADR 0006) is the second, optional

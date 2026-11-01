@@ -1,17 +1,29 @@
-# Seller Inbound runbook
+---
+id: runbook
+title: Runbook
+sidebar_label: Runbook
+sidebar_position: 2
+description: "Deploying and operating seller-inbound: components, probes, migrations, Kafka topics and consumer groups, outbox relay, DLQ, sweepers and failure procedures."
+---
+
+# Runbook
 
 **seller-inbound** is the retail network's front door for stock coming in from sellers:
 a seller is onboarded, declares an inbound plan in eaches, packs cartons identified by an
 SSCC, has the label data produced and ships; the vendor's carton-level receipt closes the
 shipment and every discrepancy and compliance violation is recorded, never corrected.
-Sources: `README.md`, `docs/adr/0002` (aggregates), `0003` (consumed contracts),
-`0004` (event catalogue), `0005` (scorecard), `docs/runtime.md` (probes, shutdown, outbox).
+Sources: [ADR 0002](/docs/adr/0002-aggregates-and-invariants) (aggregates),
+[0003](/docs/adr/0003-consumed-contracts-and-local-read-models) (consumed contracts),
+[0004](/docs/adr/0004-cloudevents-envelope-and-type-catalogue) (event catalogue),
+[0005](/docs/adr/0005-seller-compliance-scorecard) (scorecard) and
+[Runtime](/docs/overview/runtime) (probes, shutdown, outbox).
 
 ## Runtime shape
 
-One component, one process: the `api` Deployment runs `cmd/api` (chart
-`charts/seller-inbound`, `replicaCount: 1`, HPA off by default; no MCP, frontend,
-projector or reports component). Inside that process (`cmd/api/main.go`):
+The chart `charts/seller-inbound` deploys up to four components. The `api` Deployment runs `cmd/api` and
+is always on (`replicaCount: 1`, HPA off by default). Three are optional and off by default: `mcp`
+(`cmd/mcp`, `mcp.enabled`), `a2a` (`cmd/a2a`, `a2a.enabled`) and `frontend` (the nginx pod serving the web remote,
+`frontend.enabled`). There is no projector or reports component. Inside the `api` process (`cmd/api/main.go`):
 
 - REST seller API on `:8080` (`internal/adapters/inbound/http/server.go`): sellers, inbound
   plans, inbound shipments and cartons, label data, the seller compliance scorecard
@@ -67,9 +79,9 @@ Writes with a dependency down, per code:
 
 ## Configuration
 
-Chart `charts/seller-inbound` - each env var below maps 1:1 to a `values.yaml`
-`config.*` key rendered into the ConfigMap/container env (checksum-annotated so a
-change rolls the pods); secret keys come from the `seller-inbound-db` Secret.
+The full variable list, with defaults, is [Configuration](/docs/operations/configuration). In the chart
+each `cmd/api` variable maps 1:1 to a `values.yaml` `config.*` key rendered into the ConfigMap/container env
+(checksum-annotated so a change rolls the pods); secret keys come from the `seller-inbound-db` Secret.
 
 | Env var | Chart value | Default / meaning |
 | --- | --- | --- |
@@ -83,10 +95,34 @@ change rolls the pods); secret keys come from the `seller-inbound-db` Secret.
 | `SSCC_EXTENSION_DIGIT` | `config.ssccExtensionDigit` | `0`; a single digit 0..9 (ADR 0002 A5) |
 | `EVENT_PUBLISHER` | `config.eventPublisher` | `kafka` only; anything else is a boot error |
 | `HTTP_ADDR` | `config.httpAddr` | `:8080` |
-| `LOG_LEVEL` | `config.logLevel` | `info` (`debug|info|warn|error`) |
+| `LOG_LEVEL` | `config.logLevel` | `info` (`debug`, `info`, `warn`, `error`) |
 | `OUTBOX_RELAY_INTERVAL` | `config.outboxRelayInterval` | `1s` |
 | `OUTBOX_MAX_ATTEMPTS` | `config.outboxMaxAttempts` | `20`; `0` = unlimited |
 | `SHUTDOWN_DRAIN_DELAY` | `config.shutdownDrainDelay` | `5s`; `0` disables |
+
+## Migrations
+
+Both `cmd/api` and, independently, `cmd/mcp` and `cmd/a2a` run the embedded golang-migrate migrations
+(`internal/adapters/outbound/postgres/migrations/`, `0001_seller_inbound_schema` and `0002_seller_scorecard`) at
+boot, with backoff, before opening the pool (`internal/bootretry`). golang-migrate's advisory lock makes concurrent
+starts safe, but it is a session lock: where `DATABASE_URL` points at a transaction-pooling proxy set
+`MIGRATIONS_DATABASE_URL` to a direct DSN. Migration `0002` backfills the scorecard tables from the published events
+in `outbox_events`. There is no manual migration step and no separate migration job.
+
+## Kafka topics, consumer groups and the DLQ
+
+| Topic | Direction | Handled by | Consumer group (env var) |
+| --- | --- | --- | --- |
+| `retailnetwork.node-topology.events` | consumed | node consumer | `NODE_CONSUMER_GROUP` |
+| `retailnetwork.offer-availability.events` | consumed | catalog consumer | `CATALOG_CONSUMER_GROUP` |
+| `retailnetwork.vendor-connectivity.events` | consumed | receipt consumer | `RECEIPT_CONSUMER_GROUP` |
+| `retailnetwork.seller-inbound.events` | published by the relay | outbox relay | n/a |
+| `retailnetwork.seller-inbound.analytics` | published by the relay | outbox relay | n/a |
+| `<topic>.dlq` | published on poison messages | each consumer | n/a |
+
+Group ids are stable and service-prefixed (`seller-inbound-node`, `seller-inbound-catalog`, `seller-inbound-receipt`
+in the examples), never the pod name. Topics are auto-created by the first writer; the service creates none through
+an admin API.
 
 ## Alerts and dashboards
 
@@ -98,9 +134,10 @@ change rolls the pods); secret keys come from the `seller-inbound-db` Secret.
 - Logs are JSON on stdout; Alloy maps the pod label `app.kubernetes.io/name` to the
   Loki label `app`, so query Loki with `{namespace="warehouse-systems",
   app="seller-inbound"}`.
-- No business metrics are instrumented: `go.mod` has no Prometheus client and the code
-  exports no metrics. Business/event panels stay empty until the service instruments
-  itself; alerting today can only see pod restarts, not lag or outbox depth.
+- Metrics are OpenTelemetry pushes to the Collector ([Observability](/docs/operations/observability)): HTTP
+  request duration, Go runtime metrics and the business counter `seller_inbound.shipment.shipped`. There is no
+  instrument for consumer lag or outbox depth; read those from Kafka and from `outbox_events`
+  (`published_at IS NULL`) directly.
 
 ## Failure modes
 
