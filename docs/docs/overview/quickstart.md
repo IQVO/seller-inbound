@@ -82,8 +82,9 @@ psql "$DATABASE_URL" -c "INSERT INTO node_inbound_views (node_id, node_type, sta
 ## Walk a shipment
 
 Every `POST` needs an `Idempotency-Key` header (1 to 128 characters). All calls below go to the service directly
-(`localhost:8080`, routes at the root). Behind the gateway the OpenAPI server URL is
-`http://localhost:8000/api/retail-network/seller-inbound`.
+(`localhost:8080`, routes at the root). The OpenAPI server URL is `http://localhost:8000/api/retail-network/seller-inbound`,
+but the route in `warehouse-infra` (`helm-values/seller-inbound.yaml`) is `/api/seller-inbound` with the prefix stripped,
+so through Kong on `:8000` the same calls go to `http://localhost:8000/api/seller-inbound/...`.
 
 1. Onboard a seller:
 

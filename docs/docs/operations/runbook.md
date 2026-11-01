@@ -121,9 +121,11 @@ in `outbox_events`. There is no manual migration step and no separate migration 
 | `retailnetwork.seller-inbound.analytics` | published by the relay | outbox relay | n/a |
 | `<topic>.dlq` | published on poison messages | each consumer | n/a |
 
-Group ids are stable and service-prefixed (`seller-inbound-node`, `seller-inbound-catalog`, `seller-inbound-receipt`
-in the examples), never the pod name. Topics are auto-created by the first writer; the service creates none through
-an admin API.
+Group ids are stable and service-prefixed, never the pod name. The ids the cluster uses are set in `warehouse-infra`
+`helm-values/seller-inbound.yaml`: `seller-inbound-node-topology`, `seller-inbound-catalog-packaging` and
+`seller-inbound-vendor-receipts`. Topics are auto-created by the first writer; the service creates none through
+an admin API (warehouse-infra pre-creates `retailnetwork.seller-inbound.events` at deploy, because a kafka-go group
+consumer started before its topic exists is never handed the partition).
 
 ## Alerts and dashboards
 
