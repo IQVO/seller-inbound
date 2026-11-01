@@ -6,7 +6,7 @@ import type * as OpenApiPlugin from 'docusaurus-plugin-openapi-docs';
 const config: Config = {
   title: 'Seller Inbound',
   tagline:
-    'Seller Inbound: a Supporting bounded context of the retail-network domain (warehouse-systems).',
+    'Plan, pack, label and ship seller stock to a vendor node, and reconcile it against the vendor receipt.',
   favicon: 'img/favicon.svg',
 
   future: {

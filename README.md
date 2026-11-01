@@ -18,16 +18,30 @@ This project is a domain-driven design study. It is not associated with, endorse
 
 ## Documentation
 
-This repository has no docs site of its own. Its design documentation lives on the warehouse-docs retail-network pages:
+Full documentation is published at **<https://iqvo.github.io/seller-inbound/>** (built from `docs/`; build locally with `cd docs && npm ci && npm run build`).
+
+Page map (source under `docs/docs/`):
+
+| Area | Pages |
+|---|---|
+| Overview | [Introduction](docs/docs/overview/introduction.md), [Architecture](docs/docs/overview/architecture.md), [Runtime](docs/docs/overview/runtime.md), [Quickstart](docs/docs/overview/quickstart.md) |
+| Operations | [Configuration](docs/docs/operations/configuration.md), [Runbook](docs/docs/operations/runbook.md), [Observability](docs/docs/operations/observability.md), [Troubleshooting](docs/docs/operations/troubleshooting.md), [Before first release](docs/docs/operations/before-first-release.md) |
+| Development | [Testing](docs/docs/development/testing.md) |
+| Ecosystem | [Integration](docs/docs/ecosystem/integration.md), [MCP tools](docs/docs/mcp/tools.md) |
+| DDD | [Ubiquitous language](docs/docs/ddd/ubiquitous-language.md), [Use cases](docs/docs/ddd/use-cases.md), [Subdomain classification](docs/docs/ddd/subdomain-classification.md), [DDD artifacts](docs/docs/ddd/ddd-artifacts.md) (the 10-page ddd-crew pack) |
+| API reference | [Overview](docs/docs/api-reference/overview.md) (REST pages generated from `apis/openapi.yaml`), [Events](docs/docs/api-reference/events.md) |
+| Decisions | [ADR index](docs/adr/index.md), decisions 0001 to 0009 |
+
+The design source is the retail-network pages on warehouse-docs, which this site's DDD pack was started from:
 
 | Area | Pages |
 |---|---|
 | Retail network | [Network overview](https://iqvo.github.io/warehouse-docs/network) |
-| This context | [Index / service facts](https://iqvo.github.io/warehouse-docs/network/contexts/seller-inbound), [Business context](https://iqvo.github.io/warehouse-docs/network/contexts/seller-inbound/business-context), [Domain events](https://iqvo.github.io/warehouse-docs/network/contexts/seller-inbound/domain-events), [Use cases](https://iqvo.github.io/warehouse-docs/network/contexts/seller-inbound/use-cases) |
+| This context | [Index / service facts](https://iqvo.github.io/warehouse-docs/network/contexts/seller-inbound), [Business context](https://iqvo.github.io/warehouse-docs/network/contexts/seller-inbound/business-context), [Use cases](https://iqvo.github.io/warehouse-docs/network/contexts/seller-inbound/use-cases) |
 | DDD artifact pack | [Ubiquitous language](https://iqvo.github.io/warehouse-docs/network/contexts/seller-inbound/ubiquitous-language), [Context map](https://iqvo.github.io/warehouse-docs/network/contexts/seller-inbound/context-map), [Core domain chart](https://iqvo.github.io/warehouse-docs/network/contexts/seller-inbound/core-domain-chart), [Bounded context canvas](https://iqvo.github.io/warehouse-docs/network/contexts/seller-inbound/bounded-context-canvas), [Aggregate design canvas](https://iqvo.github.io/warehouse-docs/network/contexts/seller-inbound/aggregate-design-canvas), [EventStorming](https://iqvo.github.io/warehouse-docs/network/contexts/seller-inbound/eventstorming), [Class diagram](https://iqvo.github.io/warehouse-docs/network/contexts/seller-inbound/class-diagram), [Sequence diagrams](https://iqvo.github.io/warehouse-docs/network/contexts/seller-inbound/sequence-diagrams), [ER diagram](https://iqvo.github.io/warehouse-docs/network/contexts/seller-inbound/entity-relationship), [Domain message flow](https://iqvo.github.io/warehouse-docs/network/contexts/seller-inbound/domain-message-flow) |
 | Decisions | [Network ADRs](https://iqvo.github.io/warehouse-docs/network/adr), incl. [ADR 0009: seller inbound and case-packed shipments](https://iqvo.github.io/warehouse-docs/network/adr/0009-seller-inbound-and-case-packed-shipments) |
 
-In-tree: [docs/adr/](docs/adr/index.md) (decisions, index), [docs/runtime.md](docs/runtime.md) and [docs/operations/runbook.md](docs/operations/runbook.md) (operations), `docs/before-first-release.md` (packaging checklist).
+In-tree decisions: [docs/adr/](docs/adr/index.md).
 
 ## Architecture
 

@@ -35,7 +35,12 @@ function HomepageHeader() {
           {siteConfig.title}
         </Heading>
         <p className={styles.heroSubtitle}>{siteConfig.tagline}</p>
-        <p className={styles.heroLead}>TODO-LEAD</p>
+        <p className={styles.heroLead}>
+          The front door for stock that sellers send to the retail network. A seller declares an inbound plan in
+          eaches, packs it into SSCC-labelled cartons that are checked against the plan, the item's packaging
+          hierarchy and the node's limits, and ships it to a vendor node. The shipment is closed from the vendor's
+          carton-level receipt, and every discrepancy is recorded, never corrected.
+        </p>
         <div className={styles.buttons}>
           <Link className="button button--primary button--lg" to="/docs/overview/introduction">
             Read the docs
