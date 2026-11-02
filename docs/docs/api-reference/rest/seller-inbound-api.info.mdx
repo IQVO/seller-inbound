@@ -42,7 +42,7 @@ Rules of the contract:
 - **GTIN** is 14 digits and **SSCC** is 18 digits, both with a GS1 mod-10 check digit.
 - **SSCC.** The seller may supply an SSCC on `POST /inbound-shipments/{id}/cartons`; it is accepted only when valid (`invalid-sscc` otherwise) and unique network-wide
   (`sscc-not-unique` otherwise). Without one, the network issues an SSCC from its own GS1 company prefix and returns it (`ssccIssued: true`).
-- **Labels.** `:label` moves a `DRAFT` shipment to `LABELLED` once the cartons add up to the confirmed plan (`carton-contents-mismatch-plan` otherwise).
+- **Labels.** `POST /inbound-shipments/{id}/labels` moves a `DRAFT` shipment to `LABELLED` once the cartons add up to the confirmed plan (`carton-contents-mismatch-plan` otherwise).
   `GET /inbound-shipments/{id}/labels` returns the **label data** per carton (SSCC, the GS1-128 element string `(00)<sscc>`, the human readable line, the content
   summary in eaches and the destination node). Rendering a printable label is the seller's concern.
 - **Destination node.** The plan's node must be `ACTIVE` and have the INBOUND capability in the local view fed by node-topology events (`node-cannot-receive`).
@@ -50,9 +50,9 @@ Rules of the contract:
 - **Suspension.** A suspended seller creates no plan, shipment or carton and ships nothing (`seller-suspended`).
 - **Scorecard.** `GET /sellers/{sellerId}/scorecard?window=7d|30d` answers the seller's rolling-window compliance scorecard, computed from the facts this service recorded when it applied
   the vendor's receipts (shipments closed, cartons received, discrepancies by kind, compliance violations). It is **informational**: the derived `complianceTier` (`GOOD`, `WATCH`,
-  `AT_RISK`) suspends and blocks nothing; suspension stays the human `:suspend` command (ADR 0005). A rate whose denominator is zero is omitted, never `NaN`.
+  `AT_RISK`) suspends and blocks nothing; suspension stays the human `POST /sellers/{sellerId}/suspensions` command (ADR 0005). A rate whose denominator is zero is omitted, never `NaN`.
 - **No authentication** (consistent with the fleet): the seller is named in the request body and checked against its account.
-- Every state-changing `POST` takes `Idempotency-Key` (1 to 128 characters); a repeat replays the first response, a different body under the same key is `idempotency-key-reused`.
+- Every `POST` takes `Idempotency-Key` (1 to 128 printable ASCII characters; missing is `400 idempotency-key-required`, malformed `400 idempotency-key-invalid`); a repeat replays the first response with `Idempotency-Replayed: true`, and the same key on a different method, path or body is `409 idempotency-key-reused`.
 - Errors are RFC 9457 `application/problem+json`; the shared problem types are `not-found` 404, `illegal-transition` 409, `concurrent-update` 409 and
   `validation-failed` 422, plus one slug per model `Err...` name.
 - Suspending a suspended seller and reinstating an active one answer `200` with the account and publish no event (ADR 0002 A3). Every other command finds the state it

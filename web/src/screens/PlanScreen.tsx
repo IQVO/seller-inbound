@@ -10,7 +10,7 @@ import { planStateSentence, utcLabel } from "../lib";
 /**
  * The inbound plan browser: GET /inbound-plans/{planId}. There is no plan
  * list route in this context's API, so the screen is a lookup: type a planId,
- * submit. Read-only -- :confirm and :cancel stay REST commands, not buttons
+ * submit. Read-only -- confirmations and cancellations stay REST commands, not buttons
  * here.
  */
 export function PlanScreen() {

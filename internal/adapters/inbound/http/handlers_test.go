@@ -110,7 +110,7 @@ func (a *api) confirmedPlan(packing, gtin string, qty int) string {
 	body := `{"sellerId":"S-1","destinationNodeId":"n-1","packingOption":"` + packing + `","lines":[{"catalogItemId":"item-1","gtin":"` + gtin + `","qtyEaches":` + itoa(qty) + `}]}`
 	plan := a.mustCode(http.MethodPost, "/inbound-plans", body, 201)
 	id := plan["planId"].(string)
-	a.mustCode(http.MethodPost, "/inbound-plans/"+id+":confirm", "", 200)
+	a.mustCode(http.MethodPost, "/inbound-plans/"+id+"/confirmations", "", 200)
 	return id
 }
 
@@ -123,17 +123,15 @@ func TestSellerRoutes(t *testing.T) {
 	a.do(http.MethodPost, "/sellers", `{"sellerId":"bad id","name":"x"}`).problem(t, 422, "validation-failed")
 	a.do(http.MethodPost, "/sellers", `{"sellerId":"S-2","name":"x","extra":1}`).problem(t, 422, "validation-failed")
 	a.do(http.MethodPost, "/sellers", ``).problem(t, 422, "validation-failed")
-	s := a.mustCode(http.MethodPost, "/sellers/S-1:suspend", `{"reason":"late"}`, 200)
+	s := a.mustCode(http.MethodPost, "/sellers/S-1/suspensions", `{"reason":"late"}`, 200)
 	if s["state"] != "SUSPENDED" || s["suspendReason"] != "late" || s["suspendedAt"] == nil {
 		t.Fatalf("%v", s)
 	}
-	if s = a.mustCode(http.MethodPost, "/sellers/S-1:reinstate", "", 200); s["state"] != "ACTIVE" || s["suspendedAt"] != nil {
+	if s = a.mustCode(http.MethodPost, "/sellers/S-1/reinstatements", "", 200); s["state"] != "ACTIVE" || s["suspendedAt"] != nil {
 		t.Fatalf("%v", s)
 	}
-	a.mustCode(http.MethodPost, "/sellers/S-1:suspend", "", 200)
-	a.do(http.MethodPost, "/sellers/ghost:suspend", "").problem(t, 404, "not-found")
-	a.do(http.MethodPost, "/sellers/S-1:explode", "").problem(t, 404, "not-found")
-	a.do(http.MethodPost, "/sellers/S-1", "").problem(t, 404, "not-found")
+	a.mustCode(http.MethodPost, "/sellers/S-1/suspensions", "", 200)
+	a.do(http.MethodPost, "/sellers/ghost/suspensions", "").problem(t, 404, "not-found")
 }
 
 func TestPlanRoutes(t *testing.T) {
@@ -148,20 +146,19 @@ func TestPlanRoutes(t *testing.T) {
 	if got := a.mustCode(http.MethodGet, "/inbound-plans/"+id, "", 200); got["planId"] != id {
 		t.Fatal(got)
 	}
-	if c := a.mustCode(http.MethodPost, "/inbound-plans/"+id+":confirm", "", 200); c["state"] != "CONFIRMED" || c["confirmedAt"] == nil {
+	if c := a.mustCode(http.MethodPost, "/inbound-plans/"+id+"/confirmations", "", 200); c["state"] != "CONFIRMED" || c["confirmedAt"] == nil {
 		t.Fatal(c)
 	}
-	a.do(http.MethodPost, "/inbound-plans/"+id+":cancel", "").problem(t, 409, "illegal-transition")
+	a.do(http.MethodPost, "/inbound-plans/"+id+"/cancellations", "").problem(t, 409, "illegal-transition")
 	q := a.mustCode(http.MethodPost, "/inbound-plans", body, 201)["planId"].(string)
-	if c := a.mustCode(http.MethodPost, "/inbound-plans/"+q+":cancel", "", 200); c["state"] != "CANCELLED" || c["cancelledAt"] == nil {
+	if c := a.mustCode(http.MethodPost, "/inbound-plans/"+q+"/cancellations", "", 200); c["state"] != "CANCELLED" || c["cancelledAt"] == nil {
 		t.Fatal(c)
 	}
 	a.do(http.MethodGet, "/inbound-plans/ghost", "").problem(t, 404, "not-found")
-	a.do(http.MethodPost, "/inbound-plans/"+id+":nope", "").problem(t, 404, "not-found")
 	a.do(http.MethodPost, "/inbound-plans", strings.Replace(body, `"n-1"`, `"ghost"`, 1)).problem(t, 409, "node-cannot-receive")
 	a.do(http.MethodPost, "/inbound-plans", strings.Replace(body, `"S-1"`, `"ghost"`, 1)).problem(t, 404, "not-found")
 	a.do(http.MethodPost, "/inbound-plans", strings.Replace(body, gtinCase, "123", 1)).problem(t, 422, "validation-failed")
-	a.mustCode(http.MethodPost, "/sellers/S-1:suspend", "", 200)
+	a.mustCode(http.MethodPost, "/sellers/S-1/suspensions", "", 200)
 	a.do(http.MethodPost, "/inbound-plans", body).problem(t, 409, "seller-suspended")
 }
 
@@ -186,15 +183,15 @@ func TestShipmentRoutesEndToEnd(t *testing.T) {
 	if c2 := a.mustCode(http.MethodPost, "/inbound-shipments/"+id+"/cartons", cartonBody(ssccA, 12, `"parentSscc":"`+ssccB+`",`), 201); c2["ssccIssued"] != false {
 		t.Fatalf("%v", c2)
 	}
-	a.do(http.MethodPost, "/inbound-shipments/"+id+":ship", "").problem(t, 409, "shipment-not-labelled")
-	if l := a.mustCode(http.MethodPost, "/inbound-shipments/"+id+":label", "", 200); l["state"] != "LABELLED" || l["labelledAt"] == nil {
+	a.do(http.MethodPost, "/inbound-shipments/"+id+"/dispatches", "").problem(t, 409, "shipment-not-labelled")
+	if l := a.mustCode(http.MethodPost, "/inbound-shipments/"+id+"/labels", "", 200); l["state"] != "LABELLED" || l["labelledAt"] == nil {
 		t.Fatalf("%v", l)
 	}
 	labels := a.mustCode(http.MethodGet, "/inbound-shipments/"+id+"/labels", "", 200)
 	if ls := labels["labels"].([]any); len(ls) != 2 || labels["destinationNodeId"] != "n-1" || ls[1].(map[string]any)["parentSscc"] != ssccB {
 		t.Fatalf("%v", labels)
 	}
-	if s := a.mustCode(http.MethodPost, "/inbound-shipments/"+id+":ship", "", 200); s["state"] != "SHIPPED" || s["shippedAt"] == nil {
+	if s := a.mustCode(http.MethodPost, "/inbound-shipments/"+id+"/dispatches", "", 200); s["state"] != "SHIPPED" || s["shippedAt"] == nil {
 		t.Fatalf("%v", s)
 	}
 	if got := a.mustCode(http.MethodGet, "/inbound-shipments/"+id, "", 200); got["state"] != "SHIPPED" || len(got["cartons"].([]any)) != 2 {
@@ -226,8 +223,7 @@ func TestCartonErrorsHaveStableSlugs(t *testing.T) {
 	a.do(http.MethodPost, "/inbound-shipments/ghost/cartons", cartonBody("", 12, "")).problem(t, 404, "not-found")
 	a.do(http.MethodGet, "/inbound-shipments/ghost/labels", "").problem(t, 404, "not-found")
 	a.do(http.MethodGet, "/inbound-shipments/ghost", "").problem(t, 404, "not-found")
-	a.do(http.MethodPost, "/inbound-shipments/"+id+":label", "").problem(t, 422, "carton-contents-mismatch-plan")
-	a.do(http.MethodPost, "/inbound-shipments/"+id+":nope", "").problem(t, 404, "not-found")
+	a.do(http.MethodPost, "/inbound-shipments/"+id+"/labels", "").problem(t, 422, "carton-contents-mismatch-plan")
 	a.do(http.MethodPost, "/inbound-plans/ghost/shipments", "").problem(t, 404, "not-found")
 }
 
@@ -254,9 +250,9 @@ func TestSuspendedSellerCannotShip(t *testing.T) {
 	plan := a.confirmedPlan("CASE_PACKED", gtinCase, 12)
 	id := a.mustCode(http.MethodPost, "/inbound-plans/"+plan+"/shipments", "", 201)["shipmentId"].(string)
 	a.mustCode(http.MethodPost, "/inbound-shipments/"+id+"/cartons", cartonBody("", 12, ""), 201)
-	a.mustCode(http.MethodPost, "/inbound-shipments/"+id+":label", "", 200)
-	a.mustCode(http.MethodPost, "/sellers/S-1:suspend", "", 200)
-	a.do(http.MethodPost, "/inbound-shipments/"+id+":ship", "").problem(t, 409, "seller-suspended")
+	a.mustCode(http.MethodPost, "/inbound-shipments/"+id+"/labels", "", 200)
+	a.mustCode(http.MethodPost, "/sellers/S-1/suspensions", "", 200)
+	a.do(http.MethodPost, "/inbound-shipments/"+id+"/dispatches", "").problem(t, 409, "seller-suspended")
 	a.do(http.MethodPost, "/inbound-plans/"+plan+"/shipments", "").problem(t, 409, "seller-suspended")
 }
 

@@ -27,18 +27,18 @@ for a walk through the seller API.
 | Tag | Endpoint | Operation id | Success |
 | --- | --- | --- | --- |
 | Sellers | `POST /sellers` | `onboardSeller` | `201`, the account, `ACTIVE` |
-| Sellers | `POST /sellers/{sellerId}:suspend` | `suspendSeller` | `200`, the account (a repeat is a no-op, no event) |
-| Sellers | `POST /sellers/{sellerId}:reinstate` | `reinstateSeller` | `200`, the account (a repeat is a no-op, no event) |
+| Sellers | `POST /sellers/{sellerId}/suspensions` | `suspendSeller` | `200`, the account (a repeat is a no-op, no event) |
+| Sellers | `POST /sellers/{sellerId}/reinstatements` | `reinstateSeller` | `200`, the account (a repeat is a no-op, no event) |
 | Sellers | `GET /sellers/{sellerId}/scorecard` | `getSellerScorecard` | `200`, the scorecard; `window` `7d` or `30d` (default `30d`) |
 | Inbound Plans | `POST /inbound-plans` | `createInboundPlan` | `201`, the plan, `DRAFT` |
 | Inbound Plans | `GET /inbound-plans/{planId}` | `getInboundPlan` | `200`, the plan with its lines |
-| Inbound Plans | `POST /inbound-plans/{planId}:confirm` | `confirmInboundPlan` | `200`, `CONFIRMED` |
-| Inbound Plans | `POST /inbound-plans/{planId}:cancel` | `cancelInboundPlan` | `200`, `CANCELLED` |
+| Inbound Plans | `POST /inbound-plans/{planId}/confirmations` | `confirmInboundPlan` | `200`, `CONFIRMED` |
+| Inbound Plans | `POST /inbound-plans/{planId}/cancellations` | `cancelInboundPlan` | `200`, `CANCELLED` |
 | Inbound Plans | `POST /inbound-plans/{planId}/shipments` | `createInboundShipment` | `201`, an empty `DRAFT` shipment |
 | Inbound Shipments | `POST /inbound-shipments/{shipmentId}/cartons` | `addCarton` | `201`, the carton, `ssccIssued`, label data |
-| Inbound Shipments | `POST /inbound-shipments/{shipmentId}:label` | `labelInboundShipment` | `200`, `LABELLED` |
+| Inbound Shipments | `POST /inbound-shipments/{shipmentId}/labels` | `labelInboundShipment` | `200`, `LABELLED` |
 | Inbound Shipments | `GET /inbound-shipments/{shipmentId}/labels` | `getShipmentLabels` | `200`, one label per carton |
-| Inbound Shipments | `POST /inbound-shipments/{shipmentId}:ship` | `shipInboundShipment` | `200`, `SHIPPED` |
+| Inbound Shipments | `POST /inbound-shipments/{shipmentId}/dispatches` | `shipInboundShipment` | `200`, `SHIPPED` |
 | Inbound Shipments | `GET /inbound-shipments/{shipmentId}` | `getInboundShipment` | `200`, the shipment with its cartons |
 | Health | `GET /healthz`, `GET /readyz` | none (not in the spec) | `200`; `503` while draining or when Postgres or Kafka is unreachable |
 
@@ -51,14 +51,17 @@ The `:verb` actions share a chi pattern per resource (`/sellers/{sellerAction}`,
 - **Eaches.** Every quantity is `qtyEaches`; a bare quantity never changes meaning. GTINs are 14 digits (shorter forms
   are normalised), SSCCs 18, both with a GS1 mod-10 check digit.
 - **`Idempotency-Key`.** Required on every `POST` (1 to 128 characters), implemented by
-  `internal/adapters/inbound/http/idempotency.go`. The same key and route with an equal body replays the stored answer
-  for 24 h (a 4xx replays too); a different body is `422 idempotency-key-reused`; a missing or too long key is
-  `422 idempotency-key-required`. A 5xx is never stored.
+  `internal/adapters/inbound/http/idempotency.go`. The key is global and the request fingerprint is method + path +
+  SHA-256 of the body. The same fingerprint replays the stored answer for 24 h (a 4xx replays too) with the response
+  header `Idempotency-Replayed: true`; the same key on a different method, path or body is
+  `409 idempotency-key-reused`; a missing key is `400 idempotency-key-required` and a key that is not 1 to 128
+  printable ASCII characters is `400 idempotency-key-invalid`. A 5xx is never stored. See
+  [ADR 0010](/docs/adr/0010-fleet-rest-api-guideline).
 - **Errors** are RFC 9457 `application/problem+json` with `type` = the bare slug (not a URL), `title`, `status`,
   `detail` and `instance`. The slugs are `not-found`, `illegal-transition`, `concurrent-update`, `validation-failed`,
   `invalid-window`, `seller-exists`, `seller-suspended`, `node-cannot-receive`, `sscc-not-unique`, `invalid-sscc`,
   `case-pack-not-uniform`, `case-qty-mismatches-gtin`, `carton-overweight`, `carton-oversize`,
-  `carton-contents-mismatch-plan`, `shipment-not-labelled`, `idempotency-key-required`, `idempotency-key-reused`,
+  `carton-contents-mismatch-plan`, `shipment-not-labelled`, `idempotency-key-required`, `idempotency-key-invalid`, `idempotency-key-reused`,
   `dependency-unavailable` and `internal-error`. The full status table is on
   [Troubleshooting](/docs/operations/troubleshooting#rest-problem-types).
 - **Optimistic concurrency.** Aggregates carry a `version` that is not exposed on the wire; a lost race is

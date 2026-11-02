@@ -63,8 +63,8 @@ func TestScorecardAnswersTheRecordedFacts(t *testing.T) {
 	plan := a.confirmedPlan("CASE_PACKED", gtinCase, 12)
 	id := a.mustCode(http.MethodPost, "/inbound-plans/"+plan+"/shipments", "", 201)["shipmentId"].(string)
 	carton := a.mustCode(http.MethodPost, "/inbound-shipments/"+id+"/cartons", cartonBody("", 12, ""), 201)["carton"].(map[string]any)["sscc"].(string)
-	a.mustCode(http.MethodPost, "/inbound-shipments/"+id+":label", "", 200)
-	a.mustCode(http.MethodPost, "/inbound-shipments/"+id+":ship", "", 200)
+	a.mustCode(http.MethodPost, "/inbound-shipments/"+id+"/labels", "", 200)
+	a.mustCode(http.MethodPost, "/inbound-shipments/"+id+"/dispatches", "", 200)
 	err := a.svc.ApplyInboundReceipt(context.Background(), "rcpt-1", requests.InboundReceipt{ShipmentID: id, NodeID: "n-1", ReceivedAt: t0,
 		Cartons: []requests.ReceiptCarton{{SSCC: carton, Status: "DAMAGED", Items: []requests.ReceiptItem{{GTIN: gtinCase, QtyEaches: 10}}, ComplianceCodes: []string{"CARTON_CRUSHED"}}}})
 	if err != nil {
@@ -78,7 +78,7 @@ func TestScorecardAnswersTheRecordedFacts(t *testing.T) {
 		t.Fatalf("%v", got)
 	}
 	// Informational: the seller can still be read and is still ACTIVE.
-	if s := a.mustCode(http.MethodPost, "/sellers/S-1:reinstate", "", 200); s["state"] != "ACTIVE" {
+	if s := a.mustCode(http.MethodPost, "/sellers/S-1/reinstatements", "", 200); s["state"] != "ACTIVE" {
 		t.Fatalf("%v", s)
 	}
 	checkAgainstContract(t, got)

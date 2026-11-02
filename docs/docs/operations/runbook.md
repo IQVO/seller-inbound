@@ -191,7 +191,7 @@ tables, `seller_scorecard_receipts` (one row per closed shipment) and
 `seller_scorecard_occurrences` (one row per discrepancy or compliance violation), both
 written in the same transaction as the vendor receipt that raised them. It publishes
 nothing and changes nothing: the `complianceTier` (`GOOD`, `WATCH`, `AT_RISK`) is for people,
-and suspending a seller stays the manual `POST /sellers/{id}:suspend`.
+and suspending a seller stays the manual `POST /sellers/{id}/suspensions`.
 
 - **Reading a scorecard with a database shell.** Facts are dated by `recorded_at` (when this
   service applied the receipt, not the vendor's `receivedAt`). A seller's last 30 days:

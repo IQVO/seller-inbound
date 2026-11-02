@@ -39,13 +39,13 @@ func registerGivenSeller(sc *godog.ScenarioContext, w *world) {
 			if err := w.write(http.MethodPost, "/inbound-plans", body); err != nil || w.status != http.StatusCreated {
 				return fmt.Errorf("create plan: %v %d %s", err, w.status, w.body)
 			}
-			if err := w.write(http.MethodPost, "/inbound-plans/{plan}:confirm", ""); err != nil || w.status != http.StatusOK {
+			if err := w.write(http.MethodPost, "/inbound-plans/{plan}/confirmations", ""); err != nil || w.status != http.StatusOK {
 				return fmt.Errorf("confirm plan: %v %d %s", err, w.status, w.body)
 			}
 			return nil
 		})
 	sc.Step(`^seller "([^"]*)" is suspended$`, func(id string) error {
-		if err := w.write(http.MethodPost, "/sellers/"+id+":suspend", ""); err != nil || w.status != http.StatusOK {
+		if err := w.write(http.MethodPost, "/sellers/"+id+"/suspensions", ""); err != nil || w.status != http.StatusOK {
 			return fmt.Errorf("suspend: %v %d %s", err, w.status, w.body)
 		}
 		return nil
@@ -93,7 +93,7 @@ func registerGivenShipment(sc *godog.ScenarioContext, w *world) {
 		return nil
 	})
 	sc.Step(`^the shipment is labelled and shipped$`, func() error {
-		for _, path := range []string{"/inbound-shipments/{shipment}:label", "/inbound-shipments/{shipment}:ship"} {
+		for _, path := range []string{"/inbound-shipments/{shipment}/labels", "/inbound-shipments/{shipment}/dispatches"} {
 			if err := w.write(http.MethodPost, path, ""); err != nil || w.status != http.StatusOK {
 				return fmt.Errorf("%s: %v %d %s", path, err, w.status, w.body)
 			}

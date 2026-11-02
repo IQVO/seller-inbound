@@ -30,7 +30,7 @@ operators with a browser).
   facts and the lines in eaches). Both are lookups: this context's API has no
   list route for sellers or plans, so the screens take an id, not filters.
   Nothing writes: the remote has no mutation call, no `Idempotency-Key`, no
-  POST/PUT anywhere -- `:confirm` and `:cancel` stay REST commands.
+  POST/PUT anywhere -- `POST .../confirmations` and `POST .../cancellations` stay REST commands.
 - **Runtime endpoint resolution, not build-time.** `src/config.ts` turns
   `window.__WAREHOUSE_CONFIG__.apiOrigin` (published by the shell from
   `/config.json`) into `${apiOrigin}/api/seller-inbound`, the only base this
