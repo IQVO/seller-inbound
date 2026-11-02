@@ -15,7 +15,7 @@ against its account (no authentication, consistent with the fleet):
 - `POST /sellers` -> `OnboardSeller` (201)
 - `POST /sellers/{id}/suspensions` -> `SuspendSeller`; `POST /sellers/{id}/reinstatements` -> `ReinstateSeller`
 - `POST /inbound-plans` -> `CreateInboundPlan` (201); `GET /inbound-plans/{planId}` -> `GetInboundPlan`
-- `POST /inbound-plans/{planId}/confirmations` -> `ConfirmInboundPlan`; `POST /inbound-plans/{planId}/cancellations` -> `CancelInboundPlan`
+- `POST /inbound-plans/{planId}/confirmations` -> `ConfirmInboundPlan`; `/cancellations` -> `CancelInboundPlan`
 - `POST /inbound-plans/{planId}/shipments` -> `CreateInboundShipment` (201)
 - `POST /inbound-shipments/{id}/cartons` -> `AddCarton` (201, carton + label data + `ssccIssued`)
 - `POST /inbound-shipments/{id}/labels` -> `LabelShipment`; `POST /inbound-shipments/{id}/dispatches` -> `ShipInboundShipment`
@@ -35,7 +35,8 @@ against its account (no authentication, consistent with the fleet):
   `Err` needs a catalogue row.
 - **Idempotency-Key** is required on every write (`idempotency.go`): same key + same request
   replays the first response, same key + other request is 409 `idempotency-key-reused`, a missing
-  key is 400 `idempotency-key-required`, a malformed one (not 1-128 printable ASCII) 400 `idempotency-key-invalid`; keys live 24 h in `idempotency_keys`. A new write
+  key is 400 `idempotency-key-required`; the key is GLOBAL and replays carry
+  `Idempotency-Replayed: true`; keys live 24 h in `idempotency_keys`. A new write
   registers through the `write(...)` wrapper in `NewRouter`, never bare `r.Post`.
 - **NUL** (U+0000) is rejected before anything else (`nul.go`): 404 in the path, 400
   `malformed-request` in the query or body.
