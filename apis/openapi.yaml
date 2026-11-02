@@ -16,7 +16,7 @@ info:
     - **GTIN** is 14 digits and **SSCC** is 18 digits, both with a GS1 mod-10 check digit.
     - **SSCC.** The seller may supply an SSCC on `POST /inbound-shipments/{id}/cartons`; it is accepted only when valid (`invalid-sscc` otherwise) and unique network-wide
       (`sscc-not-unique` otherwise). Without one, the network issues an SSCC from its own GS1 company prefix and returns it (`ssccIssued: true`).
-    - **Labels.** `:label` moves a `DRAFT` shipment to `LABELLED` once the cartons add up to the confirmed plan (`carton-contents-mismatch-plan` otherwise).
+    - **Labels.** `POST /inbound-shipments/{id}/labels` moves a `DRAFT` shipment to `LABELLED` once the cartons add up to the confirmed plan (`carton-contents-mismatch-plan` otherwise).
       `GET /inbound-shipments/{id}/labels` returns the **label data** per carton (SSCC, the GS1-128 element string `(00)<sscc>`, the human readable line, the content
       summary in eaches and the destination node). Rendering a printable label is the seller's concern.
     - **Destination node.** The plan's node must be `ACTIVE` and have the INBOUND capability in the local view fed by node-topology events (`node-cannot-receive`).
@@ -24,9 +24,9 @@ info:
     - **Suspension.** A suspended seller creates no plan, shipment or carton and ships nothing (`seller-suspended`).
     - **Scorecard.** `GET /sellers/{sellerId}/scorecard?window=7d|30d` answers the seller's rolling-window compliance scorecard, computed from the facts this service recorded when it applied
       the vendor's receipts (shipments closed, cartons received, discrepancies by kind, compliance violations). It is **informational**: the derived `complianceTier` (`GOOD`, `WATCH`,
-      `AT_RISK`) suspends and blocks nothing; suspension stays the human `:suspend` command (ADR 0005). A rate whose denominator is zero is omitted, never `NaN`.
+      `AT_RISK`) suspends and blocks nothing; suspension stays the human `POST /sellers/{sellerId}/suspensions` command (ADR 0005). A rate whose denominator is zero is omitted, never `NaN`.
     - **No authentication** (consistent with the fleet): the seller is named in the request body and checked against its account.
-    - Every state-changing `POST` takes `Idempotency-Key` (1 to 128 characters); a repeat replays the first response, a different body under the same key is `idempotency-key-reused`.
+    - Every `POST` takes `Idempotency-Key` (1 to 128 printable ASCII characters; missing is `400 idempotency-key-required`, malformed `400 idempotency-key-invalid`); a repeat replays the first response with `Idempotency-Replayed: true`, and the same key on a different method, path or body is `409 idempotency-key-reused`.
     - Errors are RFC 9457 `application/problem+json`; the shared problem types are `not-found` 404, `illegal-transition` 409, `concurrent-update` 409 and
       `validation-failed` 422, plus one slug per model `Err...` name.
     - Suspending a suspended seller and reinstating an active one answer `200` with the account and publish no event (ADR 0002 A3). Every other command finds the state it
@@ -67,6 +67,9 @@ paths:
               name: Acme Goods
       responses:
         '201':
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
           description: The seller account, ACTIVE.
           content:
             application/json:
@@ -77,11 +80,13 @@ paths:
                 name: Acme Goods
                 state: ACTIVE
                 onboardedAt: '2026-10-24T13:00:00Z'
+        '400':
+          $ref: '#/components/responses/IdempotencyKeyProblem'
         '409':
           $ref: '#/components/responses/StateConflict'
         '422':
           $ref: '#/components/responses/ValidationProblem'
-  /sellers/{sellerId}:suspend:
+  /sellers/{sellerId}/suspensions:
     post:
       tags:
       - Sellers
@@ -102,6 +107,9 @@ paths:
               reason: repeated label violations
       responses:
         '200':
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
           description: The seller account.
           content:
             application/json:
@@ -114,13 +122,15 @@ paths:
                 onboardedAt: '2026-10-24T13:00:00Z'
                 suspendedAt: '2026-10-24T13:00:00Z'
                 suspendReason: repeated label violations
+        '400':
+          $ref: '#/components/responses/IdempotencyKeyProblem'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/StateConflict'
         '422':
           $ref: '#/components/responses/ValidationProblem'
-  /sellers/{sellerId}:reinstate:
+  /sellers/{sellerId}/reinstatements:
     post:
       tags:
       - Sellers
@@ -132,6 +142,9 @@ paths:
       - $ref: '#/components/parameters/IdempotencyKey'
       responses:
         '200':
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
           description: The seller account.
           content:
             application/json:
@@ -142,6 +155,8 @@ paths:
                 name: Acme Goods
                 state: ACTIVE
                 onboardedAt: '2026-10-24T13:00:00Z'
+        '400':
+          $ref: '#/components/responses/IdempotencyKeyProblem'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -235,6 +250,9 @@ paths:
                 qtyEaches: 24
       responses:
         '201':
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
           description: The inbound plan, DRAFT.
           content:
             application/json:
@@ -251,6 +269,8 @@ paths:
                   gtin: '00614141000036'
                   qtyEaches: 24
                 createdAt: '2026-10-24T13:00:00Z'
+        '400':
+          $ref: '#/components/responses/IdempotencyKeyProblem'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -287,7 +307,7 @@ paths:
                 confirmedAt: '2026-10-24T13:00:00Z'
         '404':
           $ref: '#/components/responses/NotFound'
-  /inbound-plans/{planId}:confirm:
+  /inbound-plans/{planId}/confirmations:
     post:
       tags:
       - Inbound Plans
@@ -299,6 +319,9 @@ paths:
       - $ref: '#/components/parameters/IdempotencyKey'
       responses:
         '200':
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
           description: The inbound plan.
           content:
             application/json:
@@ -316,11 +339,13 @@ paths:
                   qtyEaches: 24
                 createdAt: '2026-10-24T13:00:00Z'
                 confirmedAt: '2026-10-24T13:00:00Z'
+        '400':
+          $ref: '#/components/responses/IdempotencyKeyProblem'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/StateConflict'
-  /inbound-plans/{planId}:cancel:
+  /inbound-plans/{planId}/cancellations:
     post:
       tags:
       - Inbound Plans
@@ -332,6 +357,9 @@ paths:
       - $ref: '#/components/parameters/IdempotencyKey'
       responses:
         '200':
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
           description: The inbound plan.
           content:
             application/json:
@@ -349,6 +377,8 @@ paths:
                   qtyEaches: 24
                 createdAt: '2026-10-24T13:00:00Z'
                 cancelledAt: '2026-10-24T13:00:00Z'
+        '400':
+          $ref: '#/components/responses/IdempotencyKeyProblem'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -365,6 +395,9 @@ paths:
       - $ref: '#/components/parameters/IdempotencyKey'
       responses:
         '201':
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
           description: The inbound shipment, DRAFT, without cartons.
           content:
             application/json:
@@ -378,6 +411,8 @@ paths:
                 state: DRAFT
                 cartons: []
                 createdAt: '2026-10-24T13:00:00Z'
+        '400':
+          $ref: '#/components/responses/IdempotencyKeyProblem'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -415,6 +450,9 @@ paths:
                 h: 200
       responses:
         '201':
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
           description: The carton and its label data.
           content:
             application/json:
@@ -453,13 +491,15 @@ paths:
                   contentSummary: '12 eaches: item-004512 x12'
                   totalEaches: 12
                   destinationNodeId: node-0f3a91
+        '400':
+          $ref: '#/components/responses/IdempotencyKeyProblem'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/StateConflict'
         '422':
           $ref: '#/components/responses/ValidationProblem'
-  /inbound-shipments/{shipmentId}:label:
+  /inbound-shipments/{shipmentId}/labels:
     post:
       tags:
       - Inbound Shipments
@@ -472,6 +512,9 @@ paths:
       - $ref: '#/components/parameters/IdempotencyKey'
       responses:
         '200':
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
           description: The inbound shipment, LABELLED.
           content:
             application/json:
@@ -500,17 +543,19 @@ paths:
                   sealed: true
                 createdAt: '2026-10-24T13:00:00Z'
                 labelledAt: '2026-10-24T13:00:00Z'
+        '400':
+          $ref: '#/components/responses/IdempotencyKeyProblem'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/StateConflict'
         '422':
           $ref: '#/components/responses/ValidationProblem'
-  /inbound-shipments/{shipmentId}/labels:
     get:
       tags:
       - Inbound Shipments
       operationId: getShipmentLabels
+      x-pagination-exempt: view
       summary: Get the label data (GetLabels)
       description: 'Returns the label DATA of every carton: SSCC, the GS1-128 element string `(00)<sscc>`, the human readable line, the contents summary in eaches and the destination node.'
       parameters:
@@ -543,7 +588,7 @@ paths:
                   destinationNodeId: node-0f3a91
         '404':
           $ref: '#/components/responses/NotFound'
-  /inbound-shipments/{shipmentId}:ship:
+  /inbound-shipments/{shipmentId}/dispatches:
     post:
       tags:
       - Inbound Shipments
@@ -556,6 +601,9 @@ paths:
       - $ref: '#/components/parameters/IdempotencyKey'
       responses:
         '200':
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
           description: The inbound shipment, SHIPPED.
           content:
             application/json:
@@ -585,6 +633,8 @@ paths:
                 createdAt: '2026-10-24T13:00:00Z'
                 labelledAt: '2026-10-24T13:00:00Z'
                 shippedAt: '2026-10-24T13:00:00Z'
+        '400':
+          $ref: '#/components/responses/IdempotencyKeyProblem'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -671,13 +721,30 @@ components:
       name: Idempotency-Key
       in: header
       required: true
-      description: Client-chosen key. A retry with the same key returns the first response.
+      description: Client-generated key, 1 to 128 printable ASCII characters (a UUID per logical submit). A retry with the same key and the same request replays the first response with `Idempotency-Replayed true`; the same key on a different method, path or body is `409 idempotency-key-reused`.
       schema:
         type: string
         minLength: 1
         maxLength: 128
       example: 3f6c2a9e-8b1d-4c7a-9e55-0d2f6b7a1c40
+  headers:
+    IdempotencyReplayed:
+      description: Present, with the value `true`, only when this answer is a replay of the stored response of an earlier request with the same `Idempotency-Key`.
+      schema:
+        type: string
+        enum:
+        - 'true'
   responses:
+    IdempotencyKeyProblem:
+      description: 'The `Idempotency-Key` header is missing (`idempotency-key-required`) or is not 1 to 128 printable ASCII characters (`idempotency-key-invalid`).'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: idempotency-key-required
+            title: Idempotency-Key header is required
+            status: 400
     NotFound:
       description: The resource does not exist (`not-found`).
       content:
@@ -698,15 +765,14 @@ components:
             instance: /sellers/seller-77/scorecard
     StateConflict:
       description: 'The write conflicts with the state of a resource. Problem types: `seller-exists`, `seller-suspended` (`ErrSellerSuspended`), `node-cannot-receive` (`ErrNodeCannotReceive`), `sscc-not-unique`
-        (`ErrSsccNotUnique`), `shipment-not-labelled` (`ErrShipmentNotLabelled`), `illegal-transition` and `concurrent-update` (optimistic-concurrency conflict; re-read and retry).'
+        (`ErrSsccNotUnique`), `shipment-not-labelled` (`ErrShipmentNotLabelled`), `illegal-transition` and `concurrent-update` (optimistic-concurrency conflict; re-read and retry), and `idempotency-key-reused` (the `Idempotency-Key` was already used with a different method, path or body; a client bug, do not retry).'
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
     ValidationProblem:
       description: 'The request is malformed or breaks a rule. Problem types: `validation-failed`, `case-pack-not-uniform` (`ErrCasePackNotUniform`), `case-qty-mismatches-gtin` (`ErrCaseQtyMismatchesGtin`),
-        `carton-overweight` (`ErrCartonOverweight`), `carton-oversize` (`ErrCartonOversize`), `invalid-sscc` (`ErrInvalidSscc`), `carton-contents-mismatch-plan` (`ErrCartonContentsMismatchPlan`), `idempotency-key-required`
-        and `idempotency-key-reused`.'
+        `carton-overweight` (`ErrCartonOverweight`), `carton-oversize` (`ErrCartonOversize`), `invalid-sscc` (`ErrInvalidSscc`) and `carton-contents-mismatch-plan` (`ErrCartonContentsMismatchPlan`).'
       content:
         application/problem+json:
           schema:
