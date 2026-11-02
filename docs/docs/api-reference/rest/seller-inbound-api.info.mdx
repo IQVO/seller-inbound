@@ -53,6 +53,8 @@ Rules of the contract:
   `AT_RISK`) suspends and blocks nothing; suspension stays the human `POST /sellers/{sellerId}/suspensions` command (ADR 0005). A rate whose denominator is zero is omitted, never `NaN`.
 - **No authentication** (consistent with the fleet): the seller is named in the request body and checked against its account.
 - Every `POST` takes `Idempotency-Key` (1 to 128 printable ASCII characters; missing is `400 idempotency-key-required`, malformed `400 idempotency-key-invalid`); a repeat replays the first response with `Idempotency-Replayed: true`, and the same key on a different method, path or body is `409 idempotency-key-reused`.
+- A NUL character (U+0000) is refused before anything else runs: in a path it is `404 not-found`; in a query string or a JSON body it is `422 validation-failed`, and the `Idempotency-Key` of such a request is not recorded.
+  Request bodies are decoded strictly: an unknown field, malformed JSON, an empty body where one is required, trailing data or a body over 4 MiB is `422 validation-failed`.
 - Errors are RFC 9457 `application/problem+json`; the shared problem types are `not-found` 404, `illegal-transition` 409, `concurrent-update` 409 and
   `validation-failed` 422, plus one slug per model `Err...` name.
 - Suspending a suspended seller and reinstating an active one answer `200` with the account and publish no event (ADR 0002 A3). Every other command finds the state it

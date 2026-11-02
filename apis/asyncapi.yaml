@@ -23,7 +23,7 @@ info:
 
     **Published.** Nine types. `InboundShipmentLabelled`, `InboundShipmentShipped` and `InboundShipmentReceived` go to `retailnetwork.seller-inbound.events`; the other six (`SellerOnboarded`, `SellerSuspended`, `SellerReinstated`, `InboundPlanConfirmed`, `InboundDiscrepancyRecorded`, `SellerComplianceViolationRecorded`) go ONLY to `retailnetwork.seller-inbound.analytics` (the model marks them analytics only). Every event leaves through a **transactional outbox**: the aggregate row and the already-encoded events are written in ONE database transaction and an always-on relay drains them to Kafka (at-least-once; the CloudEvents `id` is stored with the outbox row, so a retry republishes the same `id`).
 
-    **Consumed.** Eight types from three producers (ADR 0003): node-topology `NodeRegistered`, `NodeOperationalProfileDeclared`, `NodeActivated`, `NodeSuspended`, `NodeRetired` (local NodeInboundView); offer-availability `CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired` (local CatalogPackagingView); vendor-connectivity `InboundReceiptSubmitted`. Each is deduplicated on the CloudEvents `id` in the `processed_events` inbox table, dispatched on the full `type`, decoded tolerantly (unknown fields are ignored) and dead-lettered to `<topic>.dlq` when it cannot be processed. The consumed `data` below lists only the fields this context relies on. There are no synchronous calls to any neighbour.
+    **Consumed.** Eight types from three producers (ADR 0003): node-topology `NodeRegistered`, `NodeOperationalProfileDeclared`, `NodeActivated`, `NodeSuspended`, `NodeRetired` (local NodeInboundView); offer-availability `CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired` (local CatalogPackagingView); vendor-connectivity `InboundReceiptSubmitted`. Each is deduplicated on the CloudEvents `id` in the `processed_events` inbox table and dispatched on the full `type`; a message that is not a valid CloudEvents 1.0 envelope is skipped with a WARN and a type this context does not act on is ignored (both are committed past). `data` is decoded tolerantly (unknown fields are ignored). Offsets are committed only after the handler succeeded; a transient failure retries the same message with capped exponential backoff, and a payload that can never be applied (a value the domain refuses, a forbidden transition, an unknown shipment) or an exhausted retry budget is dead-lettered to `<topic>.dlq` with the headers `x-dlq-source-topic`, `x-dlq-source-partition`, `x-dlq-source-offset`, `x-dlq-error` and `x-dlq-failed-at`. The consumed `data` below lists only the fields this context relies on. There are no synchronous calls to any neighbour.
 
     **Envelope (mandatory).** CloudEvents 1.0, structured content mode, Kafka header `content-type: application/cloudevents+json; charset=UTF-8`. `specversion`, `id`, `source` (`/retailnetwork/seller-inbound`), `type`, `subject` (the aggregate root id: `sellerId`, `planId` or `shipmentId`), `time`, `datacontenttype` (`application/json`) and `dataschema` (`urn:retailnetwork:seller-inbound:<stream>:<EventName>:v1`, stream `events` or `analytics`) are all required. Kafka key = the subject, so one shipment's events stay ordered on one partition. Type = `com.retailnetwork.partner.seller-inbound.<entity>.<EventName>` with entity `seller`, `inboundplan` or `inboundshipment`.
 
@@ -174,6 +174,7 @@ components:
   messages:
     SellerOnboarded:
       name: SellerOnboarded
+      x-no-consumer-reason: Analytics-only fact (the model marks it analytics only); published to the analytics topic for reporting and no context in the network consumes it.
       title: A seller was onboarded
       summary: A seller was onboarded.
       description: '`type` = `com.retailnetwork.partner.seller-inbound.seller.SellerOnboarded`; subject and key = the aggregate root id; stream `analytics`. Raised by OnboardSeller (POST /sellers). Analytics
@@ -201,6 +202,7 @@ components:
             onboardedAt: '2026-10-24T13:00:00Z'
     SellerSuspended:
       name: SellerSuspended
+      x-no-consumer-reason: Analytics-only fact (the model marks it analytics only); published to the analytics topic for reporting and no context in the network consumes it.
       title: A seller was suspended
       summary: A seller was suspended.
       description: '`type` = `com.retailnetwork.partner.seller-inbound.seller.SellerSuspended`; subject and key = the aggregate root id; stream `analytics`. Raised by SuspendSeller. A suspended seller creates
@@ -228,6 +230,7 @@ components:
             reason: repeated label violations
     SellerReinstated:
       name: SellerReinstated
+      x-no-consumer-reason: Analytics-only fact (the model marks it analytics only); published to the analytics topic for reporting and no context in the network consumes it.
       title: A suspended seller was reinstated
       summary: A suspended seller was reinstated.
       description: '`type` = `com.retailnetwork.partner.seller-inbound.seller.SellerReinstated`; subject and key = the aggregate root id; stream `analytics`. Raised by ReinstateSeller. Analytics only.'
@@ -253,6 +256,7 @@ components:
             reinstatedAt: '2026-10-24T13:00:00Z'
     InboundPlanConfirmed:
       name: InboundPlanConfirmed
+      x-no-consumer-reason: Analytics-only fact (the model marks it analytics only); published to the analytics topic for reporting and no context in the network consumes it.
       title: A seller confirmed an inbound plan
       summary: A seller confirmed an inbound plan.
       description: '`type` = `com.retailnetwork.partner.seller-inbound.inboundplan.InboundPlanConfirmed`; subject and key = the aggregate root id; stream `analytics`. Raised by ConfirmInboundPlan. Quantities
@@ -404,6 +408,7 @@ components:
             receivedAt: '2026-10-25T09:30:00Z'
     InboundDiscrepancyRecorded:
       name: InboundDiscrepancyRecorded
+      x-no-consumer-reason: Analytics-only fact (the model marks it analytics only); published to the analytics topic for reporting and no context in the network consumes it.
       title: A difference between the manifest and the vendor's receipt was recorded
       summary: A difference between the manifest and the vendor's receipt was recorded.
       description: '`type` = `com.retailnetwork.partner.seller-inbound.inboundshipment.InboundDiscrepancyRecorded`; subject and key = the aggregate root id; stream `analytics`. Raised per difference (policy
@@ -437,6 +442,7 @@ components:
             recordedAt: '2026-10-24T13:00:00Z'
     SellerComplianceViolationRecorded:
       name: SellerComplianceViolationRecorded
+      x-no-consumer-reason: Analytics-only fact (the model marks it analytics only); published to the analytics topic for reporting and no context in the network consumes it.
       title: A compliance violation of a seller was recorded
       summary: A compliance violation of a seller was recorded.
       description: '`type` = `com.retailnetwork.partner.seller-inbound.seller.SellerComplianceViolationRecorded`; subject and key = the aggregate root id; stream `analytics`. Raised per distinct compliance
@@ -1055,10 +1061,13 @@ components:
                 type: string
               kind:
                 type: string
+                description: 'The carton discrepancy kind string: MissingCarton, UnexpectedCarton, Damaged, Short or Over.'
               expected:
                 type: string
+                description: Short and Over only, `<gtin>:<qtyEaches>`; omitted otherwise.
               actual:
                 type: string
+                description: Short and Over only, `<gtin>:<qtyEaches>`; omitted otherwise.
               recordedAt:
                 type: string
                 format: date-time

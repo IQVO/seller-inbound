@@ -27,6 +27,8 @@ info:
       `AT_RISK`) suspends and blocks nothing; suspension stays the human `POST /sellers/{sellerId}/suspensions` command (ADR 0005). A rate whose denominator is zero is omitted, never `NaN`.
     - **No authentication** (consistent with the fleet): the seller is named in the request body and checked against its account.
     - Every `POST` takes `Idempotency-Key` (1 to 128 printable ASCII characters; missing is `400 idempotency-key-required`, malformed `400 idempotency-key-invalid`); a repeat replays the first response with `Idempotency-Replayed: true`, and the same key on a different method, path or body is `409 idempotency-key-reused`.
+    - A NUL character (U+0000) is refused before anything else runs: in a path it is `404 not-found`; in a query string or a JSON body it is `422 validation-failed`, and the `Idempotency-Key` of such a request is not recorded.
+      Request bodies are decoded strictly: an unknown field, malformed JSON, an empty body where one is required, trailing data or a body over 4 MiB is `422 validation-failed`.
     - Errors are RFC 9457 `application/problem+json`; the shared problem types are `not-found` 404, `illegal-transition` 409, `concurrent-update` 409 and
       `validation-failed` 422, plus one slug per model `Err...` name.
     - Suspending a suspended seller and reinstating an active one answer `200` with the account and publish no event (ADR 0002 A3). Every other command finds the state it
@@ -86,6 +88,8 @@ paths:
           $ref: '#/components/responses/StateConflict'
         '422':
           $ref: '#/components/responses/ValidationProblem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /sellers/{sellerId}/suspensions:
     post:
       tags:
@@ -130,6 +134,8 @@ paths:
           $ref: '#/components/responses/StateConflict'
         '422':
           $ref: '#/components/responses/ValidationProblem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /sellers/{sellerId}/reinstatements:
     post:
       tags:
@@ -161,6 +167,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/StateConflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /sellers/{sellerId}/scorecard:
     get:
       tags:
@@ -224,6 +232,10 @@ paths:
           $ref: '#/components/responses/InvalidWindow'
         '404':
           $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationProblem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /inbound-plans:
     post:
       tags:
@@ -277,6 +289,8 @@ paths:
           $ref: '#/components/responses/StateConflict'
         '422':
           $ref: '#/components/responses/ValidationProblem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /inbound-plans/{planId}:
     get:
       tags:
@@ -307,6 +321,8 @@ paths:
                 confirmedAt: '2026-10-24T13:00:00Z'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /inbound-plans/{planId}/confirmations:
     post:
       tags:
@@ -345,6 +361,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/StateConflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /inbound-plans/{planId}/cancellations:
     post:
       tags:
@@ -383,6 +401,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/StateConflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /inbound-plans/{planId}/shipments:
     post:
       tags:
@@ -417,6 +437,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/StateConflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /inbound-shipments/{shipmentId}/cartons:
     post:
       tags:
@@ -499,6 +521,8 @@ paths:
           $ref: '#/components/responses/StateConflict'
         '422':
           $ref: '#/components/responses/ValidationProblem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /inbound-shipments/{shipmentId}/labels:
     post:
       tags:
@@ -551,6 +575,8 @@ paths:
           $ref: '#/components/responses/StateConflict'
         '422':
           $ref: '#/components/responses/ValidationProblem'
+        '500':
+          $ref: '#/components/responses/InternalError'
     get:
       tags:
       - Inbound Shipments
@@ -588,6 +614,8 @@ paths:
                   destinationNodeId: node-0f3a91
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /inbound-shipments/{shipmentId}/dispatches:
     post:
       tags:
@@ -639,6 +667,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/StateConflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /inbound-shipments/{shipmentId}:
     get:
       tags:
@@ -679,6 +709,8 @@ paths:
                 createdAt: '2026-10-24T13:00:00Z'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
   parameters:
     SellerIdPath:
@@ -745,6 +777,8 @@ components:
             type: idempotency-key-required
             title: Idempotency-Key header is required
             status: 400
+            detail: send an Idempotency-Key header of 1 to 128 printable ASCII characters with a unique value per logical request
+            instance: /sellers
     NotFound:
       description: The resource does not exist (`not-found`).
       content:
@@ -763,6 +797,18 @@ components:
             status: 400
             detail: 'validation failed: window: "90d" (use 7d or 30d)'
             instance: /sellers/seller-77/scorecard
+    InternalError:
+      description: An unexpected failure (`internal-error`); the `detail` never carries the internal message. A 5xx is never stored by the idempotency middleware, so the same `Idempotency-Key` retries the real work.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: internal-error
+            title: Internal server error
+            status: 500
+            detail: an unexpected error occurred
+            instance: /inbound-plans
     StateConflict:
       description: 'The write conflicts with the state of a resource. Problem types: `seller-exists`, `seller-suspended` (`ErrSellerSuspended`), `node-cannot-receive` (`ErrNodeCannotReceive`), `sscc-not-unique`
         (`ErrSsccNotUnique`), `shipment-not-labelled` (`ErrShipmentNotLabelled`), `illegal-transition` and `concurrent-update` (optimistic-concurrency conflict; re-read and retry), and `idempotency-key-reused` (the `Idempotency-Key` was already used with a different method, path or body; a client bug, do not retry).'
@@ -785,6 +831,8 @@ components:
       - type
       - title
       - status
+      - detail
+      - instance
       properties:
         type:
           type: string
@@ -810,19 +858,23 @@ components:
       properties:
         sellerId:
           type: string
+          minLength: 1
           maxLength: 64
-          pattern: ^[A-Za-z0-9][A-Za-z0-9._:-]*$
+          pattern: ^[A-Za-z0-9._-]+$
           example: seller-77
         name:
           type: string
-          maxLength: 200
+          minLength: 1
+          maxLength: 120
+          description: Trimmed, non-blank, at most 120 characters, no control characters.
           example: Acme Goods
     SuspendSellerRequest:
       type: object
       properties:
         reason:
           type: string
-          maxLength: 500
+          maxLength: 200
+          description: Optional. When present it is trimmed, non-blank, at most 200 characters, no control characters.
           example: repeated label violations
     SellerAccount:
       type: object
@@ -834,11 +886,13 @@ components:
       properties:
         sellerId:
           type: string
+          minLength: 1
           maxLength: 64
-          pattern: ^[A-Za-z0-9][A-Za-z0-9._:-]*$
+          pattern: ^[A-Za-z0-9._-]+$
           example: seller-77
         name:
           type: string
+          maxLength: 120
           example: Acme Goods
         state:
           type: string
@@ -960,6 +1014,7 @@ components:
         qtyEaches:
           type: integer
           minimum: 1
+          maximum: 2147483647
           example: 24
           description: Eaches, never cases.
     CreateInboundPlanRequest:
@@ -972,8 +1027,9 @@ components:
       properties:
         sellerId:
           type: string
+          minLength: 1
           maxLength: 64
-          pattern: ^[A-Za-z0-9][A-Za-z0-9._:-]*$
+          pattern: ^[A-Za-z0-9._-]+$
           example: seller-77
         destinationNodeId:
           type: string
@@ -1051,14 +1107,17 @@ components:
         l:
           type: integer
           minimum: 1
+          maximum: 2147483647
           example: 400
         w:
           type: integer
           minimum: 1
+          maximum: 2147483647
           example: 300
         h:
           type: integer
           minimum: 1
+          maximum: 2147483647
           example: 200
     CartonContent:
       type: object
@@ -1081,6 +1140,7 @@ components:
         qtyEaches:
           type: integer
           minimum: 1
+          maximum: 2147483647
           example: 12
         lot:
           type: string
@@ -1123,6 +1183,7 @@ components:
         grossWeightG:
           type: integer
           minimum: 1
+          maximum: 2147483647
           example: 5200
         dimsMm:
           $ref: '#/components/schemas/Dims'
