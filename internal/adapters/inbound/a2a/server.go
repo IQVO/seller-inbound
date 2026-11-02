@@ -79,8 +79,8 @@ func Card(cfg Config) *a2a.AgentCard {
 		SupportedInterfaces: []*a2a.AgentInterface{
 			a2a.NewAgentInterface(cfg.AgentURL, a2a.TransportProtocolJSONRPC),
 		},
-		DefaultInputModes:  []string{"application/json", "text/plain"},
-		DefaultOutputModes: []string{"application/json", "text/plain"},
+		DefaultInputModes:  []string{contentTypeJSON, "text/plain"},
+		DefaultOutputModes: []string{contentTypeJSON, "text/plain"},
 		Capabilities:       a2a.AgentCapabilities{Streaming: false},
 		Skills: []a2a.AgentSkill{
 			{
@@ -88,7 +88,7 @@ func Card(cfg Config) *a2a.AgentCard {
 				Name:        "Assess a seller's compliance",
 				Description: "Answer one seller's rolling-window compliance scorecard from the facts this service recorded: shipments received in the window, cartons reported and received, receiptAccuracyRate (omitted when nothing was reported), discrepancies by kind, discrepancyRatePerShipment (omitted when no shipment closed), compliance violations and the derived complianceTier (GOOD, WATCH or AT_RISK), which is informational only. Arguments: sellerId (required) and window (optional: 7d or 30d, default 30d). Answers a 404 problem for an unknown seller and a 400 problem for another window. Persists nothing.",
 				Tags:        []string{"seller", "compliance", "scorecard", "read"},
-				InputModes:  []string{"application/json"},
+				InputModes:  []string{contentTypeJSON},
 				Examples: []string{
 					`{"skill":"seller_compliance","arguments":{"sellerId":"seller-77"}}`,
 					`{"skill":"seller_compliance","arguments":{"sellerId":"seller-77","window":"7d"}}`,
@@ -99,7 +99,7 @@ func Card(cfg Config) *a2a.AgentCard {
 				Name:        "Check where an inbound stands",
 				Description: "Read the state of one inbound: pass planId for an inbound plan (seller, destination node, packing option, state DRAFT / CONFIRMED / CANCELLED and the declared lines in eaches) or shipmentId for an inbound shipment (plan, seller, destination node, state PLANNED / PACKING / LABELLED / SHIPPED / RECEIVED and every carton packed so far with its SSCC, contents and receipt status). Exactly one of the two is required. Answers a 404 problem when the id is unknown. Persists nothing.",
 				Tags:        []string{"inbound", "plan", "shipment", "read"},
-				InputModes:  []string{"application/json"},
+				InputModes:  []string{contentTypeJSON},
 				Examples: []string{
 					`{"skill":"inbound_status","arguments":{"planId":"pln-0f3a91"}}`,
 					`{"skill":"inbound_status","arguments":{"shipmentId":"shp-0f3a91"}}`,
