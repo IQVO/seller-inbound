@@ -113,7 +113,7 @@ func permanent(err error) error {
 		return nil
 	}
 	if errors.Is(err, shared.ErrValidation) || errors.Is(err, shared.ErrIllegalTransition) || errors.Is(err, ports.ErrNotFound) {
-		return fmt.Errorf("%w: %v", errBadPayload, err)
+		return fmt.Errorf("%w: %w", errBadPayload, err)
 	}
 	return err
 }

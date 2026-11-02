@@ -10,7 +10,7 @@ Contract P11-7 asks for a per-seller scorecard of rolling-window rates derived f
 
 What the model (`network/model/model.yaml`, context `seller-inbound`) says today:
 
-- `SellerAccount` is `ACTIVE | SUSPENDED`; the only transitions are the commands `SuspendSeller` and `ReinstateSeller`, which the model gives to *network partner managers (human)* (`POST /sellers/{sellerId}:suspend`, `:reinstate`). No policy suspends a seller from observed facts.
+- `SellerAccount` is `ACTIVE | SUSPENDED`; the only transitions are the commands `SuspendSeller` and `ReinstateSeller`, which the model gives to *network partner managers (human)* (`POST /sellers/{sellerId}/suspensions`, `POST /sellers/{sellerId}/reinstatements`). No policy suspends a seller from observed facts.
 - The policy `RecordDiscrepancies` says a discrepancy or compliance code is **recorded as a fact**, "the manifest is never edited". No policy grades, scores or enforces on those facts.
 - No scorecard read model, REST route or event exists for this context. (node-performance has a `NodeScorecard`, where only the inbound metrics are explicitly "informational ... never graded": the same stance is taken here.)
 

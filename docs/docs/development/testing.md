@@ -65,11 +65,12 @@ fitness tests enforce this (`TestPostgresIntegrationTestsUseTestcontainers`, `Te
 ## Contract tests
 
 - `TestEventCatalogueMatchesContract` (`internal/architecture/catalogue_fitness_test.go`, a fleet-managed file) checks
-  that every `com.warehouse.(wms|wes).<service>...` type that `apis/asyncapi.yaml` declares for this module appears in
-  the ADR catalogue. seller-inbound's types are `com.retailnetwork.partner.seller-inbound...`, which that regular
-  expression does not match, so for this repository the test passes without checking any type; the catalogue is kept
-  honest by review (CLAUDE.md: a new event changes the domain struct, `apis/asyncapi.yaml` and the ADR 0004 `type:` line
-  in one commit).
+  that every `com.warehouse.(wms|wes).<service>...` or `com.retailnetwork.<domain>.<service>...` type that
+  `apis/asyncapi.yaml` declares for this module appears in the ADR catalogue. seller-inbound's types are
+  `com.retailnetwork.partner.seller-inbound...`; its nine published types are checked against ADR 0004, and the types
+  it only consumes (other services' segments) are not required there. `TestEventCatalogueDetector` pins both type
+  shapes. A new event still changes the domain struct, `apis/asyncapi.yaml` and the ADR 0004 `type:` line in one commit
+  (CLAUDE.md); the test now fails the build if the ADR line is missing.
 - `TestToolRegistryGolden` and `TestToolSurface` (`internal/adapters/inbound/mcp/governance_test.go`) pin the MCP tools
   to `internal/adapters/inbound/mcp/testdata/tool_registry.golden.json`; refresh it with `go test ./internal/adapters/inbound/mcp -update`
   and review the diff. The same file checks that no tool name is a write verb.
@@ -99,7 +100,7 @@ rule fails on a bad fixture.
 | Runtime binaries never import the in-memory adapters | `TestRuntimeBinaryHasNoInMemoryAdapters` |
 | No Go file at the repository root | `TestNoGoFilesAtRepoRoot` |
 | CloudEvents only, no flat envelope or toggle; replay consumers set a commit interval | `TestNoEventEnvelopeToggleOrFlatEnvelope`, `TestCloudEventsOnly`, `TestReplayConsumersSetCommitInterval` |
-| Event catalogue test (matches `com.warehouse.(wms\|wes)` types only, so it checks none here) | `TestEventCatalogueMatchesContract` |
+| Event catalogue test (every own `com.warehouse.(wms\|wes)` or `com.retailnetwork` type in `apis/asyncapi.yaml` is in ADR 0004) | `TestEventCatalogueMatchesContract` |
 | Consumer group ids come from configuration, never a literal | `TestKafkaConsumerGroupNeverHardcodedInline` |
 | Kafka writers set `RequiredAcks`; a writer and its message never both set a topic; dead-letter calls guard cancellation | `TestKafkaWritersSetRequiredAcks`, `TestKafkaWriterTopicNotSetTwice`, `TestDeadLetterCallsGuardCancellation` |
 | Every outbox relay passes the attempt cap | `TestOutboxRelaysPassAttemptCap` |

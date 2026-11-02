@@ -64,19 +64,19 @@ Feature: Inbound shipments, cartons and labels
 
   Scenario: A shipment is labelled only when the cartons add up to the plan
     Given the shipment has 1 case carton of 12 eaches of "item-1" with GTIN "00614141000036"
-    When I send POST "/inbound-shipments/{shipment}:label"
+    When I send POST "/inbound-shipments/{shipment}/labels"
     Then the response status is 422
     And the problem type is "carton-contents-mismatch-plan"
 
   Scenario: A shipment cannot ship before it is labelled
     Given the shipment has 2 case cartons of 12 eaches of "item-1" with GTIN "00614141000036"
-    When I send POST "/inbound-shipments/{shipment}:ship"
+    When I send POST "/inbound-shipments/{shipment}/dispatches"
     Then the response status is 409
     And the problem type is "shipment-not-labelled"
 
   Scenario: Label, read the label data and ship
     Given the shipment has 2 case cartons of 12 eaches of "item-1" with GTIN "00614141000036"
-    When I send POST "/inbound-shipments/{shipment}:label"
+    When I send POST "/inbound-shipments/{shipment}/labels"
     Then the response status is 200
     And the response field "state" is "LABELLED"
     When I send GET "/inbound-shipments/{shipment}/labels"
@@ -86,22 +86,22 @@ Feature: Inbound shipments, cartons and labels
     And the response field "labels.1.gs1128" is "(00){sscc:2}"
     And the response field "labels.1.contentSummary" is "12 eaches: item-1 x12"
     And the response field "destinationNodeId" is "n-1"
-    When I send POST "/inbound-shipments/{shipment}:ship"
+    When I send POST "/inbound-shipments/{shipment}/dispatches"
     Then the response status is 200
     And the response field "state" is "SHIPPED"
     And the outbox event types are "SellerOnboarded, InboundPlanConfirmed, InboundShipmentLabelled, InboundShipmentShipped"
 
   Scenario: Labelling a labelled shipment is an illegal transition and publishes nothing more
     Given the shipment has 2 case cartons of 12 eaches of "item-1" with GTIN "00614141000036"
-    When I send POST "/inbound-shipments/{shipment}:label"
-    And I send POST "/inbound-shipments/{shipment}:label"
+    When I send POST "/inbound-shipments/{shipment}/labels"
+    And I send POST "/inbound-shipments/{shipment}/labels"
     Then the response status is 409
     And the problem type is "illegal-transition"
     And the outbox event types are "SellerOnboarded, InboundPlanConfirmed, InboundShipmentLabelled"
 
   Scenario: A labelled shipment takes no more cartons
     Given the shipment has 2 case cartons of 12 eaches of "item-1" with GTIN "00614141000036"
-    When I send POST "/inbound-shipments/{shipment}:label"
+    When I send POST "/inbound-shipments/{shipment}/labels"
     And I send POST "/inbound-shipments/{shipment}/cartons" with:
       """
       {"kind":"HOMOGENEOUS_CASE","contents":[{"catalogItemId":"item-1","gtin":"00614141000036","qtyEaches":12}],"grossWeightG":5200,"dimsMm":{"l":400,"w":300,"h":200}}
@@ -112,7 +112,7 @@ Feature: Inbound shipments, cartons and labels
   Scenario: A suspended seller ships nothing
     Given the shipment has 2 case cartons of 12 eaches of "item-1" with GTIN "00614141000036"
     And seller "S-1" is suspended
-    When I send POST "/inbound-shipments/{shipment}:label"
+    When I send POST "/inbound-shipments/{shipment}/labels"
     Then the response status is 409
     And the problem type is "seller-suspended"
 

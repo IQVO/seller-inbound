@@ -33,6 +33,11 @@ const (
 	skillInboundStatus    = "inbound_status"
 )
 
+// contentTypeJSON is the only content type the skills consume; it is
+// advertised on the Agent Card as the default input/output mode and as the
+// input mode of every skill.
+const contentTypeJSON = "application/json"
+
 // skillRequest is the wire contract of every skill call: the first message
 // part carries (as a Data part, or a Text part holding the same JSON) the
 // skill id and its arguments. Strict on purpose: an agent client is

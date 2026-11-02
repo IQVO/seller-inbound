@@ -39,14 +39,14 @@ Feature: Seller accounts
 
   Scenario: Suspending and reinstating a seller publishes one event each
     Given seller "S-1" is onboarded
-    When I send POST "/sellers/S-1:suspend" with:
+    When I send POST "/sellers/S-1/suspensions" with:
       """
       {"reason":"repeated label violations"}
       """
     Then the response status is 200
     And the response field "state" is "SUSPENDED"
     And the response field "suspendReason" is "repeated label violations"
-    When I send POST "/sellers/S-1:reinstate"
+    When I send POST "/sellers/S-1/reinstatements"
     Then the response status is 200
     And the response field "state" is "ACTIVE"
     And the response field "suspendedAt" is absent
@@ -55,23 +55,19 @@ Feature: Seller accounts
   Scenario: Suspending a suspended seller returns the account with no new event
     Given seller "S-1" is onboarded
     And seller "S-1" is suspended
-    When I send POST "/sellers/S-1:suspend"
+    When I send POST "/sellers/S-1/suspensions"
     Then the response status is 200
     And the response field "state" is "SUSPENDED"
     And the outbox event types are "SellerOnboarded, SellerSuspended"
 
   Scenario: Reinstating an active seller returns the account with no new event
     Given seller "S-1" is onboarded
-    When I send POST "/sellers/S-1:reinstate"
+    When I send POST "/sellers/S-1/reinstatements"
     Then the response status is 200
     And the outbox event types are "SellerOnboarded"
 
-  Scenario: An unknown seller or action is not found
-    When I send POST "/sellers/S-404:suspend"
-    Then the response status is 404
-    And the problem type is "not-found"
-    Given seller "S-1" is onboarded
-    When I send POST "/sellers/S-1:explode"
+  Scenario: An unknown seller is not found
+    When I send POST "/sellers/S-404/suspensions"
     Then the response status is 404
     And the problem type is "not-found"
 

@@ -471,7 +471,7 @@ func phaseSetup(t *testing.T, s *service, w *world) {
 		t.Fatalf("a replayed key answers the first response: %s vs %s", got, body)
 	}
 	assertProblem(t, s.call(http.MethodPost, "/sellers", `{"sellerId":"seller-77","name":"Acme Goods"}`, "onboard-2", http.StatusConflict), "seller-exists")
-	assertProblem(t, s.call(http.MethodPost, "/sellers", `{"sellerId":"seller-78","name":"Other"}`, "", http.StatusUnprocessableEntity), "idempotency-key-required")
+	assertProblem(t, s.call(http.MethodPost, "/sellers", `{"sellerId":"seller-78","name":"Other"}`, "", http.StatusBadRequest), "idempotency-key-required")
 
 	produce(t, w.brokers, topicNodes,
 		nodeEvent(t, "evt-n1", "NodeRegistered", "node-1", `{"nodeId":"node-1","nodeType":"FULFILLMENT_CENTER","operator":"VENDOR","unknownField":1}`),
@@ -493,7 +493,7 @@ func phaseWorkflow(t *testing.T, s *service, w *world) {
 	plan := fmt.Sprintf(`{"sellerId":"seller-77","destinationNodeId":"node-1","packingOption":"CASE_PACKED","lines":[{"catalogItemId":"item-1","gtin":%q,"qtyEaches":24}]}`, gtinCase)
 	planID := jsonField(t, s.call(http.MethodPost, "/inbound-plans", plan, "plan-1", http.StatusCreated), "planId")
 	assertProblem(t, s.call(http.MethodPost, "/inbound-plans", strings.Replace(plan, "node-1", "node-404", 1), "plan-bad", http.StatusConflict), "node-cannot-receive")
-	s.call(http.MethodPost, "/inbound-plans/"+planID+":confirm", "", "confirm-1", http.StatusOK)
+	s.call(http.MethodPost, "/inbound-plans/"+planID+"/confirmations", "", "confirm-1", http.StatusOK)
 	w.analytics = append(w.analytics, "InboundPlanConfirmed")
 	w.planID = planID
 
@@ -519,14 +519,14 @@ func phaseWorkflow(t *testing.T, s *service, w *world) {
 	}
 	s.call(http.MethodPost, url+"/cartons", carton(`"sscc":"`+ssccOwn+`",`, 12), "c-2", http.StatusCreated)
 	assertProblem(t, s.call(http.MethodPost, url+"/cartons", carton(`"sscc":"`+ssccOwn+`",`, 12), "c-3", http.StatusConflict), "sscc-not-unique")
-	assertProblem(t, s.call(http.MethodPost, url+":ship", "", "ship-early", http.StatusConflict), "shipment-not-labelled")
+	assertProblem(t, s.call(http.MethodPost, url+"/dispatches", "", "ship-early", http.StatusConflict), "shipment-not-labelled")
 
-	s.call(http.MethodPost, url+":label", "", "label-1", http.StatusOK)
+	s.call(http.MethodPost, url+"/labels", "", "label-1", http.StatusOK)
 	labels := s.call(http.MethodGet, url+"/labels", "", "", http.StatusOK)
 	if !strings.Contains(labels, `"gs1128":"(00)`+w.ssccIssued+`"`) || !strings.Contains(labels, `"gs1128":"(00)`+ssccOwn+`"`) || !strings.Contains(labels, `"totalEaches":12`) {
 		t.Fatalf("labels = %s", labels)
 	}
-	s.call(http.MethodPost, url+":ship", "", "ship-1", http.StatusOK)
+	s.call(http.MethodPost, url+"/dispatches", "", "ship-1", http.StatusOK)
 	if got := s.call(http.MethodGet, url, "", "", http.StatusOK); !strings.Contains(got, `"state":"SHIPPED"`) {
 		t.Fatalf("shipment = %s", got)
 	}
@@ -706,5 +706,6 @@ func TestRunOnRealPostgresAndKafka(t *testing.T) {
 	phaseReceipt(t, s, w)
 	phaseAnalytics(t, w)
 	phaseScorecard(t, s, w)
+	phaseIdempotency(t, s, w)
 	phaseKafkaGoesAway(t, s, w)
 }

@@ -18,8 +18,25 @@ import (
 // wrapped by RequireIdempotencyKey.
 const IdempotencyKeyHeader = "Idempotency-Key"
 
+// IdempotencyReplayedHeader is set to "true" on every replay of a stored
+// answer, and only on a replay: the first execution never carries it.
+const IdempotencyReplayedHeader = "Idempotency-Replayed"
+
 // MaxIdempotencyKeyLength is the longest accepted key (apis/openapi.yaml).
 const MaxIdempotencyKeyLength = 128
+
+// validIdempotencyKey reports whether key is 1 to 128 printable ASCII characters.
+func validIdempotencyKey(key string) bool {
+	if len(key) > MaxIdempotencyKeyLength {
+		return false
+	}
+	for i := 0; i < len(key); i++ {
+		if key[i] < 0x20 || key[i] > 0x7e {
+			return false
+		}
+	}
+	return true
+}
 
 // IdempotencyTTL is how long a key answers replays (model conventions: 24h).
 const IdempotencyTTL = 24 * time.Hour
@@ -31,8 +48,10 @@ const IdempotencyTTL = 24 * time.Hour
 type TxBinder func(ctx context.Context, tx pgx.Tx) context.Context
 
 // RequireIdempotencyKey is the fleet's transactional Idempotency-Key
-// middleware, applied to every write of the Vendor API. A key is scoped to its
-// route (method + path) and kept for IdempotencyTTL (model conventions).
+// middleware, applied to every POST of the seller API. The key is GLOBAL: the
+// stored record is found by the key alone and compared by fingerprint (method
+// + path in the route column, plus the SHA-256 of the body), and kept for
+// IdempotencyTTL (model conventions).
 //
 // The correctness argument in short:
 //
@@ -50,27 +69,20 @@ type TxBinder func(ctx context.Context, tx pgx.Tx) context.Context
 //     or roll back together.
 //   - Every normal response below 500 is cached, 4xx included: the same key
 //     and body replays the same answer (for an asynchronous write, the same
-//     transactionId), a different body is 422 idempotency-key-reused. A 5xx or a panic rolls everything back and is
+//     transactionId), a different method, path or body is 409 idempotency-key-reused. A 5xx or a panic rolls everything back and is
 //     never cached, so the same key can retry the real work.
 func RequireIdempotencyKey(pool *pgxpool.Pool, bind TxBinder) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			key := r.Header.Get(IdempotencyKeyHeader)
-			if key == "" || len(key) > MaxIdempotencyKeyLength {
-				writeProblem(w, r, idempotencyKeyRequired,
-					"send an Idempotency-Key header of 1 to 128 characters with a unique value per logical request")
+			key, ok := requestKey(w, r)
+			if !ok {
 				return
 			}
 			route := r.Method + " " + r.URL.Path
-			body, err := io.ReadAll(io.LimitReader(r.Body, maxBodyBytes))
-			if err != nil {
-				writeError(w, r, errMalformedRequest)
+			requestHash, ok := bufferBody(w, r)
+			if !ok {
 				return
 			}
-			_ = r.Body.Close()
-			r.Body = io.NopCloser(bytes.NewReader(body))
-			sum := sha256.Sum256(body)
-			requestHash := hex.EncodeToString(sum[:])
 
 			ctx := r.Context()
 			tx, err := pool.Begin(ctx)
@@ -79,8 +91,8 @@ func RequireIdempotencyKey(pool *pgxpool.Pool, bind TxBinder) func(http.Handler)
 				return
 			}
 			// An expired key (older than the TTL) is forgotten first, in this transaction.
-			if _, err := tx.Exec(ctx, `DELETE FROM idempotency_keys WHERE route = $1 AND key = $2 AND created_at < now() - make_interval(secs => $3)`,
-				route, key, IdempotencyTTL.Seconds()); err != nil {
+			if _, err := tx.Exec(ctx, `DELETE FROM idempotency_keys WHERE key = $1 AND created_at < now() - make_interval(secs => $2)`,
+				key, IdempotencyTTL.Seconds()); err != nil {
 				_ = tx.Rollback(ctx)
 				writeError(w, r, err)
 				return
@@ -88,7 +100,7 @@ func RequireIdempotencyKey(pool *pgxpool.Pool, bind TxBinder) func(http.Handler)
 			tag, err := tx.Exec(ctx, `
 				INSERT INTO idempotency_keys (route, key, request_hash)
 				VALUES ($1, $2, $3)
-				ON CONFLICT (route, key) DO NOTHING
+				ON CONFLICT (key) DO NOTHING
 			`, route, key, requestHash)
 			if err != nil {
 				_ = tx.Rollback(ctx)
@@ -100,30 +112,61 @@ func RequireIdempotencyKey(pool *pgxpool.Pool, bind TxBinder) func(http.Handler)
 				replayCachedResponse(w, r, pool, route, key, requestHash)
 				return
 			}
-			runFreshRequest(ctx, w, r, tx, bind, route, key, next)
+			runFreshRequest(ctx, w, r, tx, bind, key, next)
 		})
 	}
+}
+
+// requestKey reads the Idempotency-Key header: 400 idempotency-key-required
+// when absent, 400 idempotency-key-invalid when not 1 to 128 printable ASCII.
+func requestKey(w http.ResponseWriter, r *http.Request) (string, bool) {
+	key := r.Header.Get(IdempotencyKeyHeader)
+	switch {
+	case key == "":
+		writeProblem(w, r, idempotencyKeyRequired,
+			"send an Idempotency-Key header of 1 to 128 printable ASCII characters with a unique value per logical request")
+		return "", false
+	case !validIdempotencyKey(key):
+		writeProblem(w, r, idempotencyKeyInvalid, "the Idempotency-Key must be 1 to 128 printable ASCII characters")
+		return "", false
+	}
+	return key, true
+}
+
+// bufferBody reads the body once, restores it for the handler and returns its
+// SHA-256, the body part of the request fingerprint.
+func bufferBody(w http.ResponseWriter, r *http.Request) (string, bool) {
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxBodyBytes))
+	if err != nil {
+		writeError(w, r, errMalformedRequest)
+		return "", false
+	}
+	_ = r.Body.Close()
+	r.Body = io.NopCloser(bytes.NewReader(body))
+	sum := sha256.Sum256(body)
+	return hex.EncodeToString(sum[:]), true
 }
 
 // replayCachedResponse answers a request whose key already has a committed
 // row: the stored outcome when the body matches, 422 when it does not.
 func replayCachedResponse(w http.ResponseWriter, r *http.Request, pool *pgxpool.Pool, route, key, requestHash string) {
 	var (
-		storedHash string
-		statusCode *int
-		body       []byte
-		headersRaw []byte
+		storedRoute string
+		storedHash  string
+		statusCode  *int
+		body        []byte
+		headersRaw  []byte
 	)
 	err := pool.QueryRow(r.Context(), `
-		SELECT request_hash, status_code, response_body, response_headers
-		FROM idempotency_keys WHERE route = $1 AND key = $2
-	`, route, key).Scan(&storedHash, &statusCode, &body, &headersRaw)
+		SELECT route, request_hash, status_code, response_body, response_headers
+		FROM idempotency_keys WHERE key = $1
+	`, key).Scan(&storedRoute, &storedHash, &statusCode, &body, &headersRaw)
 	if err != nil {
 		writeError(w, r, err)
 		return
 	}
-	if storedHash != requestHash {
-		writeProblem(w, r, idempotencyKeyReused, "the Idempotency-Key was used with a different request body")
+	if storedRoute != route || storedHash != requestHash {
+		writeProblem(w, r, idempotencyKeyReused, "the Idempotency-Key was already used with a different method, path or body")
 		return
 	}
 	if statusCode == nil {
@@ -133,15 +176,16 @@ func replayCachedResponse(w http.ResponseWriter, r *http.Request, pool *pgxpool.
 		return
 	}
 	copyStoredHeaders(w.Header(), headersRaw)
+	w.Header().Set(IdempotencyReplayedHeader, "true")
 	w.WriteHeader(*statusCode)
 	_, _ = w.Write(body)
 }
 
-var errMissingOutcome = errorString("idempotency row committed with no recorded outcome")
+var errMissingOutcome = idempotencyError("idempotency row committed with no recorded outcome")
 
-type errorString string
+type idempotencyError string
 
-func (e errorString) Error() string { return string(e) }
+func (e idempotencyError) Error() string { return string(e) }
 
 func copyStoredHeaders(dst http.Header, raw []byte) {
 	if len(raw) == 0 {
@@ -184,13 +228,28 @@ func (c *capture) Write(b []byte) (int, error) {
 // runFreshRequest handles a genuinely new key: capture the response, persist
 // the outcome in the same transaction, commit, and only then write to the
 // real client.
-func runFreshRequest(ctx context.Context, w http.ResponseWriter, r *http.Request, tx pgx.Tx, bind TxBinder, route, key string, next http.Handler) {
+//
+// The handler runs behind a SAVEPOINT. A mapped domain conflict -- a racing
+// request losing on a unique index (23505 mapped to 409), say -- fails a
+// statement on the server and leaves the transaction ABORTED even though the
+// handler answers a truthful 4xx. Releasing the savepoint exposes that: the
+// release fails, ROLLBACK TO SAVEPOINT discards the half-done work and heals
+// the transaction, and the 4xx outcome is recorded and committed like any
+// other (the key row inserted before the savepoint survives). A 2xx answer
+// behind a failed release is a lie (its writes are gone), so it rolls
+// everything back and fails the request instead.
+func runFreshRequest(ctx context.Context, w http.ResponseWriter, r *http.Request, tx pgx.Tx, bind TxBinder, key string, next http.Handler) {
 	defer func() {
 		if p := recover(); p != nil {
 			_ = tx.Rollback(ctx)
 			panic(p)
 		}
 	}()
+	if _, err := tx.Exec(ctx, "SAVEPOINT handler_run"); err != nil {
+		_ = tx.Rollback(ctx)
+		writeError(w, r, err)
+		return
+	}
 	rec := &capture{header: http.Header{}}
 	next.ServeHTTP(rec, r.WithContext(bind(ctx, tx)))
 	if rec.code == 0 {
@@ -203,6 +262,24 @@ func runFreshRequest(ctx context.Context, w http.ResponseWriter, r *http.Request
 		flush(w, rec)
 		return
 	}
+	if _, err := tx.Exec(ctx, "RELEASE SAVEPOINT handler_run"); err != nil {
+		// A statement inside the handler failed on the server: the
+		// transaction is aborted. Rolling back to the savepoint discards the
+		// handler's partial writes -- the correct all-or-nothing semantics
+		// for an error answer -- and returns the transaction to health.
+		if _, rerr := tx.Exec(ctx, "ROLLBACK TO SAVEPOINT handler_run"); rerr != nil {
+			_ = tx.Rollback(ctx)
+			writeError(w, r, err)
+			return
+		}
+		if rec.code < http.StatusBadRequest {
+			// A success answer whose writes cannot be committed must neither
+			// be returned nor cached: fail the request so the key retries.
+			_ = tx.Rollback(ctx)
+			writeError(w, r, err)
+			return
+		}
+	}
 	headers, err := json.Marshal(rec.header)
 	if err != nil {
 		_ = tx.Rollback(ctx)
@@ -212,8 +289,8 @@ func runFreshRequest(ctx context.Context, w http.ResponseWriter, r *http.Request
 	if _, err := tx.Exec(ctx, `
 		UPDATE idempotency_keys
 		SET status_code = $1, response_body = $2, response_headers = $3, completed_at = now()
-		WHERE route = $4 AND key = $5
-	`, rec.code, rec.body.Bytes(), headers, route, key); err != nil {
+		WHERE key = $4
+	`, rec.code, rec.body.Bytes(), headers, key); err != nil {
 		_ = tx.Rollback(ctx)
 		writeError(w, r, err)
 		return

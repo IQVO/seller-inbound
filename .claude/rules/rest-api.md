@@ -13,12 +13,12 @@ Route -> use case, kept in sync with `apis/openapi.yaml`; routes are registered 
 against its account (no authentication, consistent with the fleet):
 
 - `POST /sellers` -> `OnboardSeller` (201)
-- `POST /sellers/{id}:suspend` -> `SuspendSeller`; `POST /sellers/{id}:reinstate` -> `ReinstateSeller`
+- `POST /sellers/{id}/suspensions` -> `SuspendSeller`; `POST /sellers/{id}/reinstatements` -> `ReinstateSeller`
 - `POST /inbound-plans` -> `CreateInboundPlan` (201); `GET /inbound-plans/{planId}` -> `GetInboundPlan`
-- `POST /inbound-plans/{planId}:confirm` -> `ConfirmInboundPlan`; `:cancel` -> `CancelInboundPlan`
+- `POST /inbound-plans/{planId}/confirmations` -> `ConfirmInboundPlan`; `/cancellations` -> `CancelInboundPlan`
 - `POST /inbound-plans/{planId}/shipments` -> `CreateInboundShipment` (201)
 - `POST /inbound-shipments/{id}/cartons` -> `AddCarton` (201, carton + label data + `ssccIssued`)
-- `POST /inbound-shipments/{id}:label` -> `LabelShipment`; `:ship` -> `ShipInboundShipment`
+- `POST /inbound-shipments/{id}/labels` -> `LabelShipment`; `POST /inbound-shipments/{id}/dispatches` -> `ShipInboundShipment`
 - `GET /inbound-shipments/{id}` -> `GetInboundShipment`; `GET /inbound-shipments/{id}/labels` -> `GetLabels`
   (chi cannot route a `:verb` suffix inside one segment, so the actions of a resource share
   `/sellers/{sellerAction}`, `/inbound-plans/{planAction}` and `/inbound-shipments/{shipmentAction}`
@@ -34,8 +34,9 @@ against its account (no authentication, consistent with the fleet):
   `status`, `detail`, `instance`. An unmapped error is an opaque 500 `internal-error`. A new
   `Err` needs a catalogue row.
 - **Idempotency-Key** is required on every write (`idempotency.go`): same key + same request
-  replays the first response, same key + other request is 422 `idempotency-key-reused`, a missing
-  key is 422 `idempotency-key-required`; keys live 24 h in `idempotency_keys`. A new write
+  replays the first response, same key + other request is 409 `idempotency-key-reused`, a missing
+  key is 400 `idempotency-key-required`; the key is GLOBAL and replays carry
+  `Idempotency-Replayed: true`; keys live 24 h in `idempotency_keys`. A new write
   registers through the `write(...)` wrapper in `NewRouter`, never bare `r.Post`.
 - **NUL** (U+0000) is rejected before anything else (`nul.go`): 404 in the path, 400
   `malformed-request` in the query or body.

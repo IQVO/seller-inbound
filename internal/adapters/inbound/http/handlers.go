@@ -2,7 +2,6 @@ package http
 
 import (
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -197,16 +196,6 @@ func respond[T any](w http.ResponseWriter, r *http.Request, v T, err error) {
 	writeJSON(w, http.StatusOK, v)
 }
 
-// splitAction splits "<id>:<verb>" at the last colon. A resource id may itself
-// contain a colon (shared.ValidID), the verb never does.
-func splitAction(segment string) (id, verb string) {
-	i := strings.LastIndexByte(segment, ':')
-	if i < 0 {
-		return segment, ""
-	}
-	return segment[:i], segment[i+1:]
-}
-
 func (s *Server) handleOnboardSeller(w http.ResponseWriter, r *http.Request) {
 	var in onboardSellerBody
 	if err := decodeJSON(r, &in); err != nil {
@@ -217,23 +206,19 @@ func (s *Server) handleOnboardSeller(w http.ResponseWriter, r *http.Request) {
 	created(w, r, sellerOut(v), err)
 }
 
-func (s *Server) handleSellerAction(w http.ResponseWriter, r *http.Request) {
-	id, verb := splitAction(chi.URLParam(r, "sellerAction"))
-	switch verb {
-	case "suspend":
-		var in suspendSellerBody
-		if err := decodeOptionalJSON(r, &in); err != nil {
-			writeError(w, r, err)
-			return
-		}
-		v, err := s.Service.SuspendSeller(r.Context(), requests.SuspendSeller{SellerID: id, Reason: in.Reason})
-		respond(w, r, sellerOut(v), err)
-	case "reinstate":
-		v, err := s.Service.ReinstateSeller(r.Context(), id)
-		respond(w, r, sellerOut(v), err)
-	default:
-		writeError(w, r, errUnknownAction)
+func (s *Server) handleSuspendSeller(w http.ResponseWriter, r *http.Request) {
+	var in suspendSellerBody
+	if err := decodeOptionalJSON(r, &in); err != nil {
+		writeError(w, r, err)
+		return
 	}
+	v, err := s.Service.SuspendSeller(r.Context(), requests.SuspendSeller{SellerID: chi.URLParam(r, "sellerId"), Reason: in.Reason})
+	respond(w, r, sellerOut(v), err)
+}
+
+func (s *Server) handleReinstateSeller(w http.ResponseWriter, r *http.Request) {
+	v, err := s.Service.ReinstateSeller(r.Context(), chi.URLParam(r, "sellerId"))
+	respond(w, r, sellerOut(v), err)
 }
 
 func (s *Server) handleCreatePlan(w http.ResponseWriter, r *http.Request) {
@@ -251,18 +236,14 @@ func (s *Server) handleCreatePlan(w http.ResponseWriter, r *http.Request) {
 	created(w, r, planOut(v), err)
 }
 
-func (s *Server) handlePlanAction(w http.ResponseWriter, r *http.Request) {
-	id, verb := splitAction(chi.URLParam(r, "planAction"))
-	switch verb {
-	case "confirm":
-		v, err := s.Service.ConfirmInboundPlan(r.Context(), id)
-		respond(w, r, planOut(v), err)
-	case "cancel":
-		v, err := s.Service.CancelInboundPlan(r.Context(), id)
-		respond(w, r, planOut(v), err)
-	default:
-		writeError(w, r, errUnknownAction)
-	}
+func (s *Server) handleConfirmPlan(w http.ResponseWriter, r *http.Request) {
+	v, err := s.Service.ConfirmInboundPlan(r.Context(), chi.URLParam(r, "planId"))
+	respond(w, r, planOut(v), err)
+}
+
+func (s *Server) handleCancelPlan(w http.ResponseWriter, r *http.Request) {
+	v, err := s.Service.CancelInboundPlan(r.Context(), chi.URLParam(r, "planId"))
+	respond(w, r, planOut(v), err)
 }
 
 func (s *Server) handleGetPlan(w http.ResponseWriter, r *http.Request) {
@@ -295,18 +276,14 @@ func (s *Server) handleAddCarton(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, addedCartonResponse{ShipmentID: v.ShipmentID, Carton: cartonOut(v.Carton), SSCCIssued: v.Issued, Label: labelOut(v.Label)})
 }
 
-func (s *Server) handleShipmentAction(w http.ResponseWriter, r *http.Request) {
-	id, verb := splitAction(chi.URLParam(r, "shipmentAction"))
-	switch verb {
-	case "label":
-		v, err := s.Service.LabelShipment(r.Context(), id)
-		respond(w, r, shipmentOut(v), err)
-	case "ship":
-		v, err := s.Service.ShipInboundShipment(r.Context(), id)
-		respond(w, r, shipmentOut(v), err)
-	default:
-		writeError(w, r, errUnknownAction)
-	}
+func (s *Server) handleLabelShipment(w http.ResponseWriter, r *http.Request) {
+	v, err := s.Service.LabelShipment(r.Context(), chi.URLParam(r, "shipmentId"))
+	respond(w, r, shipmentOut(v), err)
+}
+
+func (s *Server) handleDispatchShipment(w http.ResponseWriter, r *http.Request) {
+	v, err := s.Service.ShipInboundShipment(r.Context(), chi.URLParam(r, "shipmentId"))
+	respond(w, r, shipmentOut(v), err)
 }
 
 func (s *Server) handleGetShipment(w http.ResponseWriter, r *http.Request) {

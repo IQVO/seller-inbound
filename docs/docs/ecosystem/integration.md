@@ -118,5 +118,3 @@ All three are unauthenticated. See [API reference](/docs/api-reference) and [MCP
 - `internal/adapters/inbound/kafka/kafka.go` and `deadletter.go` still mention order-sourcing's
   `FulfillmentReleasedToNode` and `FulfillmentCancelled` and a `retailnetwork.order-sourcing.events.dlq` example in their
   comments. The code consumes no order-sourcing topic.
-- The OpenAPI `servers` URL is `http://localhost:8000/api/retail-network/seller-inbound`, but the gateway route in
-  `warehouse-infra` is `/api/seller-inbound`.

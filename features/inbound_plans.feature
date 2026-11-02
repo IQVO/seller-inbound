@@ -15,21 +15,21 @@ Feature: Inbound plans
     Then the response status is 201
     And the response field "state" is "DRAFT"
     And the response field "lines.0.qtyEaches" is "24"
-    When I send POST "/inbound-plans/{plan}:confirm"
+    When I send POST "/inbound-plans/{plan}/confirmations"
     Then the response status is 200
     And the response field "state" is "CONFIRMED"
     And the outbox event types are "SellerOnboarded, InboundPlanConfirmed"
 
   Scenario: Confirming a confirmed plan is an illegal transition and publishes nothing more
     Given seller "S-1" has a confirmed case-packed plan for 24 eaches of "item-1" with GTIN "00614141000036" to node "n-1"
-    When I send POST "/inbound-plans/{plan}:confirm"
+    When I send POST "/inbound-plans/{plan}/confirmations"
     Then the response status is 409
     And the problem type is "illegal-transition"
     And the outbox event types are "SellerOnboarded, InboundPlanConfirmed"
 
   Scenario: A confirmed plan cannot be cancelled
     Given seller "S-1" has a confirmed case-packed plan for 24 eaches of "item-1" with GTIN "00614141000036" to node "n-1"
-    When I send POST "/inbound-plans/{plan}:cancel"
+    When I send POST "/inbound-plans/{plan}/cancellations"
     Then the response status is 409
     And the problem type is "illegal-transition"
 
@@ -38,10 +38,10 @@ Feature: Inbound plans
       """
       {"sellerId":"S-1","destinationNodeId":"n-1","packingOption":"INDIVIDUAL","lines":[{"catalogItemId":"item-1","gtin":"00614141000012","qtyEaches":5}]}
       """
-    And I send POST "/inbound-plans/{plan}:cancel"
+    And I send POST "/inbound-plans/{plan}/cancellations"
     Then the response status is 200
     And the response field "state" is "CANCELLED"
-    When I send POST "/inbound-plans/{plan}:confirm"
+    When I send POST "/inbound-plans/{plan}/confirmations"
     Then the response status is 409
     And the problem type is "illegal-transition"
 

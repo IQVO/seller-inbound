@@ -28,7 +28,7 @@ func registerGiven(sc *godog.ScenarioContext, w *world) {
 func registerGivenSeller(sc *godog.ScenarioContext, w *world) {
 	sc.Step(`^seller "([^"]*)" is onboarded$`, func(id string) error {
 		if err := w.write(http.MethodPost, "/sellers", fmt.Sprintf(`{"sellerId":%q,"name":"Seller %s"}`, id, id)); err != nil || w.status != http.StatusCreated {
-			return fmt.Errorf("onboard: %v %d %s", err, w.status, w.body)
+			return fmt.Errorf("onboard: %w %d %s", err, w.status, w.body)
 		}
 		return nil
 	})
@@ -37,16 +37,16 @@ func registerGivenSeller(sc *godog.ScenarioContext, w *world) {
 			opt := map[string]string{"case-packed": "CASE_PACKED", "individual": "INDIVIDUAL"}[packing]
 			body := fmt.Sprintf(`{"sellerId":%q,"destinationNodeId":%q,"packingOption":%q,"lines":[{"catalogItemId":%q,"gtin":%q,"qtyEaches":%d}]}`, seller, node, opt, item, gtin, qty)
 			if err := w.write(http.MethodPost, "/inbound-plans", body); err != nil || w.status != http.StatusCreated {
-				return fmt.Errorf("create plan: %v %d %s", err, w.status, w.body)
+				return fmt.Errorf("create plan: %w %d %s", err, w.status, w.body)
 			}
-			if err := w.write(http.MethodPost, "/inbound-plans/{plan}:confirm", ""); err != nil || w.status != http.StatusOK {
-				return fmt.Errorf("confirm plan: %v %d %s", err, w.status, w.body)
+			if err := w.write(http.MethodPost, "/inbound-plans/{plan}/confirmations", ""); err != nil || w.status != http.StatusOK {
+				return fmt.Errorf("confirm plan: %w %d %s", err, w.status, w.body)
 			}
 			return nil
 		})
 	sc.Step(`^seller "([^"]*)" is suspended$`, func(id string) error {
-		if err := w.write(http.MethodPost, "/sellers/"+id+":suspend", ""); err != nil || w.status != http.StatusOK {
-			return fmt.Errorf("suspend: %v %d %s", err, w.status, w.body)
+		if err := w.write(http.MethodPost, "/sellers/"+id+"/suspensions", ""); err != nil || w.status != http.StatusOK {
+			return fmt.Errorf("suspend: %w %d %s", err, w.status, w.body)
 		}
 		return nil
 	})
@@ -80,22 +80,22 @@ func registerGivenNetwork(sc *godog.ScenarioContext, w *world) {
 func registerGivenShipment(sc *godog.ScenarioContext, w *world) {
 	sc.Step(`^the plan has an open shipment$`, func() error {
 		if err := w.write(http.MethodPost, "/inbound-plans/{plan}/shipments", ""); err != nil || w.status != http.StatusCreated {
-			return fmt.Errorf("open shipment: %v %d %s", err, w.status, w.body)
+			return fmt.Errorf("open shipment: %w %d %s", err, w.status, w.body)
 		}
 		return nil
 	})
 	sc.Step(`^the shipment has (\d+) case cartons? of (\d+) eaches of "([^"]*)" with GTIN "([^"]*)"$`, func(n, qty int, item, gtin string) error {
 		for range n {
 			if err := w.write(http.MethodPost, "/inbound-shipments/{shipment}/cartons", caseCarton(item, gtin, qty)); err != nil || w.status != http.StatusCreated {
-				return fmt.Errorf("add carton: %v %d %s", err, w.status, w.body)
+				return fmt.Errorf("add carton: %w %d %s", err, w.status, w.body)
 			}
 		}
 		return nil
 	})
 	sc.Step(`^the shipment is labelled and shipped$`, func() error {
-		for _, path := range []string{"/inbound-shipments/{shipment}:label", "/inbound-shipments/{shipment}:ship"} {
+		for _, path := range []string{"/inbound-shipments/{shipment}/labels", "/inbound-shipments/{shipment}/dispatches"} {
 			if err := w.write(http.MethodPost, path, ""); err != nil || w.status != http.StatusOK {
-				return fmt.Errorf("%s: %v %d %s", path, err, w.status, w.body)
+				return fmt.Errorf("%s: %w %d %s", path, err, w.status, w.body)
 			}
 		}
 		return nil
@@ -157,7 +157,7 @@ func registerThen(sc *godog.ScenarioContext, w *world) {
 	sc.Step(`^the problem type is "([^"]*)"$`, func(slug string) error {
 		v, ok, err := w.field("type")
 		if err != nil || !ok || render(v) != slug {
-			return fmt.Errorf("problem type = %v (%v), want %s: %s", v, err, slug, w.body)
+			return fmt.Errorf("problem type = %v (%w), want %s: %s", v, err, slug, w.body)
 		}
 		return nil
 	})
@@ -165,7 +165,7 @@ func registerThen(sc *godog.ScenarioContext, w *world) {
 		v, ok, err := w.field(path)
 		want = w.expand(want)
 		if err != nil || !ok || render(v) != want {
-			return fmt.Errorf("%s = %v (found %v, %v), want %s: %s", path, v, ok, err, want, w.body)
+			return fmt.Errorf("%s = %v (found %v, %w), want %s: %s", path, v, ok, err, want, w.body)
 		}
 		return nil
 	})

@@ -52,7 +52,7 @@ only through the Vendor API of `vendor-connectivity`.
 - **Commingling, FEFO and lot allocation.** Lot and expiry are captured on cartons and carried on events; nothing
   allocates by them.
 - **Scoring that acts.** The scorecard is read-only information; suspending a seller stays the manual
-  `POST /sellers/{id}:suspend`. No chargebacks or money movement (payments are a future, Generic context).
+  `POST /sellers/{id}/suspensions`. No chargebacks or money movement (payments are a future, Generic context).
 - **Inbound freight and placement advice.** The seller delivers to the node it names; which node should hold which item
   is not modelled.
 - **EDI.** The published language is JSON over REST and CloudEvents on Kafka.
@@ -94,3 +94,7 @@ only through the Vendor API of `vendor-connectivity`.
 
 The network-wide view of this context (the other ten contexts, the model and the gap register) is on the
 [retail network documentation](https://iqvo.github.io/warehouse-docs/network/contexts/seller-inbound).
+
+:::note[Disclaimer]
+This project is a domain-driven design study. It is not associated with, endorsed by or affiliated with any company, and it uses no company's code, data, logos or trademarks. All names, figures and examples are illustrative or synthetic.
+:::
