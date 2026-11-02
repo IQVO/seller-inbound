@@ -18,7 +18,7 @@ against its account (no authentication, consistent with the fleet):
 - `POST /inbound-plans/{planId}/confirmations` -> `ConfirmInboundPlan`; `/cancellations` -> `CancelInboundPlan`
 - `POST /inbound-plans/{planId}/shipments` -> `CreateInboundShipment` (201)
 - `POST /inbound-shipments/{id}/cartons` -> `AddCarton` (201, carton + label data + `ssccIssued`)
-- `POST /inbound-shipments/{id}:label` -> `LabelShipment`; `:ship` -> `ShipInboundShipment`
+- `POST /inbound-shipments/{id}/labels` -> `LabelShipment`; `POST /inbound-shipments/{id}/dispatches` -> `ShipInboundShipment`
 - `GET /inbound-shipments/{id}` -> `GetInboundShipment`; `GET /inbound-shipments/{id}/labels` -> `GetLabels`
   (chi cannot route a `:verb` suffix inside one segment, so the actions of a resource share
   `/sellers/{sellerAction}`, `/inbound-plans/{planAction}` and `/inbound-shipments/{shipmentAction}`
