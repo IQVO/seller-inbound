@@ -17,7 +17,7 @@ Guides: `python3 scripts/harness/repo_lint.py`, `python3 scripts/harness/guide_l
 `web/` is the console MFE remote (`seller_inbound_mfe`, vite + module federation, strictPort dev 4022, PUBLIC_BASE /mfes/seller-inbound/).
 
 ## Runtime rule
-Real PostgreSQL and Kafka only. `DATABASE_URL` and `KAFKA_BROKERS` are mandatory (boot error naming the variable). `/healthz` = liveness; `/readyz` = drain gate + dependency checks. No authentication on REST or MCP (the in-cluster ClusterIP boundary is the access control). See docs/runtime.md.
+Real PostgreSQL and Kafka only. `DATABASE_URL` and `KAFKA_BROKERS` are mandatory (boot error naming the variable). `/healthz` = liveness; `/readyz` = drain gate + dependency checks. No authentication on REST or MCP (the in-cluster ClusterIP boundary is the access control). See docs/docs/overview/runtime.md.
 
 ## REST and MCP
 chi router implementing every operation of apis/openapi.yaml (14 operations) plus /healthz, /readyz. Every state-changing route takes `Idempotency-Key`. Errors are RFC 9457 problem+json with kebab-case `type` slugs.
