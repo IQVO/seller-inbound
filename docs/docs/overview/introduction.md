@@ -94,3 +94,7 @@ only through the Vendor API of `vendor-connectivity`.
 
 The network-wide view of this context (the other ten contexts, the model and the gap register) is on the
 [retail network documentation](https://iqvo.github.io/warehouse-docs/network/contexts/seller-inbound).
+
+:::note[Disclaimer]
+This project is a domain-driven design study. It is not associated with, endorsed by or affiliated with any company, and it uses no company's code, data, logos or trademarks. All names, figures and examples are illustrative or synthetic.
+:::
