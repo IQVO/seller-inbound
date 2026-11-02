@@ -252,7 +252,7 @@ func (s *Shipment) buildCarton(in NewCarton, r CartonRules) (Carton, error) {
 
 func (s *Shipment) checkSSCCs(in NewCarton, lim Limits) error {
 	if _, err := gs1.ParseSSCC(in.SSCC); err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidSscc, err)
+		return fmt.Errorf("%w: %w", ErrInvalidSscc, err)
 	}
 	for _, c := range s.cartons {
 		if c.SSCC == in.SSCC {
@@ -263,7 +263,7 @@ func (s *Shipment) checkSSCCs(in NewCarton, lim Limits) error {
 		return nil
 	}
 	if _, err := gs1.ParseSSCC(in.ParentSSCC); err != nil {
-		return fmt.Errorf("%w: parentSscc: %v", ErrInvalidSscc, err)
+		return fmt.Errorf("%w: parentSscc: %w", ErrInvalidSscc, err)
 	}
 	if in.ParentSSCC == in.SSCC {
 		return shared.Invalid("parentSscc must differ from sscc")
