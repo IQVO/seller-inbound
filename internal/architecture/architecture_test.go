@@ -20,7 +20,9 @@ import (
 	"github.com/arch-go/arch-go/api/configuration"
 )
 
-const modulePath = "github.com/IQVO/seller-inbound"
+// modulePath MUST equal the `module` line in go.mod: arch-go matches package
+// patterns against import paths, so a mismatch makes every rule vacuous.
+const modulePath = "github.com/claudioed/seller-inbound"
 
 func TestHexagonalArchitecture(t *testing.T) {
 	moduleInfo := configuration.Load(modulePath)
