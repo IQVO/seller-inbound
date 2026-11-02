@@ -28,13 +28,10 @@ var internalProblem = problem{http.StatusInternalServerError, "internal-error", 
 
 // Problems the middlewares write themselves, before any use case runs.
 var (
-	idempotencyKeyRequired = problem{http.StatusUnprocessableEntity, "idempotency-key-required", "Idempotency-Key header is required"}
-	idempotencyKeyReused   = problem{http.StatusUnprocessableEntity, "idempotency-key-reused", "Idempotency-Key was already used with a different request"}
-	unknownAction          = problem{http.StatusNotFound, "not-found", "Not found"}
+	idempotencyKeyRequired = problem{http.StatusBadRequest, "idempotency-key-required", "Idempotency-Key header is required"}
+	idempotencyKeyInvalid  = problem{http.StatusBadRequest, "idempotency-key-invalid", "Idempotency-Key header is invalid"}
+	idempotencyKeyReused   = problem{http.StatusConflict, "idempotency-key-reused", "Idempotency-Key was already used with a different request"}
 )
-
-// errUnknownAction is a ":verb" suffix the resource does not have.
-var errUnknownAction = errors.New("unknown action")
 
 // problemCatalogue maps every typed error to its problem, in match order: the
 // single REST error table of ADR 0002. The slug is the kebab-case of the Err
@@ -54,7 +51,6 @@ var problemCatalogue = []struct {
 	{inboundshipment.ErrInvalidSscc, problem{http.StatusUnprocessableEntity, "invalid-sscc", "The SSCC must be 18 digits with a valid check digit"}},
 	{inboundshipment.ErrCartonContentsMismatchPlan, problem{http.StatusUnprocessableEntity, "carton-contents-mismatch-plan", "The carton contents do not fit the plan"}},
 	{ports.ErrNotFound, problem{http.StatusNotFound, "not-found", "Not found"}},
-	{errUnknownAction, unknownAction},
 	{seller.ErrSellerSuspended, problem{http.StatusConflict, "seller-suspended", "The seller is suspended"}},
 	{seller.ErrSellerExists, problem{http.StatusConflict, "seller-exists", "The seller is already onboarded"}},
 	{network.ErrNodeCannotReceive, problem{http.StatusConflict, "node-cannot-receive", "The destination node cannot receive inbound shipments"}},

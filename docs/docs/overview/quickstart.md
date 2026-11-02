@@ -100,7 +100,7 @@ so through Kong on `:8000` the same calls go to `http://localhost:8000/api/selle
    ```sh
    curl -s -X POST localhost:8080/inbound-plans -H 'Content-Type: application/json' -H 'Idempotency-Key: k-2' \
      -d '{"sellerId":"seller-77","destinationNodeId":"node-0f3a91","packingOption":"INDIVIDUAL","lines":[{"catalogItemId":"item-004512","gtin":"00614141000036","qtyEaches":12}]}'
-   curl -s -X POST 'localhost:8080/inbound-plans/<planId>:confirm' -H 'Idempotency-Key: k-3'
+   curl -s -X POST 'localhost:8080/inbound-plans/<planId>/confirmations' -H 'Idempotency-Key: k-3'
    ```
 
    Replace `<planId>` with the `planId` of the first response (`pln-...`).
@@ -111,13 +111,13 @@ so through Kong on `:8000` the same calls go to `http://localhost:8000/api/selle
    curl -s -X POST localhost:8080/inbound-plans/<planId>/shipments -H 'Idempotency-Key: k-4'
    curl -s -X POST localhost:8080/inbound-shipments/<shipmentId>/cartons -H 'Content-Type: application/json' -H 'Idempotency-Key: k-5' \
      -d '{"kind":"MIXED","contents":[{"catalogItemId":"item-004512","gtin":"00614141000036","qtyEaches":12}],"grossWeightG":5200,"dimsMm":{"l":400,"w":300,"h":200}}'
-   curl -s -X POST 'localhost:8080/inbound-shipments/<shipmentId>:label' -H 'Idempotency-Key: k-6'
+   curl -s -X POST 'localhost:8080/inbound-shipments/<shipmentId>/labels' -H 'Idempotency-Key: k-6'
    curl -s localhost:8080/inbound-shipments/<shipmentId>/labels
-   curl -s -X POST 'localhost:8080/inbound-shipments/<shipmentId>:ship' -H 'Idempotency-Key: k-7'
+   curl -s -X POST 'localhost:8080/inbound-shipments/<shipmentId>/dispatches' -H 'Idempotency-Key: k-7'
    ```
 
    The carton response carries the SSCC the network issued (`ssccIssued: true`) and its label data. For a single-shipment
-   plan, `:label` fails with `carton-contents-mismatch-plan` unless the cartons add up to the plan's eaches.
+   plan, `POST .../labels` fails with `carton-contents-mismatch-plan` unless the cartons add up to the plan's eaches.
 
 4. Read the scorecard (a pure read):
 
@@ -127,7 +127,7 @@ so through Kong on `:8000` the same calls go to `http://localhost:8000/api/selle
 
    With no closed shipment the rates are omitted and `complianceTier` is `GOOD`.
 
-`:ship` appends `InboundShipmentShipped` to the outbox; the relay publishes it to `retailnetwork.seller-inbound.events`
+`POST .../dispatches` appends `InboundShipmentShipped` to the outbox; the relay publishes it to `retailnetwork.seller-inbound.events`
 within `OUTBOX_RELAY_INTERVAL`. The shipment closes only when vendor-connectivity publishes `InboundReceiptSubmitted`
 for it ([Integration](/docs/ecosystem/integration)).
 

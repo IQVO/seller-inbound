@@ -72,16 +72,17 @@ func NewRouter(s *Server, logger *slog.Logger, serviceName string) http.Handler 
 	}
 
 	r.Method(http.MethodPost, "/sellers", write(s.handleOnboardSeller))
-	// chi cannot route a ":verb" suffix inside one segment, so the actions of a
-	// resource share a pattern and are dispatched on the suffix.
-	r.Method(http.MethodPost, "/sellers/{sellerAction}", write(s.handleSellerAction))
+	r.Method(http.MethodPost, "/sellers/{sellerId}/suspensions", write(s.handleSuspendSeller))
+	r.Method(http.MethodPost, "/sellers/{sellerId}/reinstatements", write(s.handleReinstateSeller))
 	r.Get("/sellers/{sellerId}/scorecard", s.handleGetScorecard)
 	r.Method(http.MethodPost, "/inbound-plans", write(s.handleCreatePlan))
-	r.Method(http.MethodPost, "/inbound-plans/{planAction}", write(s.handlePlanAction))
+	r.Method(http.MethodPost, "/inbound-plans/{planId}/confirmations", write(s.handleConfirmPlan))
+	r.Method(http.MethodPost, "/inbound-plans/{planId}/cancellations", write(s.handleCancelPlan))
 	r.Get("/inbound-plans/{planId}", s.handleGetPlan)
 	r.Method(http.MethodPost, "/inbound-plans/{planId}/shipments", write(s.handleCreateShipment))
 	r.Method(http.MethodPost, "/inbound-shipments/{shipmentId}/cartons", write(s.handleAddCarton))
-	r.Method(http.MethodPost, "/inbound-shipments/{shipmentAction}", write(s.handleShipmentAction))
+	r.Method(http.MethodPost, "/inbound-shipments/{shipmentId}/labels", write(s.handleLabelShipment))
+	r.Method(http.MethodPost, "/inbound-shipments/{shipmentId}/dispatches", write(s.handleDispatchShipment))
 	r.Get("/inbound-shipments/{shipmentId}/labels", s.handleGetLabels)
 	r.Get("/inbound-shipments/{shipmentId}", s.handleGetShipment)
 	return r

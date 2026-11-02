@@ -71,12 +71,13 @@ request path). The table is `problemCatalogue` in `internal/adapters/inbound/htt
 | 409 | `seller-exists` | `POST /sellers` for a `sellerId` already onboarded. |
 | 409 | `node-cannot-receive` | The destination node is unknown, not `ACTIVE`, has no INBOUND capability, or (for a `parentSscc` carton) does not accept pallets. |
 | 409 | `sscc-not-unique` | The SSCC is already used. |
-| 409 | `shipment-not-labelled` | `:ship` on a shipment that is not `LABELLED`. |
+| 409 | `shipment-not-labelled` | `POST .../dispatches` on a shipment that is not `LABELLED`. |
 | 409 | `illegal-transition` | A state change the aggregate forbids: confirm or cancel a non-`DRAFT` plan, a shipment for a non-`CONFIRMED` plan, a carton added to a non-`DRAFT` shipment, labelling a non-`DRAFT` shipment, shipping a shipment that is past `LABELLED`. |
 | 409 | `concurrent-update` | Another request modified the resource (optimistic version check); re-fetch and retry. |
 | 422 | `validation-failed` | Bad JSON, an unknown field, a value outside its bounds, a malformed GTIN, a plan line repeated, a shipment labelled with no carton. |
-| 422 | `idempotency-key-required` | A `POST` without an `Idempotency-Key` header of 1 to 128 characters. |
-| 422 | `idempotency-key-reused` | The same key and route with a different body. A key replays the stored answer for 24 h. |
+| 400 | `idempotency-key-required` | A `POST` without an `Idempotency-Key` header. |
+| 400 | `idempotency-key-invalid` | An `Idempotency-Key` that is not 1 to 128 printable ASCII characters. |
+| 409 | `idempotency-key-reused` | The same key with a different method, path or body (the key is global). A key replays the stored answer, with `Idempotency-Replayed: true`, for 24 h. A client bug: do not retry. |
 | 422 | `case-pack-not-uniform` | A `CASE_PACKED` carton with more than one item, `MIXED` kind, or an item packed at two different quantities. |
 | 422 | `case-qty-mismatches-gtin` | The carton quantity differs from the `unitsPerPack` of the item's active CASE level, or the GTIN is not an active CASE level. |
 | 422 | `carton-overweight` / `carton-oversize` | Above the node's declared `maxCartonWeightG` or `maxCartonDimsMm` (edges compared sorted, so orientation does not matter). |

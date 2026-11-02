@@ -18,7 +18,7 @@ facts are read from local tables fed by Kafka ([Integration](/docs/ecosystem/int
 - **Errors** are `application/problem+json`; the status and slug of every error are in
   [Troubleshooting](/docs/operations/troubleshooting#rest-problem-types).
 - **Idempotency-Key** is required on every `POST` (1 to 128 characters, kept 24 h); a repeat with the same body
-  replays the first answer, a different body is `422 idempotency-key-reused`.
+  replays the first answer (`Idempotency-Replayed: true`), the same key on a different method, path or body is `409 idempotency-key-reused`.
 - **Seller must be `ACTIVE`** for every plan, shipment and carton command and for confirm and ship
   (`requireActiveSeller`, `internal/application/usecases/sellers.go`). Cancelling a plan and the receipt consumer do not
   check it.
@@ -35,15 +35,15 @@ Source: `internal/application/usecases/{sellers,plans,shipments,scorecard,consum
 | Use case | Trigger | Raises |
 | --- | --- | --- |
 | `OnboardSeller` | `POST /sellers` | `SellerOnboarded` |
-| `SuspendSeller` | `POST /sellers/{sellerId}:suspend` | `SellerSuspended` |
-| `ReinstateSeller` | `POST /sellers/{sellerId}:reinstate` | `SellerReinstated` |
+| `SuspendSeller` | `POST /sellers/{sellerId}/suspensions` | `SellerSuspended` |
+| `ReinstateSeller` | `POST /sellers/{sellerId}/reinstatements` | `SellerReinstated` |
 | `CreateInboundPlan` | `POST /inbound-plans` | none |
-| `ConfirmInboundPlan` | `POST /inbound-plans/{planId}:confirm` | `InboundPlanConfirmed` |
-| `CancelInboundPlan` | `POST /inbound-plans/{planId}:cancel` | none |
+| `ConfirmInboundPlan` | `POST /inbound-plans/{planId}/confirmations` | `InboundPlanConfirmed` |
+| `CancelInboundPlan` | `POST /inbound-plans/{planId}/cancellations` | none |
 | `CreateInboundShipment` | `POST /inbound-plans/{planId}/shipments` | none |
 | `AddCarton` | `POST /inbound-shipments/{shipmentId}/cartons` | none |
-| `LabelShipment` | `POST /inbound-shipments/{shipmentId}:label` | `InboundShipmentLabelled` |
-| `ShipInboundShipment` | `POST /inbound-shipments/{shipmentId}:ship` | `InboundShipmentShipped` |
+| `LabelShipment` | `POST /inbound-shipments/{shipmentId}/labels` | `InboundShipmentLabelled` |
+| `ShipInboundShipment` | `POST /inbound-shipments/{shipmentId}/dispatches` | `InboundShipmentShipped` |
 | `ApplyInboundReceipt` | `InboundReceiptSubmitted` on Kafka | `InboundDiscrepancyRecorded`, `SellerComplianceViolationRecorded`, `InboundShipmentReceived` |
 | `ApplyNodeRegistered`, `ApplyNodeProfileDeclared`, `ApplyNodeActivated`, `ApplyNodeSuspended`, `ApplyNodeRetired` | node-topology events | none (updates `node_inbound_views`) |
 | `ApplyPackagingDeclared`, `ApplyPackLevelRetired` | offer-availability events | none (updates `catalog_pack_levels`) |
