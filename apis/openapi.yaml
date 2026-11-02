@@ -38,7 +38,7 @@ info:
   license:
     name: UNLICENSED
 servers:
-- url: http://localhost:8000/api/retail-network/seller-inbound
+- url: http://localhost:8000/api/seller-inbound
 tags:
 - name: Sellers
   description: Seller onboarding, suspension and reinstatement (network partner managers), and the seller's informational compliance scorecard.

@@ -76,5 +76,6 @@ Failure handling (retry, dead letters, poison messages) is on [Integration](/doc
 
 Per `CLAUDE.md`: a new event is a domain struct, an entry in `apis/asyncapi.yaml` and the `type:` line in
 [ADR 0004](/docs/adr/0004-cloudevents-envelope-and-type-catalogue), in the same commit. The fleet catalogue test
-(`TestEventCatalogueMatchesContract`) only matches `com.warehouse.(wms|wes)` types, so it does not check this repository's
-`com.retailnetwork` types; the rule is enforced by review. CI `api-lint` runs Spectral on the AsyncAPI file.
+(`TestEventCatalogueMatchesContract`) matches `com.warehouse.(wms|wes)` and `com.retailnetwork` types, so it fails the build
+if one of this repository's published `com.retailnetwork.partner.seller-inbound` types is declared in the AsyncAPI file but
+missing from ADR 0004. CI `api-lint` runs Spectral on the AsyncAPI file.
