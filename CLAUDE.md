@@ -14,6 +14,7 @@ Guides: `python3 scripts/harness/repo_lint.py`, `python3 scripts/harness/guide_l
 `internal/domain/{shared,gs1,seller,inboundplan,inboundshipment,scorecard,network}` pure Go; `internal/application/{ports,requests,views,usecases,outbox}`;
 `internal/adapters/inbound/{http (chi),kafka,mcp (read-only)}`; `internal/adapters/outbound/{postgres,kafka,outbox,sscc,clock,ids,memory}`;
 `cmd/api` (composition root) and `cmd/mcp` (read-only MCP server, :8090); `features/` (godog, never a .go file at the repo root); migrations embedded in the postgres adapter.
+ Agent authority: every MCP tool and A2A skill declares a level (`com.warehouse/authority` _meta / `authority:L<n>` skill tag; L1 read, L2 recommend, L3 write - ADR 11); the MCP Streamable HTTP handler is stateless and answers the 2026-07-28 revision.
 `web/` is the console MFE remote (`seller_inbound_mfe`, vite + module federation, strictPort dev 4022, PUBLIC_BASE /mfes/seller-inbound/).
 
 ## Runtime rule
