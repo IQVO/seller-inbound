@@ -35,17 +35,21 @@ const instructions = "Seller Inbound of the retail network (read-only): the sell
 	"only). Read one inbound plan with its lines and state (DRAFT, CONFIRMED, CANCELLED) with get_inbound_plan, read one inbound shipment " +
 	"with its cartons (each identified by an SSCC) and its state (PLANNED, PACKING, LABELLED, SHIPPED, RECEIVED) with get_inbound_shipment, " +
 	"and read the label data of a labelled shipment's cartons (SSCC, GS1-128 element string, contents in eaches, destination node) with " +
-	"get_shipment_labels. Nothing here changes data: onboarding and suspending sellers, planning, confirming, cancelling, packing cartons, " +
+	"get_shipment_labels. The seller compliance scorecard resource (warehouse://seller-inbound/scorecards/{sellerId}) loads the default-window " +
+	"scorecard without a tool call, and the assess_seller_compliance prompt hands you this context's operator SOP. Nothing here changes data: " +
+	"onboarding and suspending sellers, planning, confirming, cancelling, packing cartons, " +
 	"labelling and shipping are REST operations of seller-inbound."
 
-// NewServer builds the MCP server for this bounded context with every tool
-// registered.
+// NewServer builds the MCP server for this bounded context with every tool,
+// resource and workflow prompt registered.
 func NewServer(deps Deps) *mcp.Server {
 	server := mcp.NewServer(
 		&mcp.Implementation{Name: serverName, Version: serverVersion},
 		&mcp.ServerOptions{Instructions: instructions},
 	)
 	deps.registerTools(server)
+	deps.registerResources(server)
+	deps.registerPrompts(server)
 	return server
 }
 
