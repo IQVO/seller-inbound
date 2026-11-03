@@ -30,8 +30,10 @@ import (
 )
 
 const (
-	a2aAdapterDir = "../adapters/inbound/a2a"
-	a2aCmdDir     = "../../cmd/a2a"
+	// a2aAdapterDir is now declared by mcp_authority_fitness_test.go (the
+	// fleet's copied sensor) with the same value; a2aCmdDir remains local
+	// to the A2A dependency-rule checks.
+	a2aCmdDir = "../../cmd/a2a"
 )
 
 func TestA2AAdapterDependencyRule(t *testing.T) {

@@ -3,7 +3,7 @@ id: tools
 title: MCP tools
 sidebar_label: MCP tools
 sidebar_position: 2
-description: "The four read-only MCP tools of seller-inbound: inputs, outputs and annotations, from the pinned tool registry."
+description: "The four read-only MCP tools of seller-inbound, every one declaring authority L1, plus the scorecard resource and the compliance SOP prompt, from the pinned tool registry."
 ---
 
 # MCP tools
@@ -28,19 +28,25 @@ Source: `cmd/mcp/main.go`, `cmd/mcp/router.go`, `internal/adapters/inbound/mcp/{
 server's `tools/list` on every test run; it was not captured from a running server. Run `tools/list` against a live
 `cmd/mcp` to see the same four tools.
 
-## Annotations
+## Annotations and authority
 
 All four tools carry `readOnlyHint: true`, `idempotentHint: true` and `openWorldHint: false`. There is no write tool:
 the governance tests in `internal/adapters/inbound/mcp/governance_test.go` (`TestToolSurface` with its write-verb and
 write-seam sensors) fail on a write-named tool or a write seam, and `TestMCPAdapterDependencyRule` limits the adapter
 to the application and domain layers. A tool call adds no `outbox_events` row.
 
-| Tool | Required input | Optional input | Annotation |
-| --- | --- | --- | --- |
-| `get_inbound_plan` | `planId` | none | read-only |
-| `get_inbound_shipment` | `shipmentId` | none | read-only |
-| `get_shipment_labels` | `shipmentId` | none | read-only |
-| `get_seller_scorecard` | `sellerId` | `window` | read-only |
+Every tool also declares its **agent authority level** `L1` (Agentic Standard v2,
+[ADR 0011](/docs/adr/0011-agent-authority-levels-and-complete-mcp-surface)): a pure read of this context's own state.
+The declaration travels in `tools/list` as `_meta` under the key `com.warehouse/authority`; the same level is pinned
+per tool in the golden registry and by the static sensor
+`internal/architecture/mcp_authority_fitness_test.go`. Both A2A skills carry the equivalent tag `authority:L1`.
+
+| Tool | Required input | Optional input | Annotation | Authority |
+| --- | --- | --- | --- | --- |
+| `get_inbound_plan` | `planId` | none | read-only | `L1` |
+| `get_inbound_shipment` | `shipmentId` | none | read-only | `L1` |
+| `get_shipment_labels` | `shipmentId` | none | read-only | `L1` |
+| `get_seller_scorecard` | `sellerId` | `window` | read-only | `L1` |
 
 Every input schema is `additionalProperties: false`. The tools are bound to the same use cases as the REST `GET`
 routes. A failure is an `isError` tool result whose text is `<slug>: <detail>` with the REST slug (`not-found`,
@@ -89,6 +95,28 @@ Answers a seller's informational compliance scorecard ([ADR 0005](/docs/adr/0005
   count), `complianceViolations` and `complianceTier` (`GOOD`, `WATCH`, `AT_RISK`).
 - **Errors:** an unknown seller is `not-found`; any other window is `invalid-window`. A suspended seller has a
   scorecard.
+
+## Transport
+
+The Streamable HTTP handler is **stateless** ([ADR 0011](/docs/adr/0011-agent-authority-levels-and-complete-mcp-surface)):
+no `Mcp-Session-Id` is issued, the server answers the 2026-07-28 revision's per-request handshake (`server/discover`,
+no `initialize` needed) and a legacy `initialize` still answers `200`. Nothing in the server relies on cross-call
+session state; pinned by the raw-POST tests in `internal/adapters/inbound/mcp/stateless_test.go`.
+
+## Resource: seller compliance scorecard
+
+`warehouse://seller-inbound/scorecards/{sellerId}` (`application/json`) is the one resource of this server: the
+default-window (30d) compliance scorecard of ONE seller, built from the same `GetSellerScorecard` read use case as the
+`get_seller_scorecard` tool and the REST `GET /sellers/{sellerId}/scorecard`. Bounded by construction: one seller,
+the scorecard's fixed fields, JSON text — never a dump of a table. A malformed URI or an unknown seller is an error.
+
+## Prompt: `assess_seller_compliance`
+
+The one prompt of this server is the operator SOP for this context: read the rolling-window scorecard, trace
+discrepancies to their inbound plans and shipments, and escalate `AT_RISK` (or repeating violations) to the human
+account manager. It takes one typed, required argument (`sellerId`); it names tools and never calls them, and nothing
+it names can write (the write operations of this context are REST-only). `prompts/get` returns the SOP text with the
+seller id interpolated; a missing argument degrades to a `<sellerId>` placeholder, never to a hidden call.
 
 ## Known inconsistencies
 

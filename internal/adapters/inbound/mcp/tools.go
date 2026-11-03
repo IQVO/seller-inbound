@@ -248,11 +248,13 @@ func (d Deps) getInboundShipment(ctx context.Context, in shipmentIDInput) (shipm
 
 // registerTools adds the four read-only tools, one per read GET of
 // apis/openapi.yaml. Every tool is annotated read-only, idempotent and
-// closed-world; TestToolSurface pins the set and fails the build on any
-// write-verb name (docs/adr/0006).
+// closed-world (the annotation literal is inlined per tool so the fleet's
+// static authority sensor can prove ReadOnlyHint) and declares its authority
+// level L1 under com.warehouse/authority (Agentic Standard v2, ADR 0011):
+// each is a pure read of this context's own state. TestToolSurface pins the
+// set and fails the build on any write-verb name (docs/adr/0006).
 func (d Deps) registerTools(server *mcp.Server) {
 	closedWorld := false
-	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: &closedWorld}
 
 	addTool(server, &mcp.Tool{
 		Name: "get_seller_scorecard",
@@ -261,7 +263,8 @@ func (d Deps) registerTools(server *mcp.Server) {
 			"discrepancies by kind, discrepancyRatePerShipment (omitted when no shipment closed), compliance violations and the derived " +
 			"complianceTier (GOOD, WATCH or AT_RISK), which is informational only. window is 7d or 30d and defaults to 30d. Read-only; an " +
 			"unknown seller fails with not-found, a bad window with invalid-window.",
-		Annotations: readOnly,
+		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: &closedWorld},
+		Meta:        authorityMeta(authorityL1),
 	}, d.getSellerScorecard)
 
 	addTool(server, &mcp.Tool{
@@ -269,7 +272,8 @@ func (d Deps) registerTools(server *mcp.Server) {
 		Description: "Read one inbound plan: the seller, the destination node, the packing option (INDIVIDUAL or CASE_PACKED), the state " +
 			"(DRAFT, CONFIRMED or CANCELLED) and the declared lines in eaches (catalog item, GTIN, quantity), with the created, confirmed " +
 			"and cancelled instants. Read-only; an unknown id fails with not-found.",
-		Annotations: readOnly,
+		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: &closedWorld},
+		Meta:        authorityMeta(authorityL1),
 	}, d.getInboundPlan)
 
 	addTool(server, &mcp.Tool{
@@ -277,7 +281,8 @@ func (d Deps) registerTools(server *mcp.Server) {
 		Description: "Read the label data of a labelled inbound shipment, one entry per carton: the SSCC, the GS1-128 element string " +
 			"(00)<sscc>, the human readable line, the contents in eaches with lot and expiry when declared, the content summary, the " +
 			"total eaches and the destination node. Read-only; an unknown id fails with not-found.",
-		Annotations: readOnly,
+		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: &closedWorld},
+		Meta:        authorityMeta(authorityL1),
 	}, d.getShipmentLabels)
 
 	addTool(server, &mcp.Tool{
@@ -285,7 +290,8 @@ func (d Deps) registerTools(server *mcp.Server) {
 		Description: "Read one inbound shipment: its plan, seller and destination node, the state (PLANNED, PACKING, LABELLED, SHIPPED or " +
 			"RECEIVED) and every carton packed so far (SSCC, optional parent SSCC, kind, contents in eaches, gross weight, dimensions, " +
 			"seal and receipt status). Read-only; an unknown id fails with not-found.",
-		Annotations: readOnly,
+		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: &closedWorld},
+		Meta:        authorityMeta(authorityL1),
 	}, d.getInboundShipment)
 }
 

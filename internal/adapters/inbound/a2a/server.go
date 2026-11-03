@@ -63,7 +63,9 @@ type Deps struct {
 // goal-shaped READ skills derived from the MCP tools get_seller_scorecard,
 // get_inbound_plan and get_inbound_shipment (ADR 0006): this context's MCP
 // charter is entirely read-only, so the agent is read-only too and never
-// widens what the context exposes. The card declares no security schemes on
+// widens what the context exposes. Every skill carries the tag authority:L1
+// (Agentic Standard v2, ADR 0011): the same level as the tool it fronts. The
+// card declares no security schemes on
 // purpose: this surface is unauthenticated by the same fleet-wide decision as
 // REST and MCP; schemes are added here, not in a redesign, if that decision is
 // ever reversed.
@@ -87,7 +89,7 @@ func Card(cfg Config) *a2a.AgentCard {
 				ID:          skillSellerCompliance,
 				Name:        "Assess a seller's compliance",
 				Description: "Answer one seller's rolling-window compliance scorecard from the facts this service recorded: shipments received in the window, cartons reported and received, receiptAccuracyRate (omitted when nothing was reported), discrepancies by kind, discrepancyRatePerShipment (omitted when no shipment closed), compliance violations and the derived complianceTier (GOOD, WATCH or AT_RISK), which is informational only. Arguments: sellerId (required) and window (optional: 7d or 30d, default 30d). Answers a 404 problem for an unknown seller and a 400 problem for another window. Persists nothing.",
-				Tags:        []string{"seller", "compliance", "scorecard", "read"},
+				Tags:        []string{"seller", "compliance", "scorecard", "read", "authority:L1"},
 				InputModes:  []string{contentTypeJSON},
 				Examples: []string{
 					`{"skill":"seller_compliance","arguments":{"sellerId":"seller-77"}}`,
@@ -98,7 +100,7 @@ func Card(cfg Config) *a2a.AgentCard {
 				ID:          skillInboundStatus,
 				Name:        "Check where an inbound stands",
 				Description: "Read the state of one inbound: pass planId for an inbound plan (seller, destination node, packing option, state DRAFT / CONFIRMED / CANCELLED and the declared lines in eaches) or shipmentId for an inbound shipment (plan, seller, destination node, state PLANNED / PACKING / LABELLED / SHIPPED / RECEIVED and every carton packed so far with its SSCC, contents and receipt status). Exactly one of the two is required. Answers a 404 problem when the id is unknown. Persists nothing.",
-				Tags:        []string{"inbound", "plan", "shipment", "read"},
+				Tags:        []string{"inbound", "plan", "shipment", "read", "authority:L1"},
 				InputModes:  []string{contentTypeJSON},
 				Examples: []string{
 					`{"skill":"inbound_status","arguments":{"planId":"pln-0f3a91"}}`,
