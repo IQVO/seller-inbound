@@ -174,11 +174,11 @@ Deploy with `charts/seller-inbound`. Values that matter: `config.*` (the env abo
 
 ### Running the MCP server in Kubernetes
 
-`cmd/mcp` ([ADR 0006](docs/adr/0006-read-only-mcp-server.md)) is the optional second binary: the read-only MCP server (`get_seller_scorecard`, `get_inbound_plan`, `get_shipment_labels`, `get_inbound_shipment`) over the same reads as the REST GETs, Postgres only, Streamable HTTP on `/mcp` (`MCP_ADDR`, default `:8090`), `GET /healthz` for the probes, unauthenticated like REST (access control is the in-cluster ClusterIP boundary), `mcp.enabled` in the chart (default off).
+`cmd/mcp` ([ADR 0006](docs/adr/0006-read-only-mcp-server.md)) is the optional second binary: the read-only MCP server (`get_seller_scorecard`, `get_inbound_plan`, `get_shipment_labels`, `get_inbound_shipment`) over the same reads as the REST GETs, Postgres only, Streamable HTTP on `/mcp` (`MCP_ADDR`, default `:8090`), `GET /healthz` for the probes, unauthenticated like REST (access control is the in-cluster ClusterIP boundary), `mcp.enabled` in the chart (default off). Every tool declares authority `L1` (`_meta` `com.warehouse/authority`, Agentic Standard v2), the transport is stateless (2026-07-28 `server/discover` plus legacy `initialize`), and the surface carries one resource (`warehouse://seller-inbound/scorecards/{sellerId}`) and one prompt (`assess_seller_compliance`) — [ADR 0011](docs/adr/0011-agent-authority-levels-and-complete-mcp-surface.md).
 
 ### Running the A2A agent in Kubernetes
 
-`cmd/a2a` ([ADR 0009](docs/adr/0009-a2a-inbound-adapter.md)) is the optional third binary: a read-only A2A agent (Agent2Agent, JSON-RPC 2.0, Agent Card at `/.well-known/agent-card.json`, port 8093) with two goal-shaped skills, `seller_compliance` and `inbound_status`, over the same reads; Postgres only, `A2A_AGENT_URL` is mandatory (absolute http(s) URL the card advertises), `a2a.enabled` in the chart (default off), unauthenticated like REST and MCP.
+`cmd/a2a` ([ADR 0009](docs/adr/0009-a2a-inbound-adapter.md)) is the optional third binary: a read-only A2A agent (Agent2Agent, JSON-RPC 2.0, Agent Card at `/.well-known/agent-card.json`, port 8093) with two goal-shaped skills, `seller_compliance` and `inbound_status`, over the same reads; both declare `authority:L1` on the card (Agentic Standard v2, [ADR 0011](docs/adr/0011-agent-authority-levels-and-complete-mcp-surface.md)); Postgres only, `A2A_AGENT_URL` is mandatory (absolute http(s) URL the card advertises), `a2a.enabled` in the chart (default off), unauthenticated like REST and MCP.
 
 ## Operator micro-frontend (`web/`)
 
