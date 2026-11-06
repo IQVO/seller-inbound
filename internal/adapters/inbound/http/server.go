@@ -83,6 +83,10 @@ func NewRouter(s *Server, logger *slog.Logger, serviceName string) http.Handler 
 	r.Method(http.MethodPost, "/inbound-shipments/{shipmentId}/cartons", write(s.handleAddCarton))
 	r.Method(http.MethodPost, "/inbound-shipments/{shipmentId}/labels", write(s.handleLabelShipment))
 	r.Method(http.MethodPost, "/inbound-shipments/{shipmentId}/dispatches", write(s.handleDispatchShipment))
+	r.Method(http.MethodPost, "/placement-plans", write(s.handleComputePlacementPlan))
+	r.Get("/placement-plans", s.handleListPlacementPlans)
+	r.Get("/placement-plans/{planId}", s.handleGetPlacementPlan)
+	r.Method(http.MethodPost, "/placement-plans/{planId}/acceptances", write(s.handleAcceptPlacementPlan))
 	r.Get("/inbound-shipments/{shipmentId}/labels", s.handleGetLabels)
 	r.Get("/inbound-shipments/{shipmentId}", s.handleGetShipment)
 	return r

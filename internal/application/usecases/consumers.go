@@ -24,6 +24,9 @@ const (
 	evPackaging        = "CatalogItemPackagingDeclared"
 	evPackLevelRetired = "CatalogItemPackLevelRetired"
 	evReceipt          = "InboundReceiptSubmitted"
+	evReleased         = "FulfillmentReleasedToNode"
+	evFulfilCancelled  = "FulfillmentCancelled"
+	evListingAvail     = "ListingAvailabilityChanged"
 )
 
 // nodeOrNew returns the node row, or an empty one when the view has not seen it.
@@ -49,10 +52,12 @@ func (s *Service) foldNode(ctx context.Context, eventID, eventType, nodeID strin
 	})
 }
 
-// ApplyNodeRegistered is policy NodeMustBeAbleToReceive on NodeRegistered.
+// ApplyNodeRegistered is policy NodeMustBeAbleToReceive on NodeRegistered;
+// the registration also declares the region and the operator the placement
+// advisory resolves demand by (ADR 0012).
 func (s *Service) ApplyNodeRegistered(ctx context.Context, eventID string, in requests.NodeRegistered) error {
 	return s.foldNode(ctx, eventID, evNodeRegistered, in.NodeID, func(n network.Node) (network.Node, error) {
-		return n.Registered(in.NodeID, in.NodeType)
+		return n.Registered(in.NodeID, in.NodeType, in.Operator, in.RegionID)
 	})
 }
 
@@ -187,4 +192,48 @@ func normGTIN(s string) (string, error) {
 		return "", shared.Invalid("gtin: %v", err)
 	}
 	return g.String(), nil
+}
+
+// ApplyFulfillmentReleased folds order-sourcing's FulfillmentReleasedToNode
+// into DemandHeatView: the release's lines are the item-granular demand the
+// advisory sums per region (ADR 0012). A re-release of the same assignment
+// group replaces its lines, so a reassignment moves the demand to the node
+// the network last chose.
+func (s *Service) ApplyFulfillmentReleased(ctx context.Context, eventID string, in requests.FulfillmentReleased) error {
+	return s.consume(ctx, eventID, evReleased, func(ctx context.Context) error {
+		release := network.DemandRelease{AssignmentID: in.AssignmentID, GroupNo: in.GroupNo, NodeID: in.NodeID,
+			ReleasedAt: in.ReleasedAt, Lines: make([]network.ReleaseLine, len(in.Lines))}
+		for i, l := range in.Lines {
+			release.Lines[i] = network.ReleaseLine{LineNo: l.LineNo, CatalogItemID: l.CatalogItemID, Quantity: l.Quantity}
+		}
+		if err := release.Validate(); err != nil {
+			return err
+		}
+		return s.d.DemandHeat.RecordDemand(ctx, release)
+	})
+}
+
+// ApplyFulfillmentCancelled folds order-sourcing's FulfillmentCancelled into
+// DemandHeatView: the group's demand is gone (ADR 0012).
+func (s *Service) ApplyFulfillmentCancelled(ctx context.Context, eventID string, in requests.FulfillmentCancelled) error {
+	return s.consume(ctx, eventID, evFulfilCancelled, func(ctx context.Context) error {
+		if !shared.ValidID(in.AssignmentID) || in.GroupNo < 1 {
+			return shared.Invalid("assignmentId must be a valid id and groupNo at least 1")
+		}
+		return s.d.DemandHeat.CancelDemand(ctx, in.AssignmentID, in.GroupNo)
+	})
+}
+
+// ApplyListingAvailabilityChanged folds offer-availability's
+// ListingAvailabilityChanged into DemandHeatView: the node's current declared
+// availability of the item (ADR 0012).
+func (s *Service) ApplyListingAvailabilityChanged(ctx context.Context, eventID string, in requests.ListingAvailabilityChanged) error {
+	return s.consume(ctx, eventID, evListingAvail, func(ctx context.Context) error {
+		row := network.NodeAvailability{ListingID: in.ListingID, CatalogItemID: in.CatalogItemID,
+			NodeID: in.NodeID, AvailableQty: in.AvailableQty, AsOf: in.AsOf}
+		if err := row.Validate(); err != nil {
+			return err
+		}
+		return s.d.Listings.SaveAvailability(ctx, row)
+	})
 }

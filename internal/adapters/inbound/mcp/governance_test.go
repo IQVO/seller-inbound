@@ -21,12 +21,13 @@ var update = flag.Bool("update", false, "rewrite the MCP tool registry golden fi
 // wantTools is the curated, READ-ONLY tool set (docs/adr/0006): one tool per
 // read GET of apis/openapi.yaml.
 var wantTools = []string{
-	"get_inbound_plan", "get_inbound_shipment", "get_seller_scorecard", "get_shipment_labels",
+	"get_inbound_plan", "get_inbound_shipment", "get_placement_plan", "get_seller_scorecard",
+	"get_shipment_labels", "list_placement_plans",
 }
 
 // maxTools is the tool budget. Raising it is a deliberate, reviewed act (an
 // ADR 0006 amendment): TestToolSurface still pins the exact curated set.
-const maxTools = 4
+const maxTools = 6
 
 // writeVerbs are the verbs of this service's write use cases (onboard,
 // suspend and reinstate a seller; create, confirm and cancel a plan; open a

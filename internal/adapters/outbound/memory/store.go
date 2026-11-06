@@ -23,6 +23,7 @@ import (
 	"github.com/claudioed/seller-inbound/internal/domain/inboundplan"
 	"github.com/claudioed/seller-inbound/internal/domain/inboundshipment"
 	"github.com/claudioed/seller-inbound/internal/domain/network"
+	"github.com/claudioed/seller-inbound/internal/domain/placementplan"
 	"github.com/claudioed/seller-inbound/internal/domain/scorecard"
 	"github.com/claudioed/seller-inbound/internal/domain/seller"
 	"github.com/claudioed/seller-inbound/internal/domain/shared"
@@ -50,19 +51,32 @@ type packKey struct {
 	gtin  string
 }
 
+type demandKey struct {
+	assignment string
+	groupNo    int
+}
+
+type availKey struct {
+	item   string
+	nodeID string
+}
+
 // Store is the shared state of the in-memory doubles.
 type Store struct {
-	mu        sync.Mutex
-	sellers   map[seller.ID]seller.Snapshot
-	plans     map[inboundplan.ID]inboundplan.Snapshot
-	shipments map[inboundshipment.ID]inboundshipment.Snapshot
-	sscc      map[string]inboundshipment.ID
-	nodes     map[string]network.Node
-	packaging map[packKey]network.PackLevel
-	inbox     map[string]string
-	outbox    []shared.Event
-	receipts  map[string]scorecard.Receipt
-	occurs    []scorecard.Occurrence
+	mu             sync.Mutex
+	sellers        map[seller.ID]seller.Snapshot
+	plans          map[inboundplan.ID]inboundplan.Snapshot
+	shipments      map[inboundshipment.ID]inboundshipment.Snapshot
+	sscc           map[string]inboundshipment.ID
+	nodes          map[string]network.Node
+	packaging      map[packKey]network.PackLevel
+	demand         map[demandKey][]network.DemandLine
+	listings       map[availKey]network.NodeAvailability
+	placementPlans map[placementplan.ID]placementplan.Snapshot
+	inbox          map[string]string
+	outbox         []shared.Event
+	receipts       map[string]scorecard.Receipt
+	occurs         []scorecard.Occurrence
 }
 
 // NewStore returns an empty store.
@@ -70,7 +84,9 @@ func NewStore() *Store {
 	return &Store{
 		sellers: map[seller.ID]seller.Snapshot{}, plans: map[inboundplan.ID]inboundplan.Snapshot{},
 		shipments: map[inboundshipment.ID]inboundshipment.Snapshot{}, sscc: map[string]inboundshipment.ID{},
-		nodes: map[string]network.Node{}, packaging: map[packKey]network.PackLevel{}, inbox: map[string]string{},
+		nodes: map[string]network.Node{}, packaging: map[packKey]network.PackLevel{},
+		demand: map[demandKey][]network.DemandLine{}, listings: map[availKey]network.NodeAvailability{},
+		placementPlans: map[placementplan.ID]placementplan.Snapshot{}, inbox: map[string]string{},
 		receipts: map[string]scorecard.Receipt{},
 	}
 }
@@ -78,16 +94,19 @@ func NewStore() *Store {
 // state is a copy of everything a unit of work can change. Stored snapshots are
 // replaced, never edited in place, so copying the maps is enough.
 type state struct {
-	sellers   map[seller.ID]seller.Snapshot
-	plans     map[inboundplan.ID]inboundplan.Snapshot
-	shipments map[inboundshipment.ID]inboundshipment.Snapshot
-	sscc      map[string]inboundshipment.ID
-	nodes     map[string]network.Node
-	packaging map[packKey]network.PackLevel
-	inbox     map[string]string
-	outbox    []shared.Event
-	receipts  map[string]scorecard.Receipt
-	occurs    []scorecard.Occurrence
+	sellers        map[seller.ID]seller.Snapshot
+	plans          map[inboundplan.ID]inboundplan.Snapshot
+	shipments      map[inboundshipment.ID]inboundshipment.Snapshot
+	sscc           map[string]inboundshipment.ID
+	nodes          map[string]network.Node
+	packaging      map[packKey]network.PackLevel
+	demand         map[demandKey][]network.DemandLine
+	listings       map[availKey]network.NodeAvailability
+	placementPlans map[placementplan.ID]placementplan.Snapshot
+	inbox          map[string]string
+	outbox         []shared.Event
+	receipts       map[string]scorecard.Receipt
+	occurs         []scorecard.Occurrence
 }
 
 func cloneMap[K comparable, V any](m map[K]V) map[K]V {
@@ -101,12 +120,14 @@ func cloneMap[K comparable, V any](m map[K]V) map[K]V {
 func (s *Store) capture() state {
 	return state{sellers: cloneMap(s.sellers), plans: cloneMap(s.plans), shipments: cloneMap(s.shipments), sscc: cloneMap(s.sscc),
 		nodes: cloneMap(s.nodes), packaging: cloneMap(s.packaging), inbox: cloneMap(s.inbox), outbox: slices.Clone(s.outbox),
+		demand: cloneMap(s.demand), listings: cloneMap(s.listings), placementPlans: cloneMap(s.placementPlans),
 		receipts: cloneMap(s.receipts), occurs: slices.Clone(s.occurs)}
 }
 
 func (s *Store) restore(st state) {
 	s.sellers, s.plans, s.shipments, s.sscc = st.sellers, st.plans, st.shipments, st.sscc
 	s.nodes, s.packaging, s.inbox, s.outbox = st.nodes, st.packaging, st.inbox, st.outbox
+	s.demand, s.listings, s.placementPlans = st.demand, st.listings, st.placementPlans
 	s.receipts, s.occurs = st.receipts, st.occurs
 }
 
@@ -169,6 +190,15 @@ func (s *Store) Nodes() *NodeViewRepository { return &NodeViewRepository{s} }
 
 // Packaging returns the PackagingViewRepository double.
 func (s *Store) Packaging() *PackagingViewRepository { return &PackagingViewRepository{s} }
+
+// DemandHeat returns the in-memory DemandHeatView double.
+func (s *Store) DemandHeat() *DemandHeatView { return &DemandHeatView{s} }
+
+// Listings returns the in-memory ListingView double.
+func (s *Store) Listings() *ListingView { return &ListingView{s} }
+
+// PlacementPlans returns the in-memory PlacementPlanRepository double.
+func (s *Store) PlacementPlans() *PlacementPlanRepository { return &PlacementPlanRepository{s} }
 
 // Inbox returns the ProcessedEvents double.
 func (s *Store) Inbox() *Inbox { return &Inbox{s} }

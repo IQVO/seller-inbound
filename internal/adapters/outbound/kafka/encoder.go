@@ -10,6 +10,7 @@ import (
 	"github.com/claudioed/seller-inbound/internal/application/outbox"
 	"github.com/claudioed/seller-inbound/internal/domain/inboundplan"
 	"github.com/claudioed/seller-inbound/internal/domain/inboundshipment"
+	"github.com/claudioed/seller-inbound/internal/domain/placementplan"
 	"github.com/claudioed/seller-inbound/internal/domain/seller"
 	"github.com/claudioed/seller-inbound/internal/domain/shared"
 )
@@ -133,6 +134,23 @@ type violationData struct {
 	RecordedAt string `json:"recordedAt"`
 }
 
+type placementSuggestionData struct {
+	NodeID                string `json:"nodeId"`
+	RegionID              string `json:"regionId"`
+	SuggestedUnits        int    `json:"suggestedUnits"`
+	RegionDemandUnits     int    `json:"regionDemandUnits"`
+	NodeAvailabilityUnits int    `json:"nodeAvailabilityUnits"`
+}
+
+type placementPlanData struct {
+	PlanID        string                    `json:"planId"`
+	SellerID      string                    `json:"sellerId"`
+	CatalogItemID string                    `json:"catalogItemId"`
+	Basis         string                    `json:"basis"`
+	Suggestions   []placementSuggestionData `json:"suggestions"`
+	CreatedAt     string                    `json:"createdAt"`
+}
+
 // Encoder implements outbox.Encoder: each domain event becomes one
 // outbox.Message holding the CloudEvents bytes, the Kafka key (the aggregate
 // root id) and the content-type header. The CloudEvents `id` is minted HERE,
@@ -170,11 +188,14 @@ func (e *Encoder) Encode(events ...shared.Event) ([]outbox.Message, error) {
 	return out, nil
 }
 
-// streamFor routes the three events another context consumes to the events
-// topic and every other fact to the analytics topic.
+// streamFor routes the events another context consumes to the events topic
+// and every other fact to the analytics topic. PlacementPlanSuggested goes
+// to the events topic with analytics as its only reader in v1 (ADR 0012), so
+// an agreed consumer can subscribe later without a topic change.
 func streamFor(ev shared.Event) (stream, topic string) {
 	switch ev.(type) {
-	case inboundshipment.InboundShipmentLabelled, inboundshipment.InboundShipmentShipped, inboundshipment.InboundShipmentReceived:
+	case inboundshipment.InboundShipmentLabelled, inboundshipment.InboundShipmentShipped, inboundshipment.InboundShipmentReceived,
+		placementplan.PlacementPlanSuggested:
 		return cloudevents.StreamEvents, TopicEvents
 	default:
 		return cloudevents.StreamAnalytics, TopicAnalytics
@@ -215,9 +236,21 @@ func payloadFor(ev shared.Event) (any, error) {
 		return sellerReinstatedData{SellerID: string(e.SellerID), ReinstatedAt: ts(e.At)}, nil
 	case inboundplan.InboundPlanConfirmed:
 		return planPayload(e), nil
+	case placementplan.PlacementPlanSuggested:
+		return placementPayload(e), nil
 	default:
 		return shipmentPayload(ev)
 	}
+}
+
+func placementPayload(e placementplan.PlacementPlanSuggested) placementPlanData {
+	suggestions := make([]placementSuggestionData, len(e.Suggestions))
+	for i, s := range e.Suggestions {
+		suggestions[i] = placementSuggestionData{NodeID: s.NodeID, RegionID: s.RegionID, SuggestedUnits: s.SuggestedUnits,
+			RegionDemandUnits: s.Evidence.RegionDemandUnits, NodeAvailabilityUnits: s.Evidence.NodeAvailabilityUnits}
+	}
+	return placementPlanData{PlanID: string(e.PlanID), SellerID: e.SellerID, CatalogItemID: e.CatalogItemID,
+		Basis: e.Basis, Suggestions: suggestions, CreatedAt: ts(e.CreatedAt)}
 }
 
 func planPayload(e inboundplan.InboundPlanConfirmed) planConfirmedData {

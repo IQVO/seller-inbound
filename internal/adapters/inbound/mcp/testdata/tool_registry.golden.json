@@ -270,6 +270,122 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
+    "description": "Read one placement plan (ADR 0012): the seller, the catalogue item, coverDays and the observation windowDays, the basis (demand-heat-v1), the state (SUGGESTED, ACCEPTED or SUPERSEDED), the createdAt/acceptedAt/supersededAt instant(s) and the per-node suggestions (nodeId, regionId, suggestedUnits with the evidence: regionDemandUnits, nodeAvailabilityUnits, coverDays). Read-only; an unknown plan fails with not-found.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "planId": {
+          "description": "the placement plan id, e.g. pl-0f3a91",
+          "type": "string"
+        }
+      },
+      "required": [
+        "planId"
+      ],
+      "type": "object"
+    },
+    "name": "get_placement_plan",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptedAt": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "basis": {
+          "type": "string"
+        },
+        "catalogItemId": {
+          "type": "string"
+        },
+        "coverDays": {
+          "type": "integer"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "planId": {
+          "type": "string"
+        },
+        "sellerId": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "suggestions": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "coverDays": {
+                "type": "integer"
+              },
+              "nodeAvailabilityUnits": {
+                "type": "integer"
+              },
+              "nodeId": {
+                "type": "string"
+              },
+              "regionDemandUnits": {
+                "type": "integer"
+              },
+              "regionId": {
+                "type": "string"
+              },
+              "suggestedUnits": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "nodeId",
+              "regionId",
+              "suggestedUnits",
+              "regionDemandUnits",
+              "nodeAvailabilityUnits",
+              "coverDays"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "supersededAt": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "windowDays": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "planId",
+        "sellerId",
+        "catalogItemId",
+        "coverDays",
+        "windowDays",
+        "basis",
+        "state",
+        "suggestions",
+        "createdAt"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "_meta": {
+      "com.warehouse/authority": "L1"
+    },
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
     "description": "Answer a seller's rolling-window compliance scorecard from the facts this service recorded (ADR 0005): shipments received in the window, cartons reported and how many were RECEIVED, receiptAccuracyRate (omitted when nothing was reported), discrepancies by kind, discrepancyRatePerShipment (omitted when no shipment closed), compliance violations and the derived complianceTier (GOOD, WATCH or AT_RISK), which is informational only. window is 7d or 30d and defaults to 30d. Read-only; an unknown seller fails with not-found, a bad window with invalid-window.",
     "inputSchema": {
       "additionalProperties": false,
@@ -477,6 +593,146 @@
         "state",
         "destinationNodeId",
         "labels"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "_meta": {
+      "com.warehouse/authority": "L1"
+    },
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "List the placement plans of one (sellerId, catalogItemId), newest first (ADR 0012). Each item is the same shape as get_placement_plan; the body is {items}. Read-only.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "catalogItemId": {
+          "description": "the catalogue item id, e.g. item-1",
+          "type": "string"
+        },
+        "limit": {
+          "description": "optional page size 1..100; omitted means 50",
+          "type": "integer"
+        },
+        "sellerId": {
+          "description": "the seller id whose placement plans are listed, e.g. seller-77",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sellerId",
+        "catalogItemId"
+      ],
+      "type": "object"
+    },
+    "name": "list_placement_plans",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "acceptedAt": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "basis": {
+                "type": "string"
+              },
+              "catalogItemId": {
+                "type": "string"
+              },
+              "coverDays": {
+                "type": "integer"
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "planId": {
+                "type": "string"
+              },
+              "sellerId": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string"
+              },
+              "suggestions": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "coverDays": {
+                      "type": "integer"
+                    },
+                    "nodeAvailabilityUnits": {
+                      "type": "integer"
+                    },
+                    "nodeId": {
+                      "type": "string"
+                    },
+                    "regionDemandUnits": {
+                      "type": "integer"
+                    },
+                    "regionId": {
+                      "type": "string"
+                    },
+                    "suggestedUnits": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "nodeId",
+                    "regionId",
+                    "suggestedUnits",
+                    "regionDemandUnits",
+                    "nodeAvailabilityUnits",
+                    "coverDays"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "supersededAt": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "windowDays": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "planId",
+              "sellerId",
+              "catalogItemId",
+              "coverDays",
+              "windowDays",
+              "basis",
+              "state",
+              "suggestions",
+              "createdAt"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        }
+      },
+      "required": [
+        "items"
       ],
       "type": "object"
     }

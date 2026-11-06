@@ -14,4 +14,8 @@ var (
 	// already registered to another shipment: SSCCs are unique network-wide. The
 	// use case turns it into inboundshipment.ErrSsccNotUnique.
 	ErrSsccTaken = errors.New("sscc already registered")
+	// ErrInvalidCoverDays is what ComputePlacementPlan returns for a coverDays
+	// outside placementplan.MinCoverDays..MaxCoverDays (problem type
+	// invalid-cover-days, 400; ADR 0012).
+	ErrInvalidCoverDays = errors.New("coverDays is out of range")
 )

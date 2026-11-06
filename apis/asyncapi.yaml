@@ -21,11 +21,11 @@ info:
     Event catalog for the **seller-inbound** bounded context of the retail network (partner tier): the seller-facing front door for stock coming into the network.
     The REST contract is `apis/openapi.yaml`.
 
-    **Published.** Nine types. `InboundShipmentLabelled`, `InboundShipmentShipped` and `InboundShipmentReceived` go to `retailnetwork.seller-inbound.events`; the other six (`SellerOnboarded`, `SellerSuspended`, `SellerReinstated`, `InboundPlanConfirmed`, `InboundDiscrepancyRecorded`, `SellerComplianceViolationRecorded`) go ONLY to `retailnetwork.seller-inbound.analytics` (the model marks them analytics only). Every event leaves through a **transactional outbox**: the aggregate row and the already-encoded events are written in ONE database transaction and an always-on relay drains them to Kafka (at-least-once; the CloudEvents `id` is stored with the outbox row, so a retry republishes the same `id`).
+    **Published.** Ten types. `InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived` and `PlacementPlanSuggested` go to `retailnetwork.seller-inbound.events`; the other six (`SellerOnboarded`, `SellerSuspended`, `SellerReinstated`, `InboundPlanConfirmed`, `InboundDiscrepancyRecorded`, `SellerComplianceViolationRecorded`) go ONLY to `retailnetwork.seller-inbound.analytics` (the model marks them analytics only). Every event leaves through a **transactional outbox**: the aggregate row and the already-encoded events are written in ONE database transaction and an always-on relay drains them to Kafka (at-least-once; the CloudEvents `id` is stored with the outbox row, so a retry republishes the same `id`).
 
-    **Consumed.** Eight types from three producers (ADR 0003): node-topology `NodeRegistered`, `NodeOperationalProfileDeclared`, `NodeActivated`, `NodeSuspended`, `NodeRetired` (local NodeInboundView); offer-availability `CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired` (local CatalogPackagingView); vendor-connectivity `InboundReceiptSubmitted`. Each is deduplicated on the CloudEvents `id` in the `processed_events` inbox table and dispatched on the full `type`; a message that is not a valid CloudEvents 1.0 envelope is skipped with a WARN and a type this context does not act on is ignored (both are committed past). `data` is decoded tolerantly (unknown fields are ignored). Offsets are committed only after the handler succeeded; a transient failure retries the same message with capped exponential backoff, and a payload that can never be applied (a value the domain refuses, a forbidden transition, an unknown shipment) or an exhausted retry budget is dead-lettered to `<topic>.dlq` with the headers `x-dlq-source-topic`, `x-dlq-source-partition`, `x-dlq-source-offset`, `x-dlq-error` and `x-dlq-failed-at`. The consumed `data` below lists only the fields this context relies on. There are no synchronous calls to any neighbour.
+    **Consumed.** Eleven types from four producers (ADR 0003, ADR 0012): node-topology `NodeRegistered`, `NodeOperationalProfileDeclared`, `NodeActivated`, `NodeSuspended`, `NodeRetired` (local NodeInboundView); offer-availability `CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired` (local CatalogPackagingView), `ListingAvailabilityChanged` (DemandHeatView, the declared-availability half); order-sourcing `FulfillmentReleasedToNode`, `FulfillmentCancelled` (DemandHeatView, the demand half); vendor-connectivity `InboundReceiptSubmitted`. Each is deduplicated on the CloudEvents `id` in the `processed_events` inbox table and dispatched on the full `type`; a message that is not a valid CloudEvents 1.0 envelope is skipped with a WARN and a type this context does not act on is ignored (both are committed past). `data` is decoded tolerantly (unknown fields are ignored). Offsets are committed only after the handler succeeded; a transient failure retries the same message with capped exponential backoff, and a payload that can never be applied (a value the domain refuses, a forbidden transition, an unknown shipment) or an exhausted retry budget is dead-lettered to `<topic>.dlq` with the headers `x-dlq-source-topic`, `x-dlq-source-partition`, `x-dlq-source-offset`, `x-dlq-error` and `x-dlq-failed-at`. The consumed `data` below lists only the fields this context relies on. There are no synchronous calls to any neighbour.
 
-    **Envelope (mandatory).** CloudEvents 1.0, structured content mode, Kafka header `content-type: application/cloudevents+json; charset=UTF-8`. `specversion`, `id`, `source` (`/retailnetwork/seller-inbound`), `type`, `subject` (the aggregate root id: `sellerId`, `planId` or `shipmentId`), `time`, `datacontenttype` (`application/json`) and `dataschema` (`urn:retailnetwork:seller-inbound:<stream>:<EventName>:v1`, stream `events` or `analytics`) are all required. Kafka key = the subject, so one shipment's events stay ordered on one partition. Type = `com.retailnetwork.partner.seller-inbound.<entity>.<EventName>` with entity `seller`, `inboundplan` or `inboundshipment`.
+    **Envelope (mandatory).** CloudEvents 1.0, structured content mode, Kafka header `content-type: application/cloudevents+json; charset=UTF-8`. `specversion`, `id`, `source` (`/retailnetwork/seller-inbound`), `type`, `subject` (the aggregate root id: `sellerId`, `planId` or `shipmentId`), `time`, `datacontenttype` (`application/json`) and `dataschema` (`urn:retailnetwork:seller-inbound:<stream>:<EventName>:v1`, stream `events` or `analytics`) are all required. Kafka key = the subject, so one shipment's events stay ordered on one partition. Type = `com.retailnetwork.partner.seller-inbound.<entity>.<EventName>` with entity `seller`, `inboundplan`, `inboundshipment` or `placementplan`.
 
     **Conventions.** `data` is camelCase; timestamps are RFC 3339 UTC; quantities are ALWAYS eaches (`qtyEaches`); optional fields are omitted when absent (never null); arrays are always present. GTINs are 14 digits, SSCCs 18 digits, both with a GS1 mod-10 check digit.
 servers:
@@ -41,7 +41,7 @@ channels:
   sellerInboundEvents:
     address: retailnetwork.seller-inbound.events
     title: seller-inbound integration topic
-    description: This service's integration topic, written by the outbox relay; key = subject. Carries the three events other contexts consume. Every message carries the CloudEvents content-type header.
+    description: This service's integration topic, written by the outbox relay; key = subject. Carries the three shipment events other contexts consume plus PlacementPlanSuggested (analytics only in v1, ADR 0012). Every message carries the CloudEvents content-type header.
       Dispatch on the full `type`, ignore unknown types, dedupe on `id`.
     messages:
       InboundShipmentLabelled:
@@ -50,6 +50,8 @@ channels:
         $ref: '#/components/messages/InboundShipmentShipped'
       InboundShipmentReceived:
         $ref: '#/components/messages/InboundShipmentReceived'
+      PlacementPlanSuggested:
+        $ref: '#/components/messages/PlacementPlanSuggested'
   sellerInboundAnalytics:
     address: retailnetwork.seller-inbound.analytics
     title: seller-inbound analytics topic
@@ -91,6 +93,8 @@ channels:
         $ref: '#/components/messages/CatalogItemPackagingDeclared'
       CatalogItemPackLevelRetired:
         $ref: '#/components/messages/CatalogItemPackLevelRetired'
+      ListingAvailabilityChanged:
+        $ref: '#/components/messages/ListingAvailabilityChanged'
   vendorConnectivityEvents:
     address: retailnetwork.vendor-connectivity.events
     title: vendor-connectivity integration topic
@@ -98,13 +102,22 @@ channels:
     messages:
       InboundReceiptSubmitted:
         $ref: '#/components/messages/InboundReceiptSubmitted'
+  orderSourcingEvents:
+    address: retailnetwork.order-sourcing.events
+    title: order-sourcing integration topic
+    description: The order-sourcing integration topic, consumed under the mandatory consumer group `SOURCING_CONSUMER_GROUP` (ADR 0012).
+    messages:
+      FulfillmentReleasedToNode:
+        $ref: '#/components/messages/FulfillmentReleasedToNode'
+      FulfillmentCancelled:
+        $ref: '#/components/messages/FulfillmentCancelled'
 operations:
   publishSellerInboundEvents:
     action: send
     title: Publish seller-inbound integration events
-    summary: Publish the three shipment events other contexts consume.
-    description: The service sends InboundShipmentLabelled, InboundShipmentShipped and InboundShipmentReceived to `retailnetwork.seller-inbound.events` through the transactional outbox. Consumers route
-      on the full `type`.
+    summary: Publish the shipment events other contexts consume plus the placement advisory.
+    description: The service sends InboundShipmentLabelled, InboundShipmentShipped and InboundShipmentReceived to `retailnetwork.seller-inbound.events` through the transactional outbox, plus
+      PlacementPlanSuggested (analytics only in v1, ADR 0012). Consumers route on the full `type`.
     tags:
     - name: inboundshipment
     channel:
@@ -113,6 +126,7 @@ operations:
     - $ref: '#/channels/sellerInboundEvents/messages/InboundShipmentLabelled'
     - $ref: '#/channels/sellerInboundEvents/messages/InboundShipmentShipped'
     - $ref: '#/channels/sellerInboundEvents/messages/InboundShipmentReceived'
+    - $ref: '#/channels/sellerInboundEvents/messages/PlacementPlanSuggested'
   publishSellerInboundAnalytics:
     action: send
     title: Publish seller-inbound analytics events
@@ -150,7 +164,7 @@ operations:
     action: receive
     title: Receive offer-availability events
     summary: Receive offer-availability events this context relies on.
-    description: 'Consumes CatalogItemPackagingDeclared and CatalogItemPackLevelRetired into the local CatalogPackagingView (Conformist): the active CASE level validates the quantity of a case-packed carton.'
+    description: 'Consumes CatalogItemPackagingDeclared and CatalogItemPackLevelRetired into the local CatalogPackagingView (Conformist): the active CASE level validates the quantity of a case-packed carton. Consumes ListingAvailabilityChanged into DemandHeatView (ADR 0012): the node''s current declared availability of the item.'
     tags:
     - name: seller-inbound
     channel:
@@ -158,6 +172,7 @@ operations:
     messages:
     - $ref: '#/channels/offerAvailabilityEvents/messages/CatalogItemPackagingDeclared'
     - $ref: '#/channels/offerAvailabilityEvents/messages/CatalogItemPackLevelRetired'
+    - $ref: '#/channels/offerAvailabilityEvents/messages/ListingAvailabilityChanged'
   receiveVendorConnectivityEvents:
     action: receive
     title: Receive vendor-connectivity events
@@ -170,6 +185,19 @@ operations:
       $ref: '#/channels/vendorConnectivityEvents'
     messages:
     - $ref: '#/channels/vendorConnectivityEvents/messages/InboundReceiptSubmitted'
+  receiveOrderSourcingEvents:
+    action: receive
+    title: Receive order-sourcing events
+    summary: Receive order-sourcing events this context relies on.
+    description: 'Consumes FulfillmentReleasedToNode and FulfillmentCancelled into DemandHeatView (ADR 0012, Conformist): the released lines of an assignment group are the item-granular demand the placement
+      advisory sums per region; a re-release replaces the group''s lines (a reassignment moves the demand) and a cancel removes them.'
+    tags:
+    - name: seller-inbound
+    channel:
+      $ref: '#/channels/orderSourcingEvents'
+    messages:
+    - $ref: '#/channels/orderSourcingEvents/messages/FulfillmentReleasedToNode'
+    - $ref: '#/channels/orderSourcingEvents/messages/FulfillmentCancelled'
 components:
   messages:
     SellerOnboarded:
@@ -288,6 +316,142 @@ components:
               gtin: '00614141000036'
               qtyEaches: 24
             confirmedAt: '2026-10-24T13:00:00Z'
+    PlacementPlanSuggested:
+      name: PlacementPlanSuggested
+      x-no-consumer-reason: Analytics only in v1 (ADR 0012); no context consumes it yet. Published to the events topic so an agreed consumer can subscribe without a breaking change.
+      title: The network recorded a placement advisory plan
+      summary: The network recorded a placement advisory plan.
+      description: '`type` = `com.retailnetwork.partner.seller-inbound.placementplan.PlacementPlanSuggested`; subject and key = the aggregate root id; stream `events`. Raised by ComputePlacementPlan.
+        An empty `suggestions` array is legal: the item had no demand to place. The event is the record of the advisory, not an instruction.'
+      contentType: application/cloudevents+json
+      tags:
+      - name: placementplan
+      payload:
+        $ref: '#/components/schemas/PlacementPlanSuggestedEvent'
+      examples:
+      - name: placementPlanSuggested
+        summary: A placement plan with two suggestions.
+        payload:
+          specversion: '1.0'
+          id: 5d8e1f3a-9c4b-4d67-8e2f-1a6b7c9d0e11
+          source: /retailnetwork/seller-inbound
+          type: com.retailnetwork.partner.seller-inbound.placementplan.PlacementPlanSuggested
+          subject: plp-0f3a91
+          time: '2026-11-02T13:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:seller-inbound:events:PlacementPlanSuggested:v1
+          data:
+            planId: plp-0f3a91
+            sellerId: seller-77
+            catalogItemId: item-004512
+            basis: demand-heat-v1
+            suggestions:
+            - nodeId: node-0f3a91
+              regionId: reg-east
+              suggestedUnits: 12
+              regionDemandUnits: 140
+              nodeAvailabilityUnits: 30
+            - nodeId: node-1a2b3c
+              regionId: reg-east
+              suggestedUnits: 8
+              regionDemandUnits: 140
+              nodeAvailabilityUnits: 20
+            createdAt: '2026-11-02T13:00:00Z'
+    ListingAvailabilityChanged:
+      name: ListingAvailabilityChanged
+      title: A listing declared new availability
+      summary: A listing declared new availability.
+      description: Consumed. `type` = `com.retailnetwork.commerce.offer-availability.listing.ListingAvailabilityChanged`; subject and key = the listing id. Only the fields below are relied on; unknown
+        fields are ignored. Feeds the declared-availability half of DemandHeatView (ADR 0012).
+      contentType: application/cloudevents+json
+      tags:
+      - name: seller-inbound
+      payload:
+        $ref: '#/components/schemas/ListingAvailabilityChangedIn'
+      examples:
+      - name: listingAvailabilityChanged
+        summary: A listing declared 30 units available.
+        payload:
+          specversion: '1.0'
+          id: 7b2c4d6e-1f8a-4b39-9c5d-2e7f8a9b0c12
+          source: /retailnetwork/offer-availability
+          type: com.retailnetwork.commerce.offer-availability.listing.ListingAvailabilityChanged
+          subject: lst-0f3a91
+          time: '2026-11-02T12:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:offer-availability:events:ListingAvailabilityChanged:v1
+          data:
+            listingId: lst-0f3a91
+            catalogItemId: item-004512
+            nodeId: node-0f3a91
+            availableQty: 30
+            basis: VENDOR_FEED
+            asOf: '2026-11-02T12:00:00Z'
+    FulfillmentReleasedToNode:
+      name: FulfillmentReleasedToNode
+      title: An assignment group was released to a node
+      summary: An assignment group was released to a node.
+      description: Consumed. `type` = `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleasedToNode`; subject and key = the assignment id. Only the fields below are relied on;
+        unknown fields are ignored. Feeds the demand half of DemandHeatView (ADR 0012) - a re-release of the same group replaces its lines.
+      contentType: application/cloudevents+json
+      tags:
+      - name: seller-inbound
+      payload:
+        $ref: '#/components/schemas/FulfillmentReleasedToNodeIn'
+      examples:
+      - name: fulfillmentReleasedToNode
+        summary: 140 units of one item released to a node.
+        payload:
+          specversion: '1.0'
+          id: 2e9f8a7b-6c1d-4e58-a3b2-8f0d9c1e2a34
+          source: /retailnetwork/order-sourcing
+          type: com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleasedToNode
+          subject: asg-0f3a91
+          time: '2026-11-01T08:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:order-sourcing:events:FulfillmentReleasedToNode:v1
+          data:
+            assignmentId: asg-0f3a91
+            releaseNo: 1
+            orderId: ord-4d5e6f
+            groupNo: 1
+            nodeId: node-0f3a91
+            pickupDepartureId: dep-7g8h9i
+            requiredShipBy: '2026-11-01T18:00:00Z'
+            promisedDeliverByLatest: '2026-11-03T23:59:00Z'
+            tier: STANDARD
+            lines:
+            - catalogItemId: item-004512
+              listingId: lst-0f3a91
+              quantity: 140
+    FulfillmentCancelled:
+      name: FulfillmentCancelled
+      title: An assignment group was cancelled
+      summary: An assignment group was cancelled.
+      description: Consumed. `type` = `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentCancelled`; subject and key = the assignment id. Only the fields below are relied on; unknown
+        fields are ignored. Removes the group's demand from DemandHeatView (ADR 0012).
+      contentType: application/cloudevents+json
+      tags:
+      - name: seller-inbound
+      payload:
+        $ref: '#/components/schemas/FulfillmentCancelledIn'
+      examples:
+      - name: fulfillmentCancelled
+        summary: A group was cancelled before lock.
+        payload:
+          specversion: '1.0'
+          id: 4c5d6e7f-8a9b-4c0d-1e2f-3a4b5c6d7e89
+          source: /retailnetwork/order-sourcing
+          type: com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentCancelled
+          subject: asg-0f3a91
+          time: '2026-11-01T09:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:order-sourcing:events:FulfillmentCancelled:v1
+          data:
+            assignmentId: asg-0f3a91
+            orderId: ord-4d5e6f
+            groupNo: 1
+            reason: CUSTOMER_CANCELLED
     InboundShipmentLabelled:
       name: InboundShipmentLabelled
       title: Every carton of a shipment has a label; the manifest is frozen
@@ -908,6 +1072,142 @@ components:
               reinstatedAt:
                 type: string
                 format: date-time
+    PlacementPlanSuggestedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - planId
+            - sellerId
+            - catalogItemId
+            - basis
+            - suggestions
+            - createdAt
+            properties:
+              planId:
+                type: string
+              sellerId:
+                type: string
+              catalogItemId:
+                type: string
+              basis:
+                type: string
+                description: The formula version the suggestions were computed under (ADR 0012).
+              suggestions:
+                type: array
+                description: Legal and possibly empty; the advisory never suggests zero units.
+                items:
+                  $ref: '#/components/schemas/PlacementSuggestion'
+              createdAt:
+                type: string
+                format: date-time
+    PlacementSuggestion:
+      type: object
+      required:
+      - nodeId
+      - regionId
+      - suggestedUnits
+      - regionDemandUnits
+      - nodeAvailabilityUnits
+      properties:
+        nodeId:
+          type: string
+        regionId:
+          type: string
+        suggestedUnits:
+          type: integer
+        regionDemandUnits:
+          type: integer
+          description: The units the region released in the 28-day observation window (the evidence).
+        nodeAvailabilityUnits:
+          type: integer
+          description: The units the node's listing declared available (the evidence).
+    ListingAvailabilityChangedIn:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - listingId
+            - catalogItemId
+            - nodeId
+            - availableQty
+            - asOf
+            properties:
+              listingId:
+                type: string
+              catalogItemId:
+                type: string
+              nodeId:
+                type: string
+              availableQty:
+                type: integer
+              basis:
+                type: string
+              asOf:
+                type: string
+                format: date-time
+    FulfillmentReleasedToNodeIn:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - assignmentId
+            - groupNo
+            - nodeId
+            - lines
+            properties:
+              assignmentId:
+                type: string
+              releaseNo:
+                type: integer
+              orderId:
+                type: string
+              groupNo:
+                type: integer
+              nodeId:
+                type: string
+              lines:
+                type: array
+                items:
+                  type: object
+                  required:
+                  - catalogItemId
+                  - quantity
+                  properties:
+                    catalogItemId:
+                      type: string
+                    listingId:
+                      type: string
+                    quantity:
+                      type: integer
+    FulfillmentCancelledIn:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - assignmentId
+            - groupNo
+            properties:
+              assignmentId:
+                type: string
+              orderId:
+                type: string
+              groupNo:
+                type: integer
+              reason:
+                type: string
     InboundPlanConfirmedEvent:
       allOf:
       - $ref: '#/components/schemas/CloudEventEnvelope'

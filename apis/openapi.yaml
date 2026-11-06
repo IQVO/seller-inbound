@@ -48,6 +48,8 @@ tags:
   description: What a seller will send, to which node, in eaches.
 - name: Inbound Shipments
   description: Cartons with SSCCs, label data and the ship command.
+- name: Placement
+  description: Roadmap feature F6 (ADR 0012). Where forward stock belongs.
 paths:
   /sellers:
     post:
@@ -669,6 +671,153 @@ paths:
           $ref: '#/components/responses/StateConflict'
         '500':
           $ref: '#/components/responses/InternalError'
+  /placement-plans:
+    post:
+      tags:
+      - Placement
+      operationId: computePlacementPlan
+      summary: Compute a placement plan for one seller item (ComputePlacementPlan)
+      description: >-
+        Roadmap feature F6 (ADR 0012): reads the DemandHeatView (fulfilments
+        locked per (item, region) over the observation window and current
+        listing availability per node) and records a deterministic placement
+        advisory. For each region with demand, suggested units per node =
+        max(0, ceil(demand x coverDays / windowDays) - region availability)
+        split across the region's ACTIVE vendor fulfilment centres
+        proportionally to their availability (evenly when all zero). An item
+        with no demand anywhere yields an EMPTY plan, which is legal. A new
+        plan for the same (sellerId, catalogItemId) supersedes the previous
+        one. Publishes PlacementPlanSuggested (analytics-only consumer in v1).
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ComputePlacementPlanRequest'
+            example:
+              sellerId: seller-77
+              catalogItemId: item-1
+              coverDays: 14
+      responses:
+        '201':
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          description: The computed plan (or replayed for a known Idempotency-Key).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlacementPlan'
+        '400':
+          $ref: '#/components/responses/IdempotencyKeyProblem'
+        '409':
+          $ref: '#/components/responses/IdempotencyKeyProblem'
+        '422':
+          $ref: '#/components/responses/ValidationProblem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      tags:
+      - Placement
+      operationId: listPlacementPlans
+      summary: Page the placement plans of one seller item, newest first
+      description: 'Keyset pagination: `limit` (1..100, default 50) and `cursor` = "<createdAt>|<planId>" of the last item; the body carries {items, nextCursor}.'
+      parameters:
+      - name: sellerId
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: catalogItemId
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 50
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: One page of plans.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlacementPlanPage'
+        '422':
+          $ref: '#/components/responses/ValidationProblem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /placement-plans/{planId}:
+    get:
+      tags:
+      - Placement
+      operationId: getPlacementPlan
+      summary: Read one placement plan in any state
+      description: Read-only; an unknown plan fails with not-found.
+      parameters:
+      - name: planId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: The plan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlacementPlan'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /placement-plans/{planId}/acceptances:
+    post:
+      tags:
+      - Placement
+      operationId: acceptPlacementPlan
+      summary: Accept a SUGGESTED plan (AcceptPlacementPlan)
+      description: >-
+        The seller accepts the advisory. Advisory-only in v1 (ADR 0012): no
+        downstream effect; the seller ships through the existing inbound-plan
+        flow. Refused with illegal-transition once ACCEPTED or SUPERSEDED.
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - name: planId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          description: The ACCEPTED plan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlacementPlan'
+        '400':
+          $ref: '#/components/responses/IdempotencyKeyProblem'
+        '409':
+          $ref: '#/components/responses/IdempotencyKeyProblem'
+        '422':
+          $ref: '#/components/responses/ValidationProblem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /inbound-shipments/{shipmentId}:
     get:
       tags:
@@ -1017,6 +1166,108 @@ components:
           maximum: 2147483647
           example: 24
           description: Eaches, never cases.
+    ComputePlacementPlanRequest:
+      type: object
+      required:
+      - sellerId
+      - catalogItemId
+      properties:
+        sellerId:
+          type: string
+        catalogItemId:
+          type: string
+        coverDays:
+          type: integer
+          minimum: 1
+          maximum: 90
+          default: 14
+          description: Days of forward demand the suggestions should cover.
+    PlacementSuggestion:
+      type: object
+      required:
+      - nodeId
+      - regionId
+      - suggestedUnits
+      - regionDemandUnits
+      - nodeAvailabilityUnits
+      - coverDays
+      properties:
+        nodeId:
+          type: string
+        regionId:
+          type: string
+        suggestedUnits:
+          type: integer
+          minimum: 0
+        regionDemandUnits:
+          type: integer
+          minimum: 0
+        nodeAvailabilityUnits:
+          type: integer
+          minimum: 0
+        coverDays:
+          type: integer
+          minimum: 1
+          maximum: 90
+    PlacementPlan:
+      type: object
+      required:
+      - planId
+      - sellerId
+      - catalogItemId
+      - coverDays
+      - windowDays
+      - basis
+      - state
+      - suggestions
+      - createdAt
+      properties:
+        planId:
+          type: string
+        sellerId:
+          type: string
+        catalogItemId:
+          type: string
+        coverDays:
+          type: integer
+        windowDays:
+          type: integer
+          description: The observation window the demand figures cover.
+        basis:
+          type: string
+          description: The formula version the plan was computed under.
+        state:
+          type: string
+          enum:
+          - SUGGESTED
+          - ACCEPTED
+          - SUPERSEDED
+        suggestions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlacementSuggestion'
+        createdAt:
+          type: string
+          format: date-time
+        acceptedAt:
+          type: string
+          format: date-time
+        supersededAt:
+          type: string
+          format: date-time
+    PlacementPlanPage:
+      type: object
+      required:
+      - items
+      - nextCursor
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlacementPlan'
+        nextCursor:
+          type: string
+          description: Empty on the last page; else "<createdAt>|<planId>" of the last item.
     CreateInboundPlanRequest:
       type: object
       required:

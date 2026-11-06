@@ -138,6 +138,20 @@ func (r *NodeViewRepository) Save(ctx context.Context, n network.Node) error {
 	return nil
 }
 
+// VendorFulfillmentCenters returns every ACTIVE vendor FULFILLMENT_CENTER,
+// ordered by node id.
+func (r *NodeViewRepository) VendorFulfillmentCenters(ctx context.Context) ([]network.Node, error) {
+	defer r.s.enter(ctx)()
+	var out []network.Node
+	for _, n := range r.s.nodes {
+		if n.IsPlacementCandidate() {
+			out = append(out, n)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out, nil
+}
+
 // PackagingViewRepository is the in-memory ports.PackagingViewRepository.
 type PackagingViewRepository struct{ s *Store }
 

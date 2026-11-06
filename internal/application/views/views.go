@@ -119,3 +119,29 @@ type SellerScorecard struct {
 	ComplianceViolations       int
 	ComplianceTier             string
 }
+
+// PlacementSuggestion is one node's share of a placement plan's region target,
+// with the evidence that produced it (ADR 0012).
+type PlacementSuggestion struct {
+	NodeID                string
+	RegionID              string
+	SuggestedUnits        int
+	RegionDemandUnits     int
+	NodeAvailabilityUnits int
+	CoverDays             int
+}
+
+// PlacementPlan is the placement advisory plan of one seller and item.
+type PlacementPlan struct {
+	PlanID        string
+	SellerID      string
+	CatalogItemID string
+	CoverDays     int
+	WindowDays    int
+	Basis         string
+	State         string
+	Suggestions   []PlacementSuggestion
+	CreatedAt     time.Time
+	AcceptedAt    time.Time
+	SupersededAt  time.Time
+}
