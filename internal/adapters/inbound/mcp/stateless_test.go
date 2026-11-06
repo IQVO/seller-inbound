@@ -148,7 +148,7 @@ func TestStateless_ToolsListCarriesAuthorityMeta(t *testing.T) {
 		"get_inbound_plan":     "L1",
 		"get_shipment_labels":  "L1",
 		"get_inbound_shipment": "L1",
-	}
+		"get_placement_plan":   "L1", "list_placement_plans": "L1"}
 	got := map[string]string{}
 	for _, raw := range tools {
 		tool, _ := raw.(map[string]any)

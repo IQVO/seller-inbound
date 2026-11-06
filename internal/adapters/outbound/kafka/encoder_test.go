@@ -8,6 +8,7 @@ import (
 	"github.com/claudioed/seller-inbound/internal/adapters/kafka/cloudevents"
 	"github.com/claudioed/seller-inbound/internal/domain/inboundplan"
 	"github.com/claudioed/seller-inbound/internal/domain/inboundshipment"
+	"github.com/claudioed/seller-inbound/internal/domain/placementplan"
 	"github.com/claudioed/seller-inbound/internal/domain/seller"
 	"github.com/claudioed/seller-inbound/internal/domain/shared"
 )
@@ -83,6 +84,21 @@ func TestEncoder_GoldenWireFormatOfEveryPublishedEvent(t *testing.T) {
 		{inboundshipment.SellerComplianceViolationRecorded{Header: hdr(), SellerID: "S-1", ShipmentID: "shp-1", SSCC: sscc1, Code: "LABEL_SKEW"},
 			"seller", "SellerComplianceViolationRecorded", "S-1", "analytics", TopicAnalytics,
 			`{"sellerId":"S-1","shipmentId":"shp-1","code":"LABEL_SKEW","recordedAt":"2026-10-24T13:00:00Z"}`},
+		{placementplan.PlacementPlanSuggested{Header: hdr(), PlanID: "plp-1", SellerID: "S-1", CatalogItemID: "item-1",
+			Basis: placementplan.Basis, CreatedAt: t0,
+			Suggestions: []placementplan.Suggestion{
+				{NodeID: "fc-a", RegionID: "reg-east", SuggestedUnits: 12,
+					Evidence: placementplan.Evidence{RegionDemandUnits: 140, NodeAvailabilityUnits: 30, CoverDays: 14}},
+				{NodeID: "fc-b", RegionID: "reg-east", SuggestedUnits: 8,
+					Evidence: placementplan.Evidence{RegionDemandUnits: 140, NodeAvailabilityUnits: 20, CoverDays: 14}},
+			}}, "placementplan", "PlacementPlanSuggested", "plp-1", "events", TopicEvents,
+			`{"planId":"plp-1","sellerId":"S-1","catalogItemId":"item-1","basis":"demand-heat-v1",` +
+				`"suggestions":[{"nodeId":"fc-a","regionId":"reg-east","suggestedUnits":12,"regionDemandUnits":140,"nodeAvailabilityUnits":30},` +
+				`{"nodeId":"fc-b","regionId":"reg-east","suggestedUnits":8,"regionDemandUnits":140,"nodeAvailabilityUnits":20}],` +
+				`"createdAt":"2026-10-24T13:00:00Z"}`},
+		{placementplan.PlacementPlanSuggested{Header: hdr(), PlanID: "plp-2", SellerID: "S-1", CatalogItemID: "item-quiet",
+			Basis: placementplan.Basis, CreatedAt: t0}, "placementplan", "PlacementPlanSuggested", "plp-2", "events", TopicEvents,
+			`{"planId":"plp-2","sellerId":"S-1","catalogItemId":"item-quiet","basis":"demand-heat-v1","suggestions":[],"createdAt":"2026-10-24T13:00:00Z"}`},
 	}
 	for _, c := range cases {
 		msgs, err := encoder().Encode(c.ev)
