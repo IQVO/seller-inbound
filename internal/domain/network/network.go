@@ -1,8 +1,11 @@
-// Package network holds the two local read models of seller-inbound, fed by the
-// events of its neighbours (ADR 0003): NodeInboundView (node-topology) and
-// CatalogPackagingView (offer-availability). Both are projections, not
-// aggregates: they are rebuilt from events that may arrive twice or out of
-// order, so every transition below is order-tolerant and idempotent.
+// Package network holds the local read models of seller-inbound, fed by the
+// events of its neighbours (ADR 0003, ADR 0012): NodeInboundView
+// (node-topology: type, status, region, operator, inbound limits),
+// CatalogPackagingView (offer-availability pack levels) and DemandHeatView
+// (order-sourcing released demand plus offer-availability listing
+// availability, the facts of the placement advisory). All are projections,
+// not aggregates: they are rebuilt from events that may arrive twice or out
+// of order, so every transition below is order-tolerant and idempotent.
 package network
 
 import (
@@ -49,9 +52,14 @@ type InboundLimits struct {
 
 // Node is one row of NodeInboundView.
 type Node struct {
-	ID              string
-	Type            string
-	Status          NodeStatus
+	ID     string
+	Type   string
+	Status NodeStatus
+	// Operator is who runs the building (NETWORK or VENDOR), and RegionID the
+	// node-topology region the building sits in: both declared once at
+	// registration and kept for the placement advisory (ADR 0012).
+	Operator        string
+	RegionID        string
 	Limits          *InboundLimits
 	ProfileRevision int
 }
@@ -69,14 +77,28 @@ func (n Node) CanReceive() error {
 	return nil
 }
 
-// Registered folds NodeRegistered into the row: the type is set, and a status
-// already seen (an out-of-order activation) is kept.
-func (n Node) Registered(id, nodeType string) (Node, error) {
+// Registered folds NodeRegistered into the row: the type, operator and region
+// are set, and a status already seen (an out-of-order activation) is kept.
+// The registration is the only carrier of the region and the operator; a
+// re-registration of a known node refreshes them.
+func (n Node) Registered(id, nodeType, operator, regionID string) (Node, error) {
 	if !shared.ValidID(id) {
 		return Node{}, shared.Invalid("nodeId must be a valid id")
 	}
+	if operator != "" && operator != OperatorNetwork && operator != OperatorVendor {
+		return Node{}, shared.Invalid("operator must be NETWORK or VENDOR")
+	}
+	if regionID != "" && !shared.ValidID(regionID) {
+		return Node{}, shared.Invalid("regionId must be a valid id")
+	}
 	out := n
 	out.ID, out.Type = id, nodeType
+	if operator != "" {
+		out.Operator = operator
+	}
+	if regionID != "" {
+		out.RegionID = regionID
+	}
 	if out.Status == "" {
 		out.Status = NodeProposed
 	}

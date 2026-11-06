@@ -27,18 +27,21 @@ const DefaultSsccIssueAttempts = 5
 
 // Deps are the out ports the service needs.
 type Deps struct {
-	UoW       ports.UnitOfWork
-	Sellers   ports.SellerRepository
-	Plans     ports.PlanRepository
-	Shipments ports.ShipmentRepository
-	Nodes     ports.NodeViewRepository
-	Scorecard ports.ScorecardFacts
-	Packaging ports.PackagingViewRepository
-	Outbox    ports.EventOutbox
-	Inbox     ports.ProcessedEvents
-	Clock     ports.Clock
-	IDs       ports.IDGenerator
-	SSCC      ports.SsccIssuer
+	UoW            ports.UnitOfWork
+	Sellers        ports.SellerRepository
+	Plans          ports.PlanRepository
+	Shipments      ports.ShipmentRepository
+	Nodes          ports.NodeViewRepository
+	Scorecard      ports.ScorecardFacts
+	Packaging      ports.PackagingViewRepository
+	DemandHeat     ports.DemandHeatView
+	Listings       ports.ListingView
+	PlacementPlans ports.PlacementPlanRepository
+	Outbox         ports.EventOutbox
+	Inbox          ports.ProcessedEvents
+	Clock          ports.Clock
+	IDs            ports.IDGenerator
+	SSCC           ports.SsccIssuer
 	// Metrics is the Tier 2 business counter; nil is a no-op.
 	Metrics ports.ShipmentMetrics
 }

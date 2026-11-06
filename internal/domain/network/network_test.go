@@ -34,11 +34,11 @@ func TestNodeCanReceive(t *testing.T) {
 }
 
 func TestNodeFolds(t *testing.T) {
-	n, err := Node{}.Registered("n1", TypeFulfillmentCenter)
+	n, err := Node{}.Registered("n1", TypeFulfillmentCenter, "", "")
 	if err != nil || n.Status != NodeProposed || n.Type != TypeFulfillmentCenter {
 		t.Fatalf("%v %+v", err, n)
 	}
-	if _, err := (Node{}).Registered("", "X"); !errors.Is(err, shared.ErrValidation) {
+	if _, err := (Node{}).Registered("", "X", "", ""); !errors.Is(err, shared.ErrValidation) {
 		t.Fatal(err)
 	}
 	n = n.Activated("n1")
@@ -46,8 +46,8 @@ func TestNodeFolds(t *testing.T) {
 		t.Fatal(n)
 	}
 	// an out-of-order NodeRegistered keeps the status already seen
-	again, _ := n.Registered("n1", TypeFulfillmentCenter)
-	if again.Status != NodeActive {
+	again, _ := n.Registered("n1", TypeFulfillmentCenter, OperatorVendor, "reg-1")
+	if again.Status != NodeActive || again.RegionID != "reg-1" || again.Operator != OperatorVendor {
 		t.Fatalf("re-registered %+v", again)
 	}
 	if got := n.Suspended("n1"); got.Status != NodeSuspended {

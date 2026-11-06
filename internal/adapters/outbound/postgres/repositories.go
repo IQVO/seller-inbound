@@ -197,8 +197,8 @@ func (r *NodeViewRepo) Get(ctx context.Context, nodeID string) (network.Node, er
 		raw    []byte
 	)
 	err := queryFor(ctx, r.pool).QueryRow(ctx, `
-		SELECT node_id, node_type, status, profile_revision, inbound_limits FROM node_inbound_views WHERE node_id = $1`, nodeID).
-		Scan(&n.ID, &n.Type, &status, &n.ProfileRevision, &raw)
+		SELECT node_id, node_type, status, operator, region_id, profile_revision, inbound_limits FROM node_inbound_views WHERE node_id = $1`, nodeID).
+		Scan(&n.ID, &n.Type, &status, &n.Operator, &n.RegionID, &n.ProfileRevision, &raw)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return network.Node{}, ports.ErrNotFound
 	}
@@ -233,11 +233,50 @@ func (r *NodeViewRepo) Save(ctx context.Context, n network.Node) error {
 		}
 	}
 	_, err := queryFor(ctx, r.pool).Exec(ctx, `
-		INSERT INTO node_inbound_views (node_id, node_type, status, profile_revision, inbound_limits) VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO node_inbound_views (node_id, node_type, status, operator, region_id, profile_revision, inbound_limits) VALUES ($1, $2, $3, $4, $5, $6, $7)
 		ON CONFLICT (node_id) DO UPDATE SET node_type = EXCLUDED.node_type, status = EXCLUDED.status,
+			operator = EXCLUDED.operator, region_id = EXCLUDED.region_id,
 			profile_revision = EXCLUDED.profile_revision, inbound_limits = EXCLUDED.inbound_limits`,
-		n.ID, n.Type, string(n.Status), n.ProfileRevision, raw)
+		n.ID, n.Type, string(n.Status), n.Operator, n.RegionID, n.ProfileRevision, raw)
 	return err
+}
+
+// VendorFulfillmentCenters returns every ACTIVE vendor FULFILLMENT_CENTER,
+// ordered by node id.
+func (r *NodeViewRepo) VendorFulfillmentCenters(ctx context.Context) ([]network.Node, error) {
+	rows, err := queryFor(ctx, r.pool).Query(ctx, `
+		SELECT node_id, node_type, status, operator, region_id, profile_revision, inbound_limits
+		FROM node_inbound_views
+		WHERE node_type = $1 AND status = $2 AND operator = $3
+		ORDER BY node_id`, network.TypeFulfillmentCenter, network.NodeActive, network.OperatorVendor)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []network.Node
+	for rows.Next() {
+		var (
+			n      network.Node
+			status string
+			raw    []byte
+		)
+		if err := rows.Scan(&n.ID, &n.Type, &status, &n.Operator, &n.RegionID, &n.ProfileRevision, &raw); err != nil {
+			return nil, err
+		}
+		n.Status = network.NodeStatus(status)
+		if raw != nil {
+			var l limitsJSON
+			if err := json.Unmarshal(raw, &l); err != nil {
+				return nil, fmt.Errorf("decode node %s limits: %w", n.ID, err)
+			}
+			n.Limits = &network.InboundLimits{MaxCartonWeightG: l.MaxCartonWeightG, AcceptsPallets: l.AcceptsPallets, RequiresSscc: l.RequiresSscc}
+			if l.MaxCartonDimsMm != nil {
+				n.Limits.MaxCartonDims = &network.Dims{L: l.MaxCartonDimsMm.L, W: l.MaxCartonDimsMm.W, H: l.MaxCartonDimsMm.H}
+			}
+		}
+		out = append(out, n)
+	}
+	return out, rows.Err()
 }
 
 // PackagingViewRepo is the Postgres ports.PackagingViewRepository.

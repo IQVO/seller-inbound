@@ -46,6 +46,8 @@ const (
 type nodeRegisteredData struct {
 	NodeID   string `json:"nodeId"`
 	NodeType string `json:"nodeType"`
+	Operator string `json:"operator"`
+	RegionID string `json:"regionId"`
 }
 
 type nodeIDData struct {
@@ -135,7 +137,9 @@ func NodeHandlers(svc *usecases.Service) map[string]HandlerFunc {
 			if err != nil {
 				return err
 			}
-			return permanent(svc.ApplyNodeRegistered(ctx, e.ID(), requests.NodeRegistered(d)))
+			return permanent(svc.ApplyNodeRegistered(ctx, e.ID(), requests.NodeRegistered{
+				NodeID: d.NodeID, NodeType: d.NodeType, Operator: d.Operator, RegionID: d.RegionID,
+			}))
 		},
 		TypeProfileDeclared: func(ctx context.Context, e ce.Event) error {
 			d, err := decodeData[profileDeclaredData](e)

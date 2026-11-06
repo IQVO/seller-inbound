@@ -75,6 +75,7 @@ func newWorld() *world {
 	s := w.store
 	w.svc = usecases.New(usecases.Deps{
 		UoW: s.UnitOfWork(), Sellers: s.Sellers(), Plans: s.Plans(), Shipments: s.Shipments(), Nodes: s.Nodes(), Scorecard: s.Scorecard(), Packaging: s.Packaging(),
+		DemandHeat: s.DemandHeat(), Listings: s.Listings(), PlacementPlans: s.PlacementPlans(),
 		Outbox: s.Outbox(), Inbox: s.Inbox(), Clock: w.clock, IDs: &memory.SequentialIDs{}, SSCC: &memory.SsccIssuer{},
 	}, usecases.Config{Logger: logger})
 	w.nodes = &inboundkafka.Consumer{Name: "node", Topic: "nodes", Handlers: inboundkafka.NodeHandlers(w.svc), Logger: logger}
