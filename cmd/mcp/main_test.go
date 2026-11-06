@@ -55,8 +55,8 @@ func TestStreamableHTTP_RootAndMCPPathsServeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("list tools %s: %v", path, err)
 		}
-		if len(tools.Tools) != 4 {
-			t.Fatalf("%s: tools = %d, want 4", path, len(tools.Tools))
+		if len(tools.Tools) != 6 {
+			t.Fatalf("%s: tools = %d, want 6", path, len(tools.Tools))
 		}
 		for _, tool := range tools.Tools {
 			if tool.Annotations == nil || !tool.Annotations.ReadOnlyHint {
