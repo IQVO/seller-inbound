@@ -723,7 +723,7 @@ paths:
       - Placement
       operationId: listPlacementPlans
       summary: Page the placement plans of one seller item, newest first
-      description: 'Keyset pagination: `limit` (1..100, default 50) and `cursor` = "<createdAt>|<planId>" of the last item; the body carries {items, nextCursor}.'
+      description: 'Keyset pagination: `limit` (1..100, default 50) and `cursor` = the `createdAt|planId` pair of the last item; the body carries {items, nextCursor}.'
       parameters:
       - name: sellerId
         in: query
@@ -1267,7 +1267,7 @@ components:
             $ref: '#/components/schemas/PlacementPlan'
         nextCursor:
           type: string
-          description: Empty on the last page; else "<createdAt>|<planId>" of the last item.
+          description: Empty on the last page; else the `createdAt|planId` pair of the last item.
     CreateInboundPlanRequest:
       type: object
       required:
