@@ -120,6 +120,40 @@ const sidebar: SidebarsConfig = {
         },
       ],
     },
+    {
+      type: "category",
+      label: "Placement",
+      link: {
+        type: "doc",
+        id: "api-reference/rest/placement",
+      },
+      items: [
+        {
+          type: "doc",
+          id: "api-reference/rest/compute-placement-plan",
+          label: "Compute a placement plan for one seller item (ComputePlacementPlan)",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "api-reference/rest/list-placement-plans",
+          label: "Page the placement plans of one seller item, newest first",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "api-reference/rest/get-placement-plan",
+          label: "Read one placement plan in any state",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "api-reference/rest/accept-placement-plan",
+          label: "Accept a SUGGESTED plan (AcceptPlacementPlan)",
+          className: "api-method post",
+        },
+      ],
+    },
   ],
 };
 
