@@ -73,7 +73,15 @@ func TestEncoder_GoldenWireFormatOfEveryPublishedEvent(t *testing.T) {
 			Cartons:    []inboundshipment.ReceivedCarton{{SSCC: sscc1, Status: inboundshipment.StatusDamaged}},
 			ReceivedAt: t0.Add(-time.Hour)}, "inboundshipment", "InboundShipmentReceived", "shp-1", "events", TopicEvents,
 			`{"shipmentId":"shp-1","sellerId":"S-1","nodeId":"n-1","status":"CLOSED_WITH_DISCREPANCY",` +
-				`"cartons":[{"sscc":"006141410000000012","status":"DAMAGED"}],"receivedAt":"2026-10-24T12:00:00Z"}`},
+				`"cartons":[{"sscc":"006141410000000012","status":"DAMAGED"}],"receivedAt":"2026-10-24T12:00:00Z","received":[]}`},
+		{inboundshipment.InboundShipmentReceived{Header: hdr(), ShipmentID: "shp-1", SellerID: "S-1", NodeID: "n-1", Status: inboundshipment.Closed,
+			Cartons:    []inboundshipment.ReceivedCarton{{SSCC: sscc1, Status: inboundshipment.StatusReceived}},
+			ReceivedAt: t0.Add(-time.Hour),
+			Received: []inboundshipment.ReceivedLine{{CatalogItemID: "item-1", GTIN: "00614141000012", QtyEaches: 24},
+				{GTIN: gtinC, QtyEaches: 6}}}, "inboundshipment", "InboundShipmentReceived", "shp-1", "events", TopicEvents,
+			`{"shipmentId":"shp-1","sellerId":"S-1","nodeId":"n-1","status":"CLOSED",` +
+				`"cartons":[{"sscc":"006141410000000012","status":"RECEIVED"}],"receivedAt":"2026-10-24T12:00:00Z",` +
+				`"received":[{"catalogItemId":"item-1","gtin":"00614141000012","qtyEaches":24},{"gtin":"00614141000036","qtyEaches":6}]}`},
 		{inboundshipment.InboundDiscrepancyRecorded{Header: hdr(), ShipmentID: "shp-1", SellerID: "S-1", NodeID: "n-1", SSCC: sscc1, Kind: "Short",
 			Expected: gtinC + ":12", Actual: gtinC + ":10"}, "inboundshipment", "InboundDiscrepancyRecorded", "shp-1", "analytics", TopicAnalytics,
 			`{"shipmentId":"shp-1","sellerId":"S-1","nodeId":"n-1","sscc":"006141410000000012","kind":"Short",` +

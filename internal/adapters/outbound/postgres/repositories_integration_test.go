@@ -133,6 +133,43 @@ func TestShipmentRepoRoundTripRegistryAndConcurrency(t *testing.T) {
 	}
 }
 
+// TestShipmentRepoKeepsTheCountedItemsOfAReceipt: the vendor's counted items
+// of a carton survive the cartons JSONB round trip (ADR 0014).
+func TestShipmentRepoKeepsTheCountedItemsOfAReceipt(t *testing.T) {
+	ctx := context.Background()
+	repo := postgres.NewShipmentRepo(pgtest.NewPool(t))
+	s := newShipment(t, repo, "shp-1", mustSSCC(t, "0001"))
+	save := func() {
+		t.Helper()
+		if err := repo.Save(ctx, s); err != nil {
+			t.Fatal(err)
+		}
+	}
+	save()
+	if _, err := s.Label(inboundshipment.PlanRules{}, t0.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	save()
+	if _, err := s.Ship(t0.Add(2 * time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	save()
+	counted := []inboundshipment.ReceiptItem{{GTIN: mustGTIN(t), QtyEaches: 4}}
+	if _, err := s.RecordReceipt(inboundshipment.Receipt{NodeID: "n-1", ReceivedAt: t0.Add(3 * time.Hour), Cartons: []inboundshipment.ReceiptCarton{
+		{SSCC: mustSSCC(t, "0001"), Status: inboundshipment.StatusReceived, Items: counted}}}, t0.Add(3*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	save()
+	got, err := repo.Get(ctx, "shp-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := got.Cartons()[0]
+	if c.Receipt != inboundshipment.StatusReceived || len(c.Counted) != 1 || c.Counted[0] != counted[0] {
+		t.Fatalf("carton %+v", c)
+	}
+}
+
 func TestShipmentRepoRefusesATakenSsccAndKeepsLabelledState(t *testing.T) {
 	ctx := context.Background()
 	repo := postgres.NewShipmentRepo(pgtest.NewPool(t))
