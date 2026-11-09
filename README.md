@@ -65,7 +65,7 @@ internal/
   adapters/
     inbound/http/            chi handlers, RFC 9457 problem mapping, idempotency middleware
     inbound/kafka/           node-topology, offer-availability, vendor-connectivity consumers
-    inbound/mcp/             the four read-only MCP tools
+    inbound/mcp/             the six read-only MCP tools
     inbound/a2a/             the two read-only A2A skills
     inbound/requestlog/      the request log line
     outbound/postgres/       pgxpool repos, embedded golang-migrate, UnitOfWork

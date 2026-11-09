@@ -23,7 +23,7 @@ contracts and ADRs on `develop`; each page carries a `Source:` line where it sta
 | [EventStorming](/docs/ddd/eventstorming) | [EventStorming glossary and cheat sheet](https://github.com/ddd-crew/eventstorming-glossary-cheat-sheet) | Process-level boards with sticky colours and hotspots. |
 | [Ubiquitous language](/docs/ddd/ubiquitous-language) | Glossary | Every term with the Go identifier that implements it. |
 | [Class diagrams](/docs/ddd/class-diagram) | UML class diagram | Domain types and the hexagonal layout. |
-| [Entity-relationship diagram](/docs/ddd/entity-relationship) | ER diagram | The Postgres schema of migrations 0001 and 0002: eleven tables and one sequence. |
+| [Entity-relationship diagram](/docs/ddd/entity-relationship) | ER diagram | The Postgres schema of migrations 0001 to 0004: fourteen tables and one sequence. |
 | [Sequence diagrams](/docs/ddd/sequence-diagrams) | UML sequence diagram | `AddCarton`, `ShipInboundShipment`, the receipt consumer and plan confirmation, with error branches. |
 | [Domain events](/docs/ddd/domain-events) | Event catalogue | Nine published events with payloads and an example envelope; the eight consumed. |
 
