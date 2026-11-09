@@ -27,3 +27,4 @@ The *Status* column is copied from each ADR's own `## Status` section.
 | [0011](./0011-agent-authority-levels-and-complete-mcp-surface.md) | Agent authority levels and complete MCP surface | Accepted (2026-11-02) |
 | [0012](./0012-the-placement-advisory.md) | the placement advisory (PlacementPlan, DemandHeatView) | Accepted (2026-11-06) |
 | [0013](./0013-seller-status-is-an-integration-fact.md) | Seller status is an integration fact | Accepted (2026-11-08) |
+| [0014](./0014-received-stock-is-published-per-item.md) | Received stock is published per item | Accepted (2026-11-09) |
