@@ -41,7 +41,7 @@ the in-process outbox relay. Delivery is at-least-once; consumers dedupe on `id`
 | `InboundPlanConfirmed` | `com.retailnetwork.partner.seller-inbound.inboundplan.InboundPlanConfirmed` | `retailnetwork.seller-inbound.analytics` | `ConfirmInboundPlan` | none |
 | `InboundShipmentLabelled` | `com.retailnetwork.partner.seller-inbound.inboundshipment.InboundShipmentLabelled` | `retailnetwork.seller-inbound.events` | `LabelShipment` | vendor-connectivity |
 | `InboundShipmentShipped` | `com.retailnetwork.partner.seller-inbound.inboundshipment.InboundShipmentShipped` | `retailnetwork.seller-inbound.events` | `ShipInboundShipment` | vendor-connectivity, node-performance |
-| `InboundShipmentReceived` | `com.retailnetwork.partner.seller-inbound.inboundshipment.InboundShipmentReceived` | `retailnetwork.seller-inbound.events` | `ApplyInboundReceipt`, once, when the shipment closes | vendor-connectivity |
+| `InboundShipmentReceived` | `com.retailnetwork.partner.seller-inbound.inboundshipment.InboundShipmentReceived` | `retailnetwork.seller-inbound.events` | `ApplyInboundReceipt`, once, when the shipment closes | vendor-connectivity; offer-availability (`received`: creates owner-scoped listings, gap G51, ADR 0014) |
 | `InboundDiscrepancyRecorded` | `com.retailnetwork.partner.seller-inbound.inboundshipment.InboundDiscrepancyRecorded` | `retailnetwork.seller-inbound.analytics` | `ApplyInboundReceipt`, per discrepancy, also while the shipment is `RECEIVING` | none |
 | `SellerComplianceViolationRecorded` | `com.retailnetwork.partner.seller-inbound.seller.SellerComplianceViolationRecorded` | `retailnetwork.seller-inbound.analytics` | `ApplyInboundReceipt`, per distinct compliance code of a carton | none |
 
@@ -53,6 +53,12 @@ Value sets: the shipment `status` of `InboundShipmentReceived` is `CLOSED` or `C
 `status` is `RECEIVED`, `MISSING`, `UNEXPECTED` or `DAMAGED`; the discrepancy `kind` is one of `MissingCarton`,
 `UnexpectedCarton`, `Damaged`, `Short`, `Over` (`internal/domain/inboundshipment/receipt.go`); the compliance `code` is
 passed through from the vendor's receipt, plus the context's own `UNMANIFESTED_CARTON`.
+
+`received` of `InboundShipmentReceived` (ADR 0014) lists `{catalogItemId?, gtin, qtyEaches}` per `gtin`, sorted by
+`gtin`, over the manifest cartons answered `RECEIVED` (`MISSING`, `DAMAGED` and `UNEXPECTED` cartons do not count), from
+the vendor's counted quantities where the receipt reported them and from the manifest otherwise. `gtin` is the
+EACH-level GTIN when `CatalogPackagingView` resolves the carton GTIN to it, otherwise the carton GTIN; `catalogItemId`
+is omitted when the view does not resolve it; zero lines are omitted; the array is always present.
 
 ## Consumed
 
