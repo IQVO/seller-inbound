@@ -195,6 +195,24 @@ func TestReceivedCountedGtinOfNoManifestLineIsUnresolved(t *testing.T) {
 	wantLines(t, e, ReceivedLine{CatalogItemID: "item-1", GTIN: rEach1, QtyEaches: 4}, ReceivedLine{GTIN: rCase2, QtyEaches: 2})
 }
 
+// TestReceivedFirstResolvedItemWinsAndZeroTotalsAreOmitted: contributions
+// of one published gtin keep the first resolved catalogItemId whatever the
+// order; a counted GTIN takes its own carton's item before the shipment's;
+// a gtin totalling zero eaches is omitted.
+func TestReceivedFirstResolvedItemWinsAndZeroTotalsAreOmitted(t *testing.T) {
+	unknown := Content{CatalogItemID: "item-3", GTIN: rEach1, QtyEaches: 2} // item-3 has no packaging rows
+	known := Content{CatalogItemID: "item-1", GTIN: rEach1, QtyEaches: 4}
+	answers := []ReceiptCarton{{SSCC: mustSSCC(t, 1), Status: StatusReceived}, {SSCC: mustSSCC(t, 2), Status: StatusReceived,
+		Items: []ReceiptItem{{GTIN: rEach1, QtyEaches: 4}, {GTIN: rInner1, QtyEaches: 0}}}}
+	for name, order := range map[string][]Content{"unresolved first": {unknown, known}, "resolved first": {known, unknown}} {
+		s := shipped(t, inboundplan.Individual, mixedCarton(t, 1, order[0]), mixedCarton(t, 2, order[1]))
+		e := closeWith(t, s, packagingView(t), answers...)
+		if want := []ReceivedLine{{CatalogItemID: "item-1", GTIN: rEach1, QtyEaches: order[0].QtyEaches + 4}}; !reflect.DeepEqual(e.Received, want) {
+			t.Errorf("%s: received %+v, want %+v", name, e.Received, want)
+		}
+	}
+}
+
 // TestReceivedCountsSurviveRestoreAcrossPartialReceipts: the counts of an
 // earlier receipt are kept on the carton (Snapshot/Restore) and published
 // when a later receipt closes the shipment.

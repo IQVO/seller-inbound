@@ -75,13 +75,24 @@ func cartonQuantities(c Carton, shipmentItems map[string]string) []lineQty {
 		return out
 	}
 	for _, it := range c.Counted {
-		item := shipmentItems[it.GTIN]
-		if i := slices.IndexFunc(c.Contents, func(ct Content) bool { return ct.GTIN == it.GTIN }); i >= 0 {
-			item = c.Contents[i].CatalogItemID
+		item, listed := itemOfLine(c, it.GTIN)
+		if !listed {
+			item = shipmentItems[it.GTIN]
 		}
 		out = append(out, lineQty{item: item, gtin: it.GTIN, qty: it.QtyEaches})
 	}
 	return out
+}
+
+// itemOfLine returns the catalogItemId of the carton's manifest line with
+// the gtin, and whether the carton lists it.
+func itemOfLine(c Carton, gtin string) (string, bool) {
+	for _, ct := range c.Contents {
+		if ct.GTIN == gtin {
+			return ct.CatalogItemID, true
+		}
+	}
+	return "", false
 }
 
 // resolveLine publishes the EACH-level GTIN when the packaging view resolves
