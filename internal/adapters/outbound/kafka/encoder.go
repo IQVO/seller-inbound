@@ -192,10 +192,12 @@ func (e *Encoder) Encode(events ...shared.Event) ([]outbox.Message, error) {
 // and every other fact to the analytics topic. PlacementPlanSuggested goes
 // to the events topic with analytics as its only reader in v1 (ADR 0012), so
 // an agreed consumer can subscribe later without a topic change.
+// SellerSuspended and SellerReinstated are integration facts for
+// offer-availability (ADR 0013) and leave ONLY through the events topic.
 func streamFor(ev shared.Event) (stream, topic string) {
 	switch ev.(type) {
 	case inboundshipment.InboundShipmentLabelled, inboundshipment.InboundShipmentShipped, inboundshipment.InboundShipmentReceived,
-		placementplan.PlacementPlanSuggested:
+		placementplan.PlacementPlanSuggested, seller.SellerSuspended, seller.SellerReinstated:
 		return cloudevents.StreamEvents, TopicEvents
 	default:
 		return cloudevents.StreamAnalytics, TopicAnalytics

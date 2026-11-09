@@ -21,7 +21,7 @@ info:
     Event catalog for the **seller-inbound** bounded context of the retail network (partner tier): the seller-facing front door for stock coming into the network.
     The REST contract is `apis/openapi.yaml`.
 
-    **Published.** Ten types. `InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived` and `PlacementPlanSuggested` go to `retailnetwork.seller-inbound.events`; the other six (`SellerOnboarded`, `SellerSuspended`, `SellerReinstated`, `InboundPlanConfirmed`, `InboundDiscrepancyRecorded`, `SellerComplianceViolationRecorded`) go ONLY to `retailnetwork.seller-inbound.analytics` (the model marks them analytics only). Every event leaves through a **transactional outbox**: the aggregate row and the already-encoded events are written in ONE database transaction and an always-on relay drains them to Kafka (at-least-once; the CloudEvents `id` is stored with the outbox row, so a retry republishes the same `id`).
+    **Published.** Ten types. `InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived`, `PlacementPlanSuggested`, `SellerSuspended` and `SellerReinstated` go ONLY to `retailnetwork.seller-inbound.events` (the seller status events are integration facts since ADR 0013); the other four (`SellerOnboarded`, `InboundPlanConfirmed`, `InboundDiscrepancyRecorded`, `SellerComplianceViolationRecorded`) go ONLY to `retailnetwork.seller-inbound.analytics` (the model marks them analytics only). Every event leaves through a **transactional outbox**: the aggregate row and the already-encoded events are written in ONE database transaction and an always-on relay drains them to Kafka (at-least-once; the CloudEvents `id` is stored with the outbox row, so a retry republishes the same `id`).
 
     **Consumed.** Eleven types from four producers (ADR 0003, ADR 0012): node-topology `NodeRegistered`, `NodeOperationalProfileDeclared`, `NodeActivated`, `NodeSuspended`, `NodeRetired` (local NodeInboundView); offer-availability `CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired` (local CatalogPackagingView), `ListingAvailabilityChanged` (DemandHeatView, the declared-availability half); order-sourcing `FulfillmentReleasedToNode`, `FulfillmentCancelled` (DemandHeatView, the demand half); vendor-connectivity `InboundReceiptSubmitted`. Each is deduplicated on the CloudEvents `id` in the `processed_events` inbox table and dispatched on the full `type`; a message that is not a valid CloudEvents 1.0 envelope is skipped with a WARN and a type this context does not act on is ignored (both are committed past). `data` is decoded tolerantly (unknown fields are ignored). Offsets are committed only after the handler succeeded; a transient failure retries the same message with capped exponential backoff, and a payload that can never be applied (a value the domain refuses, a forbidden transition, an unknown shipment) or an exhausted retry budget is dead-lettered to `<topic>.dlq` with the headers `x-dlq-source-topic`, `x-dlq-source-partition`, `x-dlq-source-offset`, `x-dlq-error` and `x-dlq-failed-at`. The consumed `data` below lists only the fields this context relies on. There are no synchronous calls to any neighbour.
 
@@ -41,7 +41,7 @@ channels:
   sellerInboundEvents:
     address: retailnetwork.seller-inbound.events
     title: seller-inbound integration topic
-    description: This service's integration topic, written by the outbox relay; key = subject. Carries the three shipment events other contexts consume plus PlacementPlanSuggested (analytics only in v1, ADR 0012). Every message carries the CloudEvents content-type header.
+    description: This service's integration topic, written by the outbox relay; key = subject. Carries the three shipment events other contexts consume, the seller status events SellerSuspended and SellerReinstated (consumed by offer-availability, ADR 0013) plus PlacementPlanSuggested (analytics only in v1, ADR 0012). Every message carries the CloudEvents content-type header.
       Dispatch on the full `type`, ignore unknown types, dedupe on `id`.
     messages:
       InboundShipmentLabelled:
@@ -52,6 +52,10 @@ channels:
         $ref: '#/components/messages/InboundShipmentReceived'
       PlacementPlanSuggested:
         $ref: '#/components/messages/PlacementPlanSuggested'
+      SellerSuspended:
+        $ref: '#/components/messages/SellerSuspended'
+      SellerReinstated:
+        $ref: '#/components/messages/SellerReinstated'
   sellerInboundAnalytics:
     address: retailnetwork.seller-inbound.analytics
     title: seller-inbound analytics topic
@@ -59,10 +63,6 @@ channels:
     messages:
       SellerOnboarded:
         $ref: '#/components/messages/SellerOnboarded'
-      SellerSuspended:
-        $ref: '#/components/messages/SellerSuspended'
-      SellerReinstated:
-        $ref: '#/components/messages/SellerReinstated'
       InboundPlanConfirmed:
         $ref: '#/components/messages/InboundPlanConfirmed'
       InboundDiscrepancyRecorded:
@@ -115,11 +115,12 @@ operations:
   publishSellerInboundEvents:
     action: send
     title: Publish seller-inbound integration events
-    summary: Publish the shipment events other contexts consume plus the placement advisory.
-    description: The service sends InboundShipmentLabelled, InboundShipmentShipped and InboundShipmentReceived to `retailnetwork.seller-inbound.events` through the transactional outbox, plus
-      PlacementPlanSuggested (analytics only in v1, ADR 0012). Consumers route on the full `type`.
+    summary: Publish the shipment and seller status events other contexts consume plus the placement advisory.
+    description: The service sends InboundShipmentLabelled, InboundShipmentShipped, InboundShipmentReceived, SellerSuspended and SellerReinstated (ADR 0013) to `retailnetwork.seller-inbound.events`
+      through the transactional outbox, plus PlacementPlanSuggested (analytics only in v1, ADR 0012). Consumers route on the full `type`.
     tags:
     - name: inboundshipment
+    - name: seller
     channel:
       $ref: '#/channels/sellerInboundEvents'
     messages:
@@ -127,20 +128,20 @@ operations:
     - $ref: '#/channels/sellerInboundEvents/messages/InboundShipmentShipped'
     - $ref: '#/channels/sellerInboundEvents/messages/InboundShipmentReceived'
     - $ref: '#/channels/sellerInboundEvents/messages/PlacementPlanSuggested'
+    - $ref: '#/channels/sellerInboundEvents/messages/SellerSuspended'
+    - $ref: '#/channels/sellerInboundEvents/messages/SellerReinstated'
   publishSellerInboundAnalytics:
     action: send
     title: Publish seller-inbound analytics events
     summary: Publish the analytics-only events through the transactional outbox.
-    description: SellerOnboarded, SellerSuspended, SellerReinstated, InboundPlanConfirmed, InboundDiscrepancyRecorded and SellerComplianceViolationRecorded go ONLY to `retailnetwork.seller-inbound.analytics`;
-      no context consumes them.
+    description: SellerOnboarded, InboundPlanConfirmed, InboundDiscrepancyRecorded and SellerComplianceViolationRecorded go ONLY to `retailnetwork.seller-inbound.analytics`; no context consumes
+      them.
     tags:
     - name: seller
     channel:
       $ref: '#/channels/sellerInboundAnalytics'
     messages:
     - $ref: '#/channels/sellerInboundAnalytics/messages/SellerOnboarded'
-    - $ref: '#/channels/sellerInboundAnalytics/messages/SellerSuspended'
-    - $ref: '#/channels/sellerInboundAnalytics/messages/SellerReinstated'
     - $ref: '#/channels/sellerInboundAnalytics/messages/InboundPlanConfirmed'
     - $ref: '#/channels/sellerInboundAnalytics/messages/InboundDiscrepancyRecorded'
     - $ref: '#/channels/sellerInboundAnalytics/messages/SellerComplianceViolationRecorded'
@@ -230,11 +231,11 @@ components:
             onboardedAt: '2026-10-24T13:00:00Z'
     SellerSuspended:
       name: SellerSuspended
-      x-no-consumer-reason: Analytics-only fact (the model marks it analytics only); published to the analytics topic for reporting and no context in the network consumes it.
       title: A seller was suspended
       summary: A seller was suspended.
-      description: '`type` = `com.retailnetwork.partner.seller-inbound.seller.SellerSuspended`; subject and key = the aggregate root id; stream `analytics`. Raised by SuspendSeller. A suspended seller creates
-        no plan, shipment or carton and ships nothing. Analytics only.'
+      description: '`type` = `com.retailnetwork.partner.seller-inbound.seller.SellerSuspended`; subject and key = `sellerId`; stream `events` (ADR 0013). Raised by SuspendSeller. A suspended seller creates
+        no plan, shipment or carton and ships nothing. Consumers: offer-availability (suppresses the seller''s listings). Data fields: `sellerId` (required), `suspendedAt` (required, RFC 3339 UTC),
+        `reason` (optional, omitted when empty).'
       contentType: application/cloudevents+json
       tags:
       - name: seller
@@ -251,17 +252,17 @@ components:
           subject: seller-77
           time: '2026-10-24T13:00:00Z'
           datacontenttype: application/json
-          dataschema: urn:retailnetwork:seller-inbound:analytics:SellerSuspended:v1
+          dataschema: urn:retailnetwork:seller-inbound:events:SellerSuspended:v1
           data:
             sellerId: seller-77
             suspendedAt: '2026-10-24T13:00:00Z'
             reason: repeated label violations
     SellerReinstated:
       name: SellerReinstated
-      x-no-consumer-reason: Analytics-only fact (the model marks it analytics only); published to the analytics topic for reporting and no context in the network consumes it.
       title: A suspended seller was reinstated
       summary: A suspended seller was reinstated.
-      description: '`type` = `com.retailnetwork.partner.seller-inbound.seller.SellerReinstated`; subject and key = the aggregate root id; stream `analytics`. Raised by ReinstateSeller. Analytics only.'
+      description: '`type` = `com.retailnetwork.partner.seller-inbound.seller.SellerReinstated`; subject and key = `sellerId`; stream `events` (ADR 0013). Raised by ReinstateSeller. Consumers: offer-availability
+        (restores the seller''s listings). Data fields: `sellerId` (required), `reinstatedAt` (required, RFC 3339 UTC).'
       contentType: application/cloudevents+json
       tags:
       - name: seller
@@ -278,7 +279,7 @@ components:
           subject: seller-77
           time: '2026-10-24T13:00:00Z'
           datacontenttype: application/json
-          dataschema: urn:retailnetwork:seller-inbound:analytics:SellerReinstated:v1
+          dataschema: urn:retailnetwork:seller-inbound:events:SellerReinstated:v1
           data:
             sellerId: seller-77
             reinstatedAt: '2026-10-24T13:00:00Z'
@@ -1053,6 +1054,7 @@ components:
               suspendedAt:
                 type: string
                 format: date-time
+                description: When the seller was suspended, RFC 3339 UTC.
               reason:
                 type: string
                 description: Optional; omitted when empty.
@@ -1072,6 +1074,7 @@ components:
               reinstatedAt:
                 type: string
                 format: date-time
+                description: When the seller was reinstated, RFC 3339 UTC.
     PlacementPlanSuggestedEvent:
       allOf:
       - $ref: '#/components/schemas/CloudEventEnvelope'
