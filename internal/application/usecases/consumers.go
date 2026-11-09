@@ -168,9 +168,14 @@ func (s *Service) ApplyInboundReceipt(ctx context.Context, eventID string, in re
 			cartons[i] = inboundshipment.ReceiptCarton{SSCC: c.SSCC, Status: inboundshipment.ReceiptStatus(c.Status), Items: items, ComplianceCodes: c.ComplianceCodes}
 		}
 		before := sh.Version()
-		evs, err := sh.RecordReceipt(inboundshipment.Receipt{NodeID: in.NodeID, ReceivedAt: in.ReceivedAt, Cartons: cartons}, s.d.Clock.Now())
+		var viewErr error
+		evs, err := sh.RecordReceipt(inboundshipment.Receipt{NodeID: in.NodeID, ReceivedAt: in.ReceivedAt, Cartons: cartons,
+			Packaging: s.packagingResolver(ctx, &viewErr)}, s.d.Clock.Now())
 		if err != nil {
 			return err
+		}
+		if viewErr != nil {
+			return fmt.Errorf("read CatalogPackagingView: %w", viewErr)
 		}
 		if sh.Version() == before {
 			return nil // a redelivered or late receipt for a closed shipment changes nothing
@@ -184,6 +189,28 @@ func (s *Service) ApplyInboundReceipt(ctx context.Context, eventID string, in re
 		// The scorecard facts are the events just appended, recorded in the same unit.
 		return s.d.Scorecard.Record(ctx, scorecard.FactsFrom(evs))
 	})
+}
+
+// packagingResolver answers ADR 0014's packaging questions from the local
+// CatalogPackagingView (no call to another context). The domain asks it only
+// when the shipment closes; each item's rows are read once per receipt, and
+// the first read error is kept in *failed, which fails the unit.
+func (s *Service) packagingResolver(ctx context.Context, failed *error) inboundshipment.ItemPackaging {
+	rows := map[string][]network.PackLevel{}
+	return func(item, gtin string) (string, bool) {
+		r, ok := rows[item]
+		if !ok {
+			var err error
+			if r, err = s.d.Packaging.ListByItem(ctx, item); err != nil {
+				if *failed == nil {
+					*failed = err
+				}
+				return "", false
+			}
+			rows[item] = r
+		}
+		return network.ResolveEach(r, gtin)
+	}
 }
 
 func normGTIN(s string) (string, error) {

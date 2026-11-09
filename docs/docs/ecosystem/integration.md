@@ -82,7 +82,7 @@ payload.
 
 | Topic | Events | Known consumers |
 | --- | --- | --- |
-| `retailnetwork.seller-inbound.events` | `InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived`, `SellerSuspended`, `SellerReinstated` | offer-availability (`SellerSuspended`, `SellerReinstated`: suppresses and restores the seller's listings, ADR 0013); vendor-connectivity (builds the `InboundShipmentView` it serves on the Vendor API); node-performance (`InboundShipmentShipped`, the start of its inbound timeliness metric) |
+| `retailnetwork.seller-inbound.events` | `InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived`, `SellerSuspended`, `SellerReinstated` | offer-availability (`SellerSuspended`, `SellerReinstated`: suppresses and restores the seller's listings, ADR 0013; `InboundShipmentReceived.received`: creates owner-scoped listings, gap G51, ADR 0014); vendor-connectivity (builds the `InboundShipmentView` it serves on the Vendor API); node-performance (`InboundShipmentShipped`, the start of its inbound timeliness metric) |
 | `retailnetwork.seller-inbound.analytics` | `SellerOnboarded`, `InboundPlanConfirmed`, `InboundDiscrepancyRecorded`, `SellerComplianceViolationRecorded` | none in the organisation (published for analytics only) |
 
 The consumer groups of the downstream services are in `warehouse-infra` (`node-performance-seller-inbound` for

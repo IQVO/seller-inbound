@@ -202,6 +202,52 @@ func Retire(existing *PackLevel, item string, level Level, gtin string, at time.
 	return out, nil
 }
 
+// ResolveEach answers, among one catalogue item's CatalogPackagingView rows,
+// whether the view holds the 14-digit gtin at all (known) and the EACH-level
+// GTIN its childGtin chain resolves to (each, "" when the chain breaks: no
+// child, or a child the view does not hold). Retired rows resolve too:
+// retirement stops new packing at a level, not the identity of a GTIN
+// (ADR 0014).
+func ResolveEach(rows []PackLevel, gtin string) (each string, known bool) {
+	row, ok := rowOf(rows, gtin)
+	if !ok {
+		return "", false
+	}
+	for range rows {
+		if row.Level == Each {
+			return row.GTIN, true
+		}
+		child, err := gs1.ParseGTIN(row.ChildGTIN)
+		if err != nil {
+			return "", true
+		}
+		if row, ok = rowOf(rows, child.String()); !ok {
+			return "", true
+		}
+	}
+	return "", true // a childGtin cycle never reaches EACH
+}
+
+// rowOf returns the row of the gtin, preferring an active one.
+func rowOf(rows []PackLevel, gtin string) (PackLevel, bool) {
+	var found *PackLevel
+	for i := range rows {
+		if rows[i].GTIN != gtin {
+			continue
+		}
+		if rows[i].Active {
+			return rows[i], true
+		}
+		if found == nil {
+			found = &rows[i]
+		}
+	}
+	if found == nil {
+		return PackLevel{}, false
+	}
+	return *found, true
+}
+
 // ActiveCaseUnits returns unitsPerPack of the ACTIVE CASE level with the given
 // 14-digit gtin among the item's rows.
 func ActiveCaseUnits(rows []PackLevel, gtin string) (int, bool) {

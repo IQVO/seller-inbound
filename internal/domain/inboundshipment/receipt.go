@@ -40,11 +40,19 @@ type ReceiptCarton struct {
 }
 
 // Receipt is the vendor's carton-level answer (InboundReceiptSubmitted).
+// Packaging is the use case's resolver over CatalogPackagingView, asked only
+// when the shipment closes; nil resolves nothing (ADR 0014).
 type Receipt struct {
 	NodeID     string
 	ReceivedAt time.Time
 	Cartons    []ReceiptCarton
+	Packaging  ItemPackaging
 }
+
+// ItemPackaging answers what CatalogPackagingView knows of one GTIN of one
+// catalogue item: each is the EACH-level GTIN the GTIN resolves to ("" when
+// it does not), known whether the view holds the (item, gtin) row at all.
+type ItemPackaging func(catalogItemID, gtin string) (each string, known bool)
 
 // RecordReceipt applies a vendor receipt. The first answer for a carton is
 // final (a repeated one is ignored), a carton the manifest does not list is
@@ -80,7 +88,7 @@ func (s *Shipment) RecordReceipt(r Receipt, now time.Time) ([]shared.Event, erro
 	if s.discrepant {
 		s.state = ClosedWithDiscrepancy
 	}
-	return append(events, s.receivedEvent(at)), nil
+	return append(events, s.receivedEvent(at, r.Packaging)), nil
 }
 
 func normaliseReceipt(in []ReceiptCarton) ([]ReceiptCarton, error) {
@@ -120,6 +128,7 @@ func (s *Shipment) apply(rc ReceiptCarton, at time.Time) []shared.Event {
 		return nil
 	}
 	s.cartons[i].Receipt = rc.Status
+	s.cartons[i].Counted = append([]ReceiptItem(nil), rc.Items...)
 	events := s.statusDiscrepancy(s.cartons[i], at)
 	if rc.Status == StatusReceived || rc.Status == StatusDamaged {
 		events = append(events, s.quantityDiscrepancies(s.cartons[i], rc, at)...)
@@ -225,7 +234,7 @@ func (s *Shipment) allAnswered() bool {
 	return !slices.ContainsFunc(s.cartons, func(c Carton) bool { return c.Receipt == "" })
 }
 
-func (s *Shipment) receivedEvent(at time.Time) shared.Event {
+func (s *Shipment) receivedEvent(at time.Time, pack ItemPackaging) shared.Event {
 	cartons := make([]ReceivedCarton, 0, len(s.cartons)+len(s.unexpected))
 	for _, c := range s.cartons {
 		cartons = append(cartons, ReceivedCarton{SSCC: c.SSCC, Status: c.Receipt})
@@ -235,6 +244,6 @@ func (s *Shipment) receivedEvent(at time.Time) shared.Event {
 	}
 	return InboundShipmentReceived{
 		Header: shared.Header{Version: s.version, At: at}, ShipmentID: s.id, SellerID: s.sellerID, NodeID: s.nodeID,
-		Status: s.state, Cartons: cartons, ReceivedAt: s.receivedAt,
+		Status: s.state, Cartons: cartons, ReceivedAt: s.receivedAt, Received: s.receivedLines(pack),
 	}
 }

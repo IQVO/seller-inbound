@@ -24,7 +24,7 @@ on the Vendor API. All timestamps are RFC 3339 UTC strings with nanosecond preci
 | `InboundPlanConfirmed` | `planId`, `sellerId`, `destinationNodeId`, `packingOption`, `lines` (`catalogItemId`, `gtin`, `qtyEaches`), `confirmedAt` |
 | `InboundShipmentLabelled` | `shipmentId`, `planId`, `sellerId`, `nodeId`, `cartons` (`sscc`, `parentSscc` omitted when none, `kind`, `contents` (`catalogItemId`, `gtin`, `qtyEaches`, `lot`, `expiry`, the last two omitted when empty), `grossWeightG`, `dimsMm` (`l`, `w`, `h`)), `labelledAt` |
 | `InboundShipmentShipped` | `shipmentId`, `planId`, `sellerId`, `nodeId`, `shippedAt` |
-| `InboundShipmentReceived` | `shipmentId`, `sellerId`, `nodeId`, `status`, `cartons` (`sscc`, `status`), `receivedAt` |
+| `InboundShipmentReceived` | `shipmentId`, `sellerId`, `nodeId`, `status`, `cartons` (`sscc`, `status`), `receivedAt`, `received` (`catalogItemId?`, `gtin`, `qtyEaches`; ADR 0014) |
 | `InboundDiscrepancyRecorded` | `shipmentId`, `sellerId`, `nodeId`, `sscc` (omitted when none), `kind`, `expected`, `actual` (both omitted when empty), `recordedAt` |
 | `SellerComplianceViolationRecorded` | `sellerId`, `shipmentId` (omitted when none), `code`, `recordedAt` |
 

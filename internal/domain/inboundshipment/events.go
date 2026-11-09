@@ -56,7 +56,17 @@ type ReceivedCarton struct {
 	Status ReceiptStatus
 }
 
+// ReceivedLine is one item line of InboundShipmentReceived.received
+// (ADR 0014): the eaches of one GTIN over the cartons that count as received.
+// CatalogItemID is empty when the packaging view does not resolve it.
+type ReceivedLine struct {
+	CatalogItemID string
+	GTIN          string
+	QtyEaches     int
+}
+
 // InboundShipmentReceived is raised by RecordReceipt when the shipment closes.
+// Received is never nil (ADR 0014).
 type InboundShipmentReceived struct {
 	shared.Header
 	ShipmentID ID
@@ -65,6 +75,7 @@ type InboundShipmentReceived struct {
 	Status     State
 	Cartons    []ReceivedCarton
 	ReceivedAt time.Time
+	Received   []ReceivedLine
 }
 
 // EventName returns "InboundShipmentReceived".

@@ -542,7 +542,10 @@ components:
       summary: The vendor's receipt closed the shipment.
       description: '`type` = `com.retailnetwork.partner.seller-inbound.inboundshipment.InboundShipmentReceived`; subject and key = the aggregate root id; stream `events`. Raised when every manifest carton
         has a final status (policy ReceiveOnVendorReceipt). `status` is CLOSED when nothing differed from the manifest, CLOSED_WITH_DISCREPANCY otherwise; `cartons` lists the manifest cartons and any UNEXPECTED
-        ones. `receivedAt` is the vendor''s instant.'
+        ones. `receivedAt` is the vendor''s instant. `received` (ADR 0014) is the stock received per item, in eaches: summed per `gtin` over the manifest cartons answered RECEIVED (MISSING, DAMAGED and UNEXPECTED
+        cartons do not count), from the vendor''s counted quantities where the receipt reported them and from the manifest otherwise. `gtin` is the EACH-level GTIN when the local CatalogPackagingView resolves
+        the carton GTIN to it, otherwise the carton GTIN; `catalogItemId` is present when the view resolves it. Lines of zero eaches are omitted, lines are sorted by `gtin`, and the array is always present (empty
+        when nothing counts). Consumers: offer-availability uses `received` to create owner-scoped listings, gap G51.'
       contentType: application/cloudevents+json
       tags:
       - name: inboundshipment
@@ -571,6 +574,10 @@ components:
             - sscc: '006141410000000029'
               status: DAMAGED
             receivedAt: '2026-10-25T09:30:00Z'
+            received:
+            - catalogItemId: item-1
+              gtin: '00614141000012'
+              qtyEaches: 12
     InboundDiscrepancyRecorded:
       name: InboundDiscrepancyRecorded
       x-no-consumer-reason: Analytics-only fact (the model marks it analytics only); published to the analytics topic for reporting and no context in the network consumes it.
@@ -1340,6 +1347,26 @@ components:
               receivedAt:
                 type: string
                 format: date-time
+              received:
+                type: array
+                description: The stock received per item (ADR 0014), sorted by gtin; always present on new events, empty when no carton counts. Events published before ADR 0014 omit it.
+                items:
+                  type: object
+                  required:
+                  - gtin
+                  - qtyEaches
+                  properties:
+                    catalogItemId:
+                      type: string
+                      description: Present when the CatalogPackagingView resolves the carton GTIN to a catalogue item; omitted otherwise.
+                    gtin:
+                      type: string
+                      pattern: ^[0-9]{14}$
+                      description: The EACH-level GTIN when the CatalogPackagingView resolves the carton GTIN to its child each; otherwise the carton GTIN.
+                    qtyEaches:
+                      type: integer
+                      minimum: 1
+                      description: Eaches received, from the vendor's counted quantities where the receipt reported them, from the manifest otherwise.
     InboundDiscrepancyRecordedEvent:
       allOf:
       - $ref: '#/components/schemas/CloudEventEnvelope'

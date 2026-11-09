@@ -107,6 +107,13 @@ type receivedCartonData struct {
 	Status string `json:"status"`
 }
 
+// receivedLineData is one line of InboundShipmentReceived.received (ADR 0014).
+type receivedLineData struct {
+	CatalogItemID string `json:"catalogItemId,omitempty"`
+	GTIN          string `json:"gtin"`
+	QtyEaches     int    `json:"qtyEaches"`
+}
+
 type receivedData struct {
 	ShipmentID string               `json:"shipmentId"`
 	SellerID   string               `json:"sellerId"`
@@ -114,6 +121,8 @@ type receivedData struct {
 	Status     string               `json:"status"`
 	Cartons    []receivedCartonData `json:"cartons"`
 	ReceivedAt string               `json:"receivedAt"`
+	// Received is always present, an empty array when nothing counts.
+	Received []receivedLineData `json:"received"`
 }
 
 type discrepancyData struct {
@@ -264,6 +273,19 @@ func planPayload(e inboundplan.InboundPlanConfirmed) planConfirmedData {
 		PackingOption: string(e.Packing), Lines: lines, ConfirmedAt: ts(e.At)}
 }
 
+func receivedPayload(e inboundshipment.InboundShipmentReceived) receivedData {
+	cartons := make([]receivedCartonData, len(e.Cartons))
+	for i, c := range e.Cartons {
+		cartons[i] = receivedCartonData{SSCC: c.SSCC, Status: string(c.Status)}
+	}
+	received := make([]receivedLineData, len(e.Received))
+	for i, l := range e.Received {
+		received[i] = receivedLineData{CatalogItemID: l.CatalogItemID, GTIN: l.GTIN, QtyEaches: l.QtyEaches}
+	}
+	return receivedData{ShipmentID: string(e.ShipmentID), SellerID: e.SellerID, NodeID: e.NodeID, Status: string(e.Status),
+		Cartons: cartons, ReceivedAt: ts(e.ReceivedAt), Received: received}
+}
+
 func shipmentPayload(ev shared.Event) (any, error) {
 	switch e := ev.(type) {
 	case inboundshipment.InboundShipmentLabelled:
@@ -271,12 +293,7 @@ func shipmentPayload(ev shared.Event) (any, error) {
 	case inboundshipment.InboundShipmentShipped:
 		return shippedData{ShipmentID: string(e.ShipmentID), PlanID: e.PlanID, SellerID: e.SellerID, NodeID: e.NodeID, ShippedAt: ts(e.At)}, nil
 	case inboundshipment.InboundShipmentReceived:
-		cartons := make([]receivedCartonData, len(e.Cartons))
-		for i, c := range e.Cartons {
-			cartons[i] = receivedCartonData{SSCC: c.SSCC, Status: string(c.Status)}
-		}
-		return receivedData{ShipmentID: string(e.ShipmentID), SellerID: e.SellerID, NodeID: e.NodeID, Status: string(e.Status),
-			Cartons: cartons, ReceivedAt: ts(e.ReceivedAt)}, nil
+		return receivedPayload(e), nil
 	case inboundshipment.InboundDiscrepancyRecorded:
 		return discrepancyData{ShipmentID: string(e.ShipmentID), SellerID: e.SellerID, NodeID: e.NodeID, SSCC: e.SSCC, Kind: e.Kind,
 			Expected: e.Expected, Actual: e.Actual, RecordedAt: ts(e.At)}, nil
