@@ -89,6 +89,9 @@ type Carton struct {
 	Sealed       bool
 	// Receipt is the vendor's answer for this carton; empty until answered.
 	Receipt ReceiptStatus
+	// Counted is the vendor's counted items of its first answer, in eaches;
+	// empty when the vendor reported no count (ADR 0014).
+	Counted []ReceiptItem
 }
 
 // TotalEaches is the sum of the contents.
@@ -105,6 +108,7 @@ func cloneCartons(in []Carton) []Carton {
 	for i, c := range in {
 		out[i] = c
 		out[i].Contents = append([]Content(nil), c.Contents...)
+		out[i].Counted = append([]ReceiptItem(nil), c.Counted...)
 	}
 	return out
 }
@@ -120,7 +124,22 @@ func (c Carton) check() error {
 	if c.Receipt != "" && !c.Receipt.Valid() {
 		return errors.New("receipt status is invalid")
 	}
+	if err := checkCounted(c); err != nil {
+		return err
+	}
 	return checkContents(c.Contents)
+}
+
+func checkCounted(c Carton) error {
+	if len(c.Counted) > 0 && c.Receipt == "" {
+		return errors.New("counted items need a receipt status")
+	}
+	for i, it := range c.Counted {
+		if g, err := gs1.ParseGTIN(it.GTIN); err != nil || g.String() != it.GTIN || it.QtyEaches < 0 || it.QtyEaches > MaxQtyEaches {
+			return fmt.Errorf("counted[%d] is not a valid 14-digit gtin and quantity", i)
+		}
+	}
+	return nil
 }
 
 func checkContents(contents []Content) error {
