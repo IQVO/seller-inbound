@@ -49,8 +49,9 @@ errors (`internal/application/ports/errors.go`). The domain imports nothing outs
 ## Domain events
 
 Nine events; wire shape in `apis/asyncapi.yaml`. `InboundShipmentLabelled`,
-`InboundShipmentShipped` and `InboundShipmentReceived` go to `retailnetwork.seller-inbound.events`,
-the other six to `retailnetwork.seller-inbound.analytics` (ADR 0004):
+`InboundShipmentShipped`, `InboundShipmentReceived`, `SellerSuspended` and `SellerReinstated` go to
+`retailnetwork.seller-inbound.events` (ADR 0013), the other four to
+`retailnetwork.seller-inbound.analytics` (ADR 0004):
 
 - `SellerOnboarded`, `SellerSuspended`, `SellerReinstated` (`internal/domain/seller/events.go`).
 - `InboundPlanConfirmed` (`internal/domain/inboundplan/events.go`).

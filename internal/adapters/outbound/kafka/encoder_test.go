@@ -51,11 +51,11 @@ func TestEncoder_GoldenWireFormatOfEveryPublishedEvent(t *testing.T) {
 	}{
 		{seller.SellerOnboarded{Header: hdr(), SellerID: "S-1", Name: "Acme Goods"}, "seller", "SellerOnboarded", "S-1", "analytics", TopicAnalytics,
 			`{"sellerId":"S-1","name":"Acme Goods","onboardedAt":"2026-10-24T13:00:00Z"}`},
-		{seller.SellerSuspended{Header: hdr(), SellerID: "S-1", Reason: "late shipments"}, "seller", "SellerSuspended", "S-1", "analytics", TopicAnalytics,
+		{seller.SellerSuspended{Header: hdr(), SellerID: "S-1", Reason: "late shipments"}, "seller", "SellerSuspended", "S-1", "events", TopicEvents,
 			`{"sellerId":"S-1","suspendedAt":"2026-10-24T13:00:00Z","reason":"late shipments"}`},
-		{seller.SellerSuspended{Header: hdr(), SellerID: "S-1"}, "seller", "SellerSuspended", "S-1", "analytics", TopicAnalytics,
+		{seller.SellerSuspended{Header: hdr(), SellerID: "S-1"}, "seller", "SellerSuspended", "S-1", "events", TopicEvents,
 			`{"sellerId":"S-1","suspendedAt":"2026-10-24T13:00:00Z"}`},
-		{seller.SellerReinstated{Header: hdr(), SellerID: "S-1"}, "seller", "SellerReinstated", "S-1", "analytics", TopicAnalytics,
+		{seller.SellerReinstated{Header: hdr(), SellerID: "S-1"}, "seller", "SellerReinstated", "S-1", "events", TopicEvents,
 			`{"sellerId":"S-1","reinstatedAt":"2026-10-24T13:00:00Z"}`},
 		{inboundplan.InboundPlanConfirmed{Header: hdr(), PlanID: "pln-1", SellerID: "S-1", DestinationNodeID: "n-1", Packing: inboundplan.CasePacked,
 			Lines: []inboundplan.Line{{CatalogItemID: "item-1", GTIN: gtinC, QtyEaches: 120}}}, "inboundplan", "InboundPlanConfirmed", "pln-1", "analytics", TopicAnalytics,
@@ -119,6 +119,30 @@ func TestEncoder_GoldenWireFormatOfEveryPublishedEvent(t *testing.T) {
 }
 
 type unpublished struct{ shared.Header }
+
+// TestEncoder_SellerStatusIsAnIntegrationFact pins the stream split of the
+// seller events (ADR 0013): suspension and reinstatement are integration facts
+// on the events topic ONLY, onboarding stays analytics-only.
+func TestEncoder_SellerStatusIsAnIntegrationFact(t *testing.T) {
+	routes := []struct {
+		ev            shared.Event
+		stream, topic string
+	}{
+		{seller.SellerSuspended{Header: hdr(), SellerID: "S-1"}, cloudevents.StreamEvents, TopicEvents},
+		{seller.SellerReinstated{Header: hdr(), SellerID: "S-1"}, cloudevents.StreamEvents, TopicEvents},
+		{seller.SellerOnboarded{Header: hdr(), SellerID: "S-1", Name: "n"}, cloudevents.StreamAnalytics, TopicAnalytics},
+	}
+	for _, r := range routes {
+		msgs, err := encoder().Encode(r.ev)
+		if err != nil || len(msgs) != 1 {
+			t.Fatalf("%s: Encode: %v %d", r.ev.EventName(), err, len(msgs))
+		}
+		want := "urn:retailnetwork:seller-inbound:" + r.stream + ":" + r.ev.EventName() + ":v1"
+		if m := msgs[0]; m.Topic != r.topic || m.DataSchema != want || string(m.Key) != "S-1" || m.Subject != "S-1" {
+			t.Errorf("%s routed to %s (%s), want %s (%s)", r.ev.EventName(), m.Topic, m.DataSchema, r.topic, want)
+		}
+	}
+}
 
 func (unpublished) EventName() string { return "Nope" }
 func (unpublished) Entity() string    { return "x" }

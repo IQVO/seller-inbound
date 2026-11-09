@@ -28,7 +28,7 @@ CloudEvents 1.0 only; read `.claude/rules/integration-events.md` and
 4. **Publish from the use case** inside the same `ports.UnitOfWork` as the aggregate `Save`: the
    aggregate row and the outbox row commit or roll back together. Never publish after the commit and
    never call Kafka from a use case.
-5. **Stream.** `.events` for integration events; an analytics-only event (today six: the seller events, `InboundPlanConfirmed`, `InboundDiscrepancyRecorded` and
+5. **Stream.** `.events` for integration events; an analytics-only event (today four: `SellerOnboarded`, `InboundPlanConfirmed`, `InboundDiscrepancyRecorded` and
    `SellerComplianceViolationRecorded`) goes ONLY to `.analytics` (the type switch in `Encoder.Encode`) with
    `dataschema` `...:analytics:<Event>:v1`. The relay (`internal/adapters/outbound/outbox/relay.go`)
    already drains every row.
