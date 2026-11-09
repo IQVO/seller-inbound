@@ -67,10 +67,14 @@ type NodeInbound struct {
 	RequiresSscc     *bool
 }
 
-// NodeRegistered is the consumed node-topology NodeRegistered.
+// NodeRegistered is the consumed node-topology NodeRegistered. Operator and
+// RegionID are optional in the tolerant decode (older payloads carried them
+// for other consumers); the advisory needs them (ADR 0012).
 type NodeRegistered struct {
 	NodeID   string
 	NodeType string
+	Operator string
+	RegionID string
 }
 
 // NodeProfileDeclared is the consumed NodeOperationalProfileDeclared. Inbound is
@@ -124,4 +128,45 @@ type InboundReceipt struct {
 	NodeID     string
 	ReceivedAt time.Time
 	Cartons    []ReceiptCarton
+}
+
+// ReleaseLine is one line of a consumed FulfillmentReleasedToNode.
+type ReleaseLine struct {
+	LineNo        int
+	CatalogItemID string
+	Quantity      int
+}
+
+// FulfillmentReleased is the consumed order-sourcing
+// FulfillmentReleasedToNode: the lines the network committed to one node.
+type FulfillmentReleased struct {
+	AssignmentID string
+	GroupNo      int
+	NodeID       string
+	ReleasedAt   time.Time
+	Lines        []ReleaseLine
+}
+
+// FulfillmentCancelled is the consumed order-sourcing FulfillmentCancelled.
+type FulfillmentCancelled struct {
+	AssignmentID string
+	GroupNo      int
+}
+
+// ListingAvailabilityChanged is the consumed offer-availability
+// ListingAvailabilityChanged: one listing's declared availability.
+type ListingAvailabilityChanged struct {
+	ListingID     string
+	CatalogItemID string
+	NodeID        string
+	AvailableQty  int
+	AsOf          time.Time
+}
+
+// ComputePlacementPlan is command ComputePlacementPlan. CoverDays is 0 when
+// the client omitted it (the use case applies the default).
+type ComputePlacementPlan struct {
+	SellerID      string
+	CatalogItemID string
+	CoverDays     int
 }

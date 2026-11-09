@@ -40,6 +40,13 @@ type cartonJSON struct {
 	Dims         dimsJSON      `json:"dimsMm"`
 	Sealed       bool          `json:"sealed"`
 	Receipt      string        `json:"receipt,omitempty"`
+	// Counted is the vendor's counted items of the carton's first answer (ADR 0014).
+	Counted []countedJSON `json:"counted,omitempty"`
+}
+
+type countedJSON struct {
+	GTIN      string `json:"gtin"`
+	QtyEaches int    `json:"qtyEaches"`
 }
 
 func encodeCartons(in []inboundshipment.Carton) ([]byte, error) {
@@ -49,8 +56,12 @@ func encodeCartons(in []inboundshipment.Carton) ([]byte, error) {
 		for j, ct := range c.Contents {
 			contents[j] = contentJSON{CatalogItemID: ct.CatalogItemID, GTIN: ct.GTIN, QtyEaches: ct.QtyEaches, Lot: ct.Lot, Expiry: ct.Expiry}
 		}
+		var counted []countedJSON
+		for _, it := range c.Counted {
+			counted = append(counted, countedJSON{GTIN: it.GTIN, QtyEaches: it.QtyEaches})
+		}
 		out[i] = cartonJSON{SSCC: c.SSCC, ParentSSCC: c.ParentSSCC, Kind: string(c.Kind), Contents: contents, GrossWeightG: c.GrossWeightG,
-			Dims: dimsJSON{L: c.Dims.L, W: c.Dims.W, H: c.Dims.H}, Sealed: c.Sealed, Receipt: string(c.Receipt)}
+			Dims: dimsJSON{L: c.Dims.L, W: c.Dims.W, H: c.Dims.H}, Sealed: c.Sealed, Receipt: string(c.Receipt), Counted: counted}
 	}
 	return json.Marshal(out)
 }
@@ -69,6 +80,9 @@ func decodeCartons(raw []byte) ([]inboundshipment.Carton, error) {
 		out[i] = inboundshipment.Carton{SSCC: c.SSCC, ParentSSCC: c.ParentSSCC, Kind: inboundshipment.Kind(c.Kind), Contents: contents,
 			GrossWeightG: c.GrossWeightG, Dims: inboundshipment.Dims{L: c.Dims.L, W: c.Dims.W, H: c.Dims.H}, Sealed: c.Sealed,
 			Receipt: inboundshipment.ReceiptStatus(c.Receipt)}
+		for _, it := range c.Counted {
+			out[i].Counted = append(out[i].Counted, inboundshipment.ReceiptItem{GTIN: it.GTIN, QtyEaches: it.QtyEaches})
+		}
 	}
 	return out, nil
 }

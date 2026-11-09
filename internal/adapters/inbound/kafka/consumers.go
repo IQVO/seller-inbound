@@ -21,6 +21,7 @@ const (
 	NodeTopology       = "retailnetwork.node-topology.events"
 	OfferAvailability  = "retailnetwork.offer-availability.events"
 	VendorConnectivity = "retailnetwork.vendor-connectivity.events"
+	OrderSourcing      = "retailnetwork.order-sourcing.events"
 )
 
 // Consumed types, byte-identical to the producers' AsyncAPI. Note the tier
@@ -37,6 +38,11 @@ const (
 	TypePackLevelRetired  = "com.retailnetwork.commerce.offer-availability.catalogitem.CatalogItemPackLevelRetired"
 
 	TypeReceiptSubmitted = "com.retailnetwork.partner.vendor-connectivity.inboundreceipt.InboundReceiptSubmitted"
+
+	TypeReleasedToNode  = "com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleasedToNode"
+	TypeFulfilCancelled = "com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentCancelled"
+
+	TypeListingAvailabilityChanged = "com.retailnetwork.commerce.offer-availability.listing.ListingAvailabilityChanged"
 )
 
 // Wire payloads: a TOLERANT local copy of only the fields this context uses.
@@ -46,6 +52,8 @@ const (
 type nodeRegisteredData struct {
 	NodeID   string `json:"nodeId"`
 	NodeType string `json:"nodeType"`
+	Operator string `json:"operator"`
+	RegionID string `json:"regionId"`
 }
 
 type nodeIDData struct {
@@ -104,6 +112,34 @@ type receiptSubmittedData struct {
 	Cartons    []receiptCartonData `json:"cartons"`
 }
 
+type releaseLineData struct {
+	CatalogItemID string `json:"catalogItemId"`
+	ListingID     string `json:"listingId"`
+	Quantity      int    `json:"quantity"`
+}
+
+type releasedToNodeData struct {
+	AssignmentID string            `json:"assignmentId"`
+	GroupNo      int               `json:"groupNo"`
+	NodeID       string            `json:"nodeId"`
+	Lines        []releaseLineData `json:"lines"`
+	// ReleasedAt is not on the producer's payload; the envelope time is the
+	// release instant this context relies on.
+}
+
+type fulfilCancelledData struct {
+	AssignmentID string `json:"assignmentId"`
+	GroupNo      int    `json:"groupNo"`
+}
+
+type listingAvailabilityData struct {
+	ListingID     string    `json:"listingId"`
+	CatalogItemID string    `json:"catalogItemId"`
+	NodeID        string    `json:"nodeId"`
+	AvailableQty  int       `json:"availableQty"`
+	AsOf          time.Time `json:"asOf"`
+}
+
 // permanent marks an error that retrying can never cure (a value the domain
 // refuses, a transition it forbids, a shipment that does not exist): the
 // consumer dead-letters the event at once instead of retrying it. Anything else
@@ -135,7 +171,9 @@ func NodeHandlers(svc *usecases.Service) map[string]HandlerFunc {
 			if err != nil {
 				return err
 			}
-			return permanent(svc.ApplyNodeRegistered(ctx, e.ID(), requests.NodeRegistered(d)))
+			return permanent(svc.ApplyNodeRegistered(ctx, e.ID(), requests.NodeRegistered{
+				NodeID: d.NodeID, NodeType: d.NodeType, Operator: d.Operator, RegionID: d.RegionID,
+			}))
 		},
 		TypeProfileDeclared: func(ctx context.Context, e ce.Event) error {
 			d, err := decodeData[profileDeclaredData](e)
@@ -162,7 +200,8 @@ func inboundRequest(w *wireInboundLimits) *requests.NodeInbound {
 	return out
 }
 
-// CatalogHandlers maps offer-availability's packaging events to the CatalogPackagingView.
+// CatalogHandlers maps offer-availability's packaging events to the
+// CatalogPackagingView and its listing availability to DemandHeatView.
 func CatalogHandlers(svc *usecases.Service) map[string]HandlerFunc {
 	return map[string]HandlerFunc{
 		TypePackagingDeclared: func(ctx context.Context, e ce.Event) error {
@@ -178,6 +217,15 @@ func CatalogHandlers(svc *usecases.Service) map[string]HandlerFunc {
 				return err
 			}
 			return permanent(svc.ApplyPackLevelRetired(ctx, e.ID(), requests.PackLevelRetired(d)))
+		},
+		TypeListingAvailabilityChanged: func(ctx context.Context, e ce.Event) error {
+			d, err := decodeData[listingAvailabilityData](e)
+			if err != nil {
+				return err
+			}
+			return permanent(svc.ApplyListingAvailabilityChanged(ctx, e.ID(),
+				requests.ListingAvailabilityChanged{ListingID: d.ListingID, CatalogItemID: d.CatalogItemID,
+					NodeID: d.NodeID, AvailableQty: d.AvailableQty, AsOf: d.AsOf}))
 		},
 	}
 }
@@ -209,6 +257,34 @@ func ReceiptHandlers(svc *usecases.Service, logger *slog.Logger) map[string]Hand
 	}
 }
 
+// SourcingHandlers maps order-sourcing's release and cancel events to the
+// demand half of DemandHeatView (ADR 0012). The release instant is the
+// CloudEvents time (the payload carries none).
+func SourcingHandlers(svc *usecases.Service) map[string]HandlerFunc {
+	return map[string]HandlerFunc{
+		TypeReleasedToNode: func(ctx context.Context, e ce.Event) error {
+			d, err := decodeData[releasedToNodeData](e)
+			if err != nil {
+				return err
+			}
+			in := requests.FulfillmentReleased{AssignmentID: d.AssignmentID, GroupNo: d.GroupNo,
+				NodeID: d.NodeID, ReleasedAt: e.Time()}
+			for i, l := range d.Lines {
+				in.Lines = append(in.Lines, requests.ReleaseLine{LineNo: i + 1, CatalogItemID: l.CatalogItemID, Quantity: l.Quantity})
+			}
+			return permanent(svc.ApplyFulfillmentReleased(ctx, e.ID(), in))
+		},
+		TypeFulfilCancelled: func(ctx context.Context, e ce.Event) error {
+			d, err := decodeData[fulfilCancelledData](e)
+			if err != nil {
+				return err
+			}
+			return permanent(svc.ApplyFulfillmentCancelled(ctx, e.ID(),
+				requests.FulfillmentCancelled{AssignmentID: d.AssignmentID, GroupNo: d.GroupNo}))
+		},
+	}
+}
+
 // NewNodeConsumer reads node-topology's topic under groupID (NODE_CONSUMER_GROUP).
 func NewNodeConsumer(brokers []string, groupID string, svc *usecases.Service, logger *slog.Logger) *Consumer {
 	return newConsumer("node consumer", brokers, NodeTopology, groupID, NodeHandlers(svc), logger)
@@ -222,4 +298,9 @@ func NewCatalogConsumer(brokers []string, groupID string, svc *usecases.Service,
 // NewReceiptConsumer reads vendor-connectivity's topic under groupID (RECEIPT_CONSUMER_GROUP).
 func NewReceiptConsumer(brokers []string, groupID string, svc *usecases.Service, logger *slog.Logger) *Consumer {
 	return newConsumer("receipt consumer", brokers, VendorConnectivity, groupID, ReceiptHandlers(svc, logger), logger)
+}
+
+// NewSourcingConsumer reads order-sourcing's topic under groupID (SOURCING_CONSUMER_GROUP, ADR 0012).
+func NewSourcingConsumer(brokers []string, groupID string, svc *usecases.Service, logger *slog.Logger) *Consumer {
+	return newConsumer("sourcing consumer", brokers, OrderSourcing, groupID, SourcingHandlers(svc), logger)
 }

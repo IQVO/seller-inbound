@@ -134,7 +134,7 @@ database:
 
 # KAFKA_BROKERS is MANDATORY (comma-separated host:port): relay, consumers and
 # /readyz all dial Kafka. Produced topic: retailnetwork.seller-inbound.events
-# (six analytics-only events on .analytics). The chart refuses to render
+# (analytics-only events on .analytics). The chart refuses to render
 # without the brokers.
 kafka:
   brokers: ""

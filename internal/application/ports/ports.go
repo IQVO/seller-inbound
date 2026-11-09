@@ -16,6 +16,7 @@ import (
 	"github.com/claudioed/seller-inbound/internal/domain/inboundplan"
 	"github.com/claudioed/seller-inbound/internal/domain/inboundshipment"
 	"github.com/claudioed/seller-inbound/internal/domain/network"
+	"github.com/claudioed/seller-inbound/internal/domain/placementplan"
 	"github.com/claudioed/seller-inbound/internal/domain/scorecard"
 	"github.com/claudioed/seller-inbound/internal/domain/seller"
 	"github.com/claudioed/seller-inbound/internal/domain/shared"
@@ -55,6 +56,10 @@ type NodeViewRepository interface {
 	Get(ctx context.Context, nodeID string) (network.Node, error)
 	// Save inserts or replaces the node row.
 	Save(ctx context.Context, n network.Node) error
+	// VendorFulfillmentCenters returns every ACTIVE vendor FULFILLMENT_CENTER
+	// the view holds (ADR 0012), ordered by node id. Placement suggestions
+	// are split across these only.
+	VendorFulfillmentCenters(ctx context.Context) ([]network.Node, error)
 }
 
 // PackagingViewRepository stores the CatalogPackagingView read model (upsert).
@@ -65,6 +70,52 @@ type PackagingViewRepository interface {
 	Save(ctx context.Context, p network.PackLevel) error
 	// ListByItem returns every row of the catalogue item, active or not.
 	ListByItem(ctx context.Context, catalogItemID string) ([]network.PackLevel, error)
+}
+
+// DemandHeatView stores the demand facts of the placement advisory's demand
+// view (ADR 0012): one row per live released line of an assignment group,
+// replaced wholesale by the group's next release and removed by its
+// cancellation, so re-releases (reassignments) never double-count.
+type DemandHeatView interface {
+	// RecordDemand upserts the release: the group's previous lines are
+	// replaced by this release's lines. Called with the ctx handed to
+	// UnitOfWork.Do it joins the SAME transaction as the inbox claim.
+	RecordDemand(ctx context.Context, release network.DemandRelease) error
+	// CancelDemand removes every line of the assignment group (the demand is
+	// gone). Cancelling an unknown group is a no-op: the cancel may arrive
+	// before the release in a replay.
+	CancelDemand(ctx context.Context, assignmentID string, groupNo int) error
+	// RegionHeat answers one item's per-region demand over the window:
+	// the sum of the live lines at each region's nodes (a line whose node the
+	// NodeInboundView has not seen yet waits until node-topology catches up).
+	// Regions come back ordered by region id; a heat with zero demand is
+	// never returned.
+	RegionHeat(ctx context.Context, catalogItemID string, windowStart time.Time) ([]network.RegionHeat, error)
+}
+
+// ListingView stores the declared-availability half of the demand view
+// (ADR 0012): the latest ListingAvailabilityChanged per (item, node).
+type ListingView interface {
+	// SaveAvailability upserts the (item, node) availability row.
+	SaveAvailability(ctx context.Context, row network.NodeAvailability) error
+	// Availability answers every node's declared availability of the item.
+	Availability(ctx context.Context, catalogItemID string) ([]network.NodeAvailability, error)
+}
+
+// PlacementPlanRepository persists PlacementPlan aggregates.
+type PlacementPlanRepository interface {
+	// Get returns the plan, or ErrNotFound.
+	Get(ctx context.Context, id placementplan.ID) (*placementplan.Plan, error)
+	// Save persists the plan under the concurrency rule of the package comment.
+	Save(ctx context.Context, p *placementplan.Plan) error
+	// LatestOf returns the seller's newest plan of the item, or ErrNotFound.
+	LatestOf(ctx context.Context, sellerID, catalogItemID string) (*placementplan.Plan, error)
+	// List returns the seller's plans, newest first (keyset-paged after the
+	// (afterCreatedAt, afterPlanID) row the caller last saw -- a zero
+	// afterCreatedAt is page one), at most limit rows. An empty catalogItemID
+	// means every item. The handler passes one row more than the client's
+	// limit so the page can tell whether a next page exists.
+	List(ctx context.Context, sellerID, catalogItemID string, afterCreatedAt time.Time, afterPlanID string, limit int) ([]*placementplan.Plan, error)
 }
 
 // ScorecardFacts stores and sums the facts of the seller compliance scorecard

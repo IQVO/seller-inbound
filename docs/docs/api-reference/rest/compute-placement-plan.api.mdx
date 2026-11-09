@@ -1,0 +1,70 @@
+---
+id: compute-placement-plan
+title: "Compute a placement plan for one seller item (ComputePlacementPlan)"
+description: "Roadmap feature F6 (ADR 0012): reads the DemandHeatView (fulfilments locked per (item, region) over the observation window and current listing availability per node) and records a deterministic placement advisory. For each region with demand, suggested units per node = max(0, ceil(demand x coverDays / windowDays) - region availability) split across the region's ACTIVE vendor fulfilment centres proportionally to their availability (evenly when all zero). An item with no demand anywhere yields an EMPTY plan, which is legal. A new plan for the same (sellerId, catalogItemId) supersedes the previous one. Publishes PlacementPlanSuggested (analytics-only consumer in v1)."
+sidebar_label: "Compute a placement plan for one seller item (ComputePlacementPlan)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/rest/seller-inbound-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Compute a placement plan for one seller item (ComputePlacementPlan)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/placement-plans"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Roadmap feature F6 (ADR 0012): reads the DemandHeatView (fulfilments locked per (item, region) over the observation window and current listing availability per node) and records a deterministic placement advisory. For each region with demand, suggested units per node = max(0, ceil(demand x coverDays / windowDays) - region availability) split across the region's ACTIVE vendor fulfilment centres proportionally to their availability (evenly when all zero). An item with no demand anywhere yields an EMPTY plan, which is legal. A new plan for the same (sellerId, catalogItemId) supersedes the previous one. Publishes PlacementPlanSuggested (analytics-only consumer in v1).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./compute-placement-plan.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./compute-placement-plan.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./compute-placement-plan.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

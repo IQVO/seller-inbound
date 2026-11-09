@@ -1,8 +1,11 @@
-// Package network holds the two local read models of seller-inbound, fed by the
-// events of its neighbours (ADR 0003): NodeInboundView (node-topology) and
-// CatalogPackagingView (offer-availability). Both are projections, not
-// aggregates: they are rebuilt from events that may arrive twice or out of
-// order, so every transition below is order-tolerant and idempotent.
+// Package network holds the local read models of seller-inbound, fed by the
+// events of its neighbours (ADR 0003, ADR 0012): NodeInboundView
+// (node-topology: type, status, region, operator, inbound limits),
+// CatalogPackagingView (offer-availability pack levels) and DemandHeatView
+// (order-sourcing released demand plus offer-availability listing
+// availability, the facts of the placement advisory). All are projections,
+// not aggregates: they are rebuilt from events that may arrive twice or out
+// of order, so every transition below is order-tolerant and idempotent.
 package network
 
 import (
@@ -49,9 +52,14 @@ type InboundLimits struct {
 
 // Node is one row of NodeInboundView.
 type Node struct {
-	ID              string
-	Type            string
-	Status          NodeStatus
+	ID     string
+	Type   string
+	Status NodeStatus
+	// Operator is who runs the building (NETWORK or VENDOR), and RegionID the
+	// node-topology region the building sits in: both declared once at
+	// registration and kept for the placement advisory (ADR 0012).
+	Operator        string
+	RegionID        string
 	Limits          *InboundLimits
 	ProfileRevision int
 }
@@ -69,14 +77,28 @@ func (n Node) CanReceive() error {
 	return nil
 }
 
-// Registered folds NodeRegistered into the row: the type is set, and a status
-// already seen (an out-of-order activation) is kept.
-func (n Node) Registered(id, nodeType string) (Node, error) {
+// Registered folds NodeRegistered into the row: the type, operator and region
+// are set, and a status already seen (an out-of-order activation) is kept.
+// The registration is the only carrier of the region and the operator; a
+// re-registration of a known node refreshes them.
+func (n Node) Registered(id, nodeType, operator, regionID string) (Node, error) {
 	if !shared.ValidID(id) {
 		return Node{}, shared.Invalid("nodeId must be a valid id")
 	}
+	if operator != "" && operator != OperatorNetwork && operator != OperatorVendor {
+		return Node{}, shared.Invalid("operator must be NETWORK or VENDOR")
+	}
+	if regionID != "" && !shared.ValidID(regionID) {
+		return Node{}, shared.Invalid("regionId must be a valid id")
+	}
 	out := n
 	out.ID, out.Type = id, nodeType
+	if operator != "" {
+		out.Operator = operator
+	}
+	if regionID != "" {
+		out.RegionID = regionID
+	}
 	if out.Status == "" {
 		out.Status = NodeProposed
 	}
@@ -178,6 +200,52 @@ func Retire(existing *PackLevel, item string, level Level, gtin string, at time.
 	}
 	out.Active, out.RetiredAt = false, at.UTC()
 	return out, nil
+}
+
+// ResolveEach answers, among one catalogue item's CatalogPackagingView rows,
+// whether the view holds the 14-digit gtin at all (known) and the EACH-level
+// GTIN its childGtin chain resolves to (each, "" when the chain breaks: no
+// child, or a child the view does not hold). Retired rows resolve too:
+// retirement stops new packing at a level, not the identity of a GTIN
+// (ADR 0014).
+func ResolveEach(rows []PackLevel, gtin string) (each string, known bool) {
+	row, ok := rowOf(rows, gtin)
+	if !ok {
+		return "", false
+	}
+	for range rows {
+		if row.Level == Each {
+			return row.GTIN, true
+		}
+		child, err := gs1.ParseGTIN(row.ChildGTIN)
+		if err != nil {
+			return "", true
+		}
+		if row, ok = rowOf(rows, child.String()); !ok {
+			return "", true
+		}
+	}
+	return "", true // a childGtin cycle never reaches EACH
+}
+
+// rowOf returns the row of the gtin, preferring an active one.
+func rowOf(rows []PackLevel, gtin string) (PackLevel, bool) {
+	var found *PackLevel
+	for i := range rows {
+		if rows[i].GTIN != gtin {
+			continue
+		}
+		if rows[i].Active {
+			return rows[i], true
+		}
+		if found == nil {
+			found = &rows[i]
+		}
+	}
+	if found == nil {
+		return PackLevel{}, false
+	}
+	return *found, true
 }
 
 // ActiveCaseUnits returns unitsPerPack of the ACTIVE CASE level with the given

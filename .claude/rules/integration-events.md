@@ -8,8 +8,8 @@ paths:
 # Cross-service integration events (Kafka)
 
 seller-inbound PUBLISHES nine events and CONSUMES eight (ADR 0003, ADR 0004). Published:
-`retailnetwork.seller-inbound.events` (the three shipment events other contexts consume) and
-`retailnetwork.seller-inbound.analytics` (the six analytics-only events). Consumed:
+`retailnetwork.seller-inbound.events` (the three shipment events and the two seller status events,
+ADR 0013, other contexts consume) and `retailnetwork.seller-inbound.analytics` (the analytics-only events). Consumed:
 `retailnetwork.node-topology.events`, `retailnetwork.offer-availability.events`,
 `retailnetwork.vendor-connectivity.events`. Never produce or consume a `warehouse.*` topic.
 
@@ -58,8 +58,8 @@ content mode. This is a hard rule, not a preference:
 | `type` | stream | `subject` |
 | --- | --- | --- |
 | `com.retailnetwork.partner.seller-inbound.seller.SellerOnboarded` | analytics | sellerId |
-| `com.retailnetwork.partner.seller-inbound.seller.SellerSuspended` | analytics | sellerId |
-| `com.retailnetwork.partner.seller-inbound.seller.SellerReinstated` | analytics | sellerId |
+| `com.retailnetwork.partner.seller-inbound.seller.SellerSuspended` | events | sellerId |
+| `com.retailnetwork.partner.seller-inbound.seller.SellerReinstated` | events | sellerId |
 | `com.retailnetwork.partner.seller-inbound.inboundplan.InboundPlanConfirmed` | analytics | planId |
 | `com.retailnetwork.partner.seller-inbound.inboundshipment.InboundShipmentLabelled` | events | shipmentId |
 | `com.retailnetwork.partner.seller-inbound.inboundshipment.InboundShipmentShipped` | events | shipmentId |

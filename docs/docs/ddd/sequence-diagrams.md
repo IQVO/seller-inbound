@@ -13,7 +13,7 @@ Shared conventions, from the code:
 - Every use case runs inside `Service.atomically`, one Postgres transaction (`UnitOfWork`). The repository saves with
   `WHERE version = :expected`; a lost race is `concurrent-update` (409).
 - Outbox rows are written in the same transaction as the aggregate (`EventOutbox.Append`); the in-process relay produces
-  them to Kafka later (`retailnetwork.seller-inbound.events`; the six analytics-only events to
+  them to Kafka later (`retailnetwork.seller-inbound.events`; the analytics-only events to
   `retailnetwork.seller-inbound.analytics`).
 - Write routes pass the HTTP idempotency middleware first (`Idempotency-Key`); it is omitted from the diagrams.
 - Consumers claim the CloudEvents `id` in `processed_events` in the same transaction as their effect.

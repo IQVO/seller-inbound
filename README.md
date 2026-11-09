@@ -99,8 +99,8 @@ Specified in `apis/asyncapi.yaml` — nine published and eight consumed events:
 
 | Topic | Direction | Messages |
 |---|---|---|
-| `retailnetwork.seller-inbound.events` | publishes (via the transactional outbox) | `InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived` |
-| `retailnetwork.seller-inbound.analytics` | publishes (analytics-only, via the outbox) | `SellerOnboarded`, `SellerSuspended`, `SellerReinstated`, `InboundPlanConfirmed`, `InboundDiscrepancyRecorded`, `SellerComplianceViolationRecorded` |
+| `retailnetwork.seller-inbound.events` | publishes (via the transactional outbox) | `InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived`, `SellerSuspended`, `SellerReinstated` (ADR 0013) |
+| `retailnetwork.seller-inbound.analytics` | publishes (analytics-only, via the outbox) | `SellerOnboarded`, `InboundPlanConfirmed`, `InboundDiscrepancyRecorded`, `SellerComplianceViolationRecorded` |
 | `retailnetwork.node-topology.events` | consumes | `NodeRegistered`, `NodeActivated`, `NodeSuspended`, `NodeRetired`, `NodeOperationalProfileDeclared` |
 | `retailnetwork.offer-availability.events` | consumes | `CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired` |
 | `retailnetwork.vendor-connectivity.events` | consumes | `InboundReceiptSubmitted` (the carton-level receipt that closes a shipment) |

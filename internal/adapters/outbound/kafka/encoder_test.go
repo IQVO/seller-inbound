@@ -8,6 +8,7 @@ import (
 	"github.com/claudioed/seller-inbound/internal/adapters/kafka/cloudevents"
 	"github.com/claudioed/seller-inbound/internal/domain/inboundplan"
 	"github.com/claudioed/seller-inbound/internal/domain/inboundshipment"
+	"github.com/claudioed/seller-inbound/internal/domain/placementplan"
 	"github.com/claudioed/seller-inbound/internal/domain/seller"
 	"github.com/claudioed/seller-inbound/internal/domain/shared"
 )
@@ -50,11 +51,11 @@ func TestEncoder_GoldenWireFormatOfEveryPublishedEvent(t *testing.T) {
 	}{
 		{seller.SellerOnboarded{Header: hdr(), SellerID: "S-1", Name: "Acme Goods"}, "seller", "SellerOnboarded", "S-1", "analytics", TopicAnalytics,
 			`{"sellerId":"S-1","name":"Acme Goods","onboardedAt":"2026-10-24T13:00:00Z"}`},
-		{seller.SellerSuspended{Header: hdr(), SellerID: "S-1", Reason: "late shipments"}, "seller", "SellerSuspended", "S-1", "analytics", TopicAnalytics,
+		{seller.SellerSuspended{Header: hdr(), SellerID: "S-1", Reason: "late shipments"}, "seller", "SellerSuspended", "S-1", "events", TopicEvents,
 			`{"sellerId":"S-1","suspendedAt":"2026-10-24T13:00:00Z","reason":"late shipments"}`},
-		{seller.SellerSuspended{Header: hdr(), SellerID: "S-1"}, "seller", "SellerSuspended", "S-1", "analytics", TopicAnalytics,
+		{seller.SellerSuspended{Header: hdr(), SellerID: "S-1"}, "seller", "SellerSuspended", "S-1", "events", TopicEvents,
 			`{"sellerId":"S-1","suspendedAt":"2026-10-24T13:00:00Z"}`},
-		{seller.SellerReinstated{Header: hdr(), SellerID: "S-1"}, "seller", "SellerReinstated", "S-1", "analytics", TopicAnalytics,
+		{seller.SellerReinstated{Header: hdr(), SellerID: "S-1"}, "seller", "SellerReinstated", "S-1", "events", TopicEvents,
 			`{"sellerId":"S-1","reinstatedAt":"2026-10-24T13:00:00Z"}`},
 		{inboundplan.InboundPlanConfirmed{Header: hdr(), PlanID: "pln-1", SellerID: "S-1", DestinationNodeID: "n-1", Packing: inboundplan.CasePacked,
 			Lines: []inboundplan.Line{{CatalogItemID: "item-1", GTIN: gtinC, QtyEaches: 120}}}, "inboundplan", "InboundPlanConfirmed", "pln-1", "analytics", TopicAnalytics,
@@ -72,7 +73,15 @@ func TestEncoder_GoldenWireFormatOfEveryPublishedEvent(t *testing.T) {
 			Cartons:    []inboundshipment.ReceivedCarton{{SSCC: sscc1, Status: inboundshipment.StatusDamaged}},
 			ReceivedAt: t0.Add(-time.Hour)}, "inboundshipment", "InboundShipmentReceived", "shp-1", "events", TopicEvents,
 			`{"shipmentId":"shp-1","sellerId":"S-1","nodeId":"n-1","status":"CLOSED_WITH_DISCREPANCY",` +
-				`"cartons":[{"sscc":"006141410000000012","status":"DAMAGED"}],"receivedAt":"2026-10-24T12:00:00Z"}`},
+				`"cartons":[{"sscc":"006141410000000012","status":"DAMAGED"}],"receivedAt":"2026-10-24T12:00:00Z","received":[]}`},
+		{inboundshipment.InboundShipmentReceived{Header: hdr(), ShipmentID: "shp-1", SellerID: "S-1", NodeID: "n-1", Status: inboundshipment.Closed,
+			Cartons:    []inboundshipment.ReceivedCarton{{SSCC: sscc1, Status: inboundshipment.StatusReceived}},
+			ReceivedAt: t0.Add(-time.Hour),
+			Received: []inboundshipment.ReceivedLine{{CatalogItemID: "item-1", GTIN: "00614141000012", QtyEaches: 24},
+				{GTIN: gtinC, QtyEaches: 6}}}, "inboundshipment", "InboundShipmentReceived", "shp-1", "events", TopicEvents,
+			`{"shipmentId":"shp-1","sellerId":"S-1","nodeId":"n-1","status":"CLOSED",` +
+				`"cartons":[{"sscc":"006141410000000012","status":"RECEIVED"}],"receivedAt":"2026-10-24T12:00:00Z",` +
+				`"received":[{"catalogItemId":"item-1","gtin":"00614141000012","qtyEaches":24},{"gtin":"00614141000036","qtyEaches":6}]}`},
 		{inboundshipment.InboundDiscrepancyRecorded{Header: hdr(), ShipmentID: "shp-1", SellerID: "S-1", NodeID: "n-1", SSCC: sscc1, Kind: "Short",
 			Expected: gtinC + ":12", Actual: gtinC + ":10"}, "inboundshipment", "InboundDiscrepancyRecorded", "shp-1", "analytics", TopicAnalytics,
 			`{"shipmentId":"shp-1","sellerId":"S-1","nodeId":"n-1","sscc":"006141410000000012","kind":"Short",` +
@@ -83,6 +92,21 @@ func TestEncoder_GoldenWireFormatOfEveryPublishedEvent(t *testing.T) {
 		{inboundshipment.SellerComplianceViolationRecorded{Header: hdr(), SellerID: "S-1", ShipmentID: "shp-1", SSCC: sscc1, Code: "LABEL_SKEW"},
 			"seller", "SellerComplianceViolationRecorded", "S-1", "analytics", TopicAnalytics,
 			`{"sellerId":"S-1","shipmentId":"shp-1","code":"LABEL_SKEW","recordedAt":"2026-10-24T13:00:00Z"}`},
+		{placementplan.PlacementPlanSuggested{Header: hdr(), PlanID: "plp-1", SellerID: "S-1", CatalogItemID: "item-1",
+			Basis: placementplan.Basis, CreatedAt: t0,
+			Suggestions: []placementplan.Suggestion{
+				{NodeID: "fc-a", RegionID: "reg-east", SuggestedUnits: 12,
+					Evidence: placementplan.Evidence{RegionDemandUnits: 140, NodeAvailabilityUnits: 30, CoverDays: 14}},
+				{NodeID: "fc-b", RegionID: "reg-east", SuggestedUnits: 8,
+					Evidence: placementplan.Evidence{RegionDemandUnits: 140, NodeAvailabilityUnits: 20, CoverDays: 14}},
+			}}, "placementplan", "PlacementPlanSuggested", "plp-1", "events", TopicEvents,
+			`{"planId":"plp-1","sellerId":"S-1","catalogItemId":"item-1","basis":"demand-heat-v1",` +
+				`"suggestions":[{"nodeId":"fc-a","regionId":"reg-east","suggestedUnits":12,"regionDemandUnits":140,"nodeAvailabilityUnits":30},` +
+				`{"nodeId":"fc-b","regionId":"reg-east","suggestedUnits":8,"regionDemandUnits":140,"nodeAvailabilityUnits":20}],` +
+				`"createdAt":"2026-10-24T13:00:00Z"}`},
+		{placementplan.PlacementPlanSuggested{Header: hdr(), PlanID: "plp-2", SellerID: "S-1", CatalogItemID: "item-quiet",
+			Basis: placementplan.Basis, CreatedAt: t0}, "placementplan", "PlacementPlanSuggested", "plp-2", "events", TopicEvents,
+			`{"planId":"plp-2","sellerId":"S-1","catalogItemId":"item-quiet","basis":"demand-heat-v1","suggestions":[],"createdAt":"2026-10-24T13:00:00Z"}`},
 	}
 	for _, c := range cases {
 		msgs, err := encoder().Encode(c.ev)
@@ -103,6 +127,30 @@ func TestEncoder_GoldenWireFormatOfEveryPublishedEvent(t *testing.T) {
 }
 
 type unpublished struct{ shared.Header }
+
+// TestEncoder_SellerStatusIsAnIntegrationFact pins the stream split of the
+// seller events (ADR 0013): suspension and reinstatement are integration facts
+// on the events topic ONLY, onboarding stays analytics-only.
+func TestEncoder_SellerStatusIsAnIntegrationFact(t *testing.T) {
+	routes := []struct {
+		ev            shared.Event
+		stream, topic string
+	}{
+		{seller.SellerSuspended{Header: hdr(), SellerID: "S-1"}, cloudevents.StreamEvents, TopicEvents},
+		{seller.SellerReinstated{Header: hdr(), SellerID: "S-1"}, cloudevents.StreamEvents, TopicEvents},
+		{seller.SellerOnboarded{Header: hdr(), SellerID: "S-1", Name: "n"}, cloudevents.StreamAnalytics, TopicAnalytics},
+	}
+	for _, r := range routes {
+		msgs, err := encoder().Encode(r.ev)
+		if err != nil || len(msgs) != 1 {
+			t.Fatalf("%s: Encode: %v %d", r.ev.EventName(), err, len(msgs))
+		}
+		want := "urn:retailnetwork:seller-inbound:" + r.stream + ":" + r.ev.EventName() + ":v1"
+		if m := msgs[0]; m.Topic != r.topic || m.DataSchema != want || string(m.Key) != "S-1" || m.Subject != "S-1" {
+			t.Errorf("%s routed to %s (%s), want %s (%s)", r.ev.EventName(), m.Topic, m.DataSchema, r.topic, want)
+		}
+	}
+}
 
 func (unpublished) EventName() string { return "Nope" }
 func (unpublished) Entity() string    { return "x" }

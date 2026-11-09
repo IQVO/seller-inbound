@@ -19,19 +19,22 @@ Every Kafka message of the retail network is a CloudEvents 1.0 event in structur
 | `InboundShipmentLabelled` | `inboundshipment` | `shipmentId` | `retailnetwork.seller-inbound.events` |
 | `InboundShipmentShipped` | `inboundshipment` | `shipmentId` | `retailnetwork.seller-inbound.events` |
 | `InboundShipmentReceived` | `inboundshipment` | `shipmentId` | `retailnetwork.seller-inbound.events` |
-| `SellerOnboarded`, `SellerSuspended`, `SellerReinstated` | `seller` | `sellerId` | `retailnetwork.seller-inbound.analytics` |
+| `PlacementPlanSuggested` | `placementplan` | `planId` | `retailnetwork.seller-inbound.events` |
+| `SellerSuspended`, `SellerReinstated` (ADR 0013) | `seller` | `sellerId` | `retailnetwork.seller-inbound.events` |
+| `SellerOnboarded` | `seller` | `sellerId` | `retailnetwork.seller-inbound.analytics` |
 | `InboundPlanConfirmed` | `inboundplan` | `planId` | `retailnetwork.seller-inbound.analytics` |
 | `InboundDiscrepancyRecorded` | `inboundshipment` | `shipmentId` | `retailnetwork.seller-inbound.analytics` |
 | `SellerComplianceViolationRecorded` | `seller` | `sellerId` | `retailnetwork.seller-inbound.analytics` |
 
 ```text
 type: com.retailnetwork.partner.seller-inbound.seller.SellerOnboarded stream: analytics
-type: com.retailnetwork.partner.seller-inbound.seller.SellerSuspended stream: analytics
-type: com.retailnetwork.partner.seller-inbound.seller.SellerReinstated stream: analytics
+type: com.retailnetwork.partner.seller-inbound.seller.SellerSuspended stream: events
+type: com.retailnetwork.partner.seller-inbound.seller.SellerReinstated stream: events
 type: com.retailnetwork.partner.seller-inbound.inboundplan.InboundPlanConfirmed stream: analytics
 type: com.retailnetwork.partner.seller-inbound.inboundshipment.InboundShipmentLabelled stream: events
 type: com.retailnetwork.partner.seller-inbound.inboundshipment.InboundShipmentShipped stream: events
 type: com.retailnetwork.partner.seller-inbound.inboundshipment.InboundShipmentReceived stream: events
+type: com.retailnetwork.partner.seller-inbound.placementplan.PlacementPlanSuggested stream: events
 type: com.retailnetwork.partner.seller-inbound.inboundshipment.InboundDiscrepancyRecorded stream: analytics
 type: com.retailnetwork.partner.seller-inbound.seller.SellerComplianceViolationRecorded stream: analytics
 ```
