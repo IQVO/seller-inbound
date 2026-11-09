@@ -37,8 +37,10 @@ flowchart LR
     AN["analytics<br/>no in-org consumer"]
     NF["network-fulfillment<br/>fleet"]
     NP["node-performance<br/>Supporting"]
+    OA["offer-availability<br/>Supporting"]
     SI -->|"U to D: C/S<br/>Kafka InboundShipmentLabelled,<br/>Shipped, Received"| VC
     SI -->|"U to D: CF<br/>Kafka InboundShipmentShipped"| NP
+    SI -->|"U to D: CF<br/>Kafka SellerSuspended,<br/>SellerReinstated"| OA
     SI -->|"OHS<br/>REST seller API"| SEL
     SI -.->|"U to D: PL<br/>analytics-only events"| AN
     SI -. "Separate Ways<br/>manifest only via Vendor API" .- NF
@@ -59,9 +61,10 @@ read-only MCP server and A2A agent ([API reference](/docs/api-reference)); they 
 | `offer-availability` | U → D | Conformist | Kafka `retailnetwork.offer-availability.events` | `CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired` | The packaging hierarchy and its GTINs are the catalogue's. Kept in `catalog_pack_levels`. |
 | `vendor-connectivity` | U → D (SI downstream) | Customer/Supplier | Kafka `retailnetwork.vendor-connectivity.events` | `InboundReceiptSubmitted` | The receipt shape is the published language; seller-inbound states what it needs. |
 | `vendor-connectivity` | U → D (SI upstream) | Customer/Supplier | Kafka `retailnetwork.seller-inbound.events` | `InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived` | The Vendor API needs the manifest and the closing status; seller-inbound publishes what it needs. |
+| `offer-availability` | U → D (SI upstream) | Conformist (offer-availability conforms) | Kafka `retailnetwork.seller-inbound.events` | `SellerSuspended`, `SellerReinstated` | A suspended seller's listings must not stay live (G48, ADR 0013); offer-availability suppresses and restores them. |
 | `node-performance` | U → D (SI upstream) | Conformist (node-performance conforms) | Kafka `retailnetwork.seller-inbound.events` | `InboundShipmentShipped` | The shipped instant starts the inbound timeliness metric; node-performance keeps what it needs. |
 | Sellers (external) | U → D | Open Host Service | REST (seller-facing, no auth) | plans, shipments, cartons, labels | A published, versionable seller API. |
-| Analytics | U → D | Published Language | Kafka `retailnetwork.seller-inbound.analytics` | six analytics-only events | No consumer inside the organisation. |
+| Analytics | U → D | Published Language | Kafka `retailnetwork.seller-inbound.analytics` | four analytics-only events | No consumer inside the organisation. |
 | `network-fulfillment` (warehouse-systems fleet) | none | Separate Ways | none | none | The hard boundary: the fleet reads the manifest through the Vendor API of vendor-connectivity only. |
 
 ## Notes on the patterns
