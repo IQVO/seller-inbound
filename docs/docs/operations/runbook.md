@@ -104,18 +104,21 @@ each `cmd/api` variable maps 1:1 to a `values.yaml` `config.*` key rendered into
 ## Migrations
 
 Both `cmd/api` and, independently, `cmd/mcp` and `cmd/a2a` run the embedded golang-migrate migrations
-(`internal/adapters/outbound/postgres/migrations/`, `0001_seller_inbound_schema` and `0002_seller_scorecard`) at
-boot, with backoff, before opening the pool (`internal/bootretry`). golang-migrate's advisory lock makes concurrent
+(`internal/adapters/outbound/postgres/migrations/`: `0001_seller_inbound_schema`, `0002_seller_scorecard`,
+`0003_idempotency_key_global` and `0004_placement_advisory`) at boot, with backoff, before opening the pool (`internal/bootretry`). golang-migrate's advisory lock makes concurrent
 starts safe, but it is a session lock: where `DATABASE_URL` points at a transaction-pooling proxy set
 `MIGRATIONS_DATABASE_URL` to a direct DSN. Migration `0002` backfills the scorecard tables from the published events
-in `outbox_events`. There is no manual migration step and no separate migration job.
+in `outbox_events`. Migration `0003` keeps only the earliest `idempotency_keys` row of a key stored under two routes, then
+narrows the primary key from `(route, key)` to `(key)`. Migration `0004` adds the `operator` and `region_id` columns to
+`node_inbound_views` and the tables `demand_heat_lines`, `listing_availability` and `placement_plans`
+([ADR 0012](/docs/adr/0012-the-placement-advisory)). There is no manual migration step and no separate migration job.
 
 ## Kafka topics, consumer groups and the DLQ
 
 | Topic | Direction | Handled by | Consumer group (env var) |
 | --- | --- | --- | --- |
 | `retailnetwork.node-topology.events` | consumed | node consumer | `NODE_CONSUMER_GROUP` |
-| `retailnetwork.offer-availability.events` | consumed | catalog consumer | `CATALOG_CONSUMER_GROUP` |
+| `retailnetwork.offer-availability.events` | consumed (packaging levels and `ListingAvailabilityChanged`) | catalog consumer | `CATALOG_CONSUMER_GROUP` |
 | `retailnetwork.vendor-connectivity.events` | consumed | receipt consumer | `RECEIPT_CONSUMER_GROUP` |
 | `retailnetwork.seller-inbound.events` | published by the relay | outbox relay | n/a |
 | `retailnetwork.seller-inbound.analytics` | published by the relay | outbox relay | n/a |

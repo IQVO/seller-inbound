@@ -65,7 +65,7 @@ at pack time; the receipt side only records).
 | seller / seller portal | command | `CreateInboundShipment`, `AddCarton`, `LabelShipment`, `ShipInboundShipment` | REST `POST /inbound-plans/{planId}/shipments`, `POST /inbound-shipments/{shipmentId}/cartons`, `POST /inbound-shipments/{shipmentId}/labels`, `POST /inbound-shipments/{shipmentId}/dispatches` | OHS |
 | seller / seller portal | query | `GetInboundPlan`, `GetInboundShipment`, `GetLabels` | REST `GET /inbound-plans/{planId}`, `GET /inbound-shipments/{shipmentId}`, `.../labels` | OHS |
 | seller / seller portal, network partner managers | query | `GetSellerScorecard` (informational) | REST `GET /sellers/{sellerId}/scorecard?window=7d` or `30d` | OHS |
-| agents | query | the four reads above | MCP `get_inbound_plan`, `get_inbound_shipment`, `get_shipment_labels`, `get_seller_scorecard`; A2A skills `seller_compliance`, `inbound_status` | read-only, unauthenticated |
+| agents | query | the reads above and the placement-plan reads | MCP `get_inbound_plan`, `get_inbound_shipment`, `get_shipment_labels`, `get_seller_scorecard`, `get_placement_plan`, `list_placement_plans`; A2A skills `seller_compliance`, `inbound_status` | read-only, unauthenticated |
 | `vendor-connectivity` | event | `InboundReceiptSubmitted` | Kafka `retailnetwork.vendor-connectivity.events` | Customer/Supplier |
 | `node-topology` | event | `NodeRegistered`, `NodeOperationalProfileDeclared`, `NodeActivated`, `NodeSuspended`, `NodeRetired` | Kafka `retailnetwork.node-topology.events` | Conformist |
 | `offer-availability` | event | `CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired` | Kafka `retailnetwork.offer-availability.events` | Conformist |
