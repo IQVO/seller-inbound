@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -479,10 +480,13 @@ func phaseSetup(t *testing.T, s *service, w *world) {
 		nodeEvent(t, "evt-n3", "NodeActivated", "node-1", `{"nodeId":"node-1"}`))
 	produce(t, w.brokers, topicOffers,
 		catalogEvent(t, "evt-c1", "CatalogItemPackagingDeclared", "item-1",
-			fmt.Sprintf(`{"catalogItemId":"item-1","level":"CASE","gtin":%q,"childGtin":%q,"unitsPerPack":12,"declaredAt":"2026-10-24T12:00:00Z"}`, gtinCase, gtinEach)))
+			fmt.Sprintf(`{"catalogItemId":"item-1","level":"CASE","gtin":%q,"childGtin":%q,"unitsPerPack":12,"declaredAt":"2026-10-24T12:00:00Z"}`, gtinCase, gtinEach)),
+		catalogEvent(t, "evt-c2", "CatalogItemPackagingDeclared", "item-1",
+			fmt.Sprintf(`{"catalogItemId":"item-1","level":"EACH","gtin":%q,"unitsPerPack":1,"declaredAt":"2026-10-24T12:00:00Z"}`, gtinEach)))
 	waitFor(t, 60*time.Second, "the node and catalogue views to be fed", func() bool {
 		return w.db.count(`SELECT count(*) FROM node_inbound_views WHERE node_id='node-1' AND status='ACTIVE' AND profile_revision=1`) == 1 &&
-			w.db.count(`SELECT count(*) FROM catalog_pack_levels WHERE catalog_item_id='item-1' AND level='CASE' AND active`) == 1
+			w.db.count(`SELECT count(*) FROM catalog_pack_levels WHERE catalog_item_id='item-1' AND level='CASE' AND active`) == 1 &&
+			w.db.count(`SELECT count(*) FROM catalog_pack_levels WHERE catalog_item_id='item-1' AND level='EACH' AND active`) == 1
 	})
 	w.analytics = append(w.analytics, "SellerOnboarded")
 }
@@ -581,6 +585,12 @@ func phaseReceipt(t *testing.T, s *service, w *world) {
 	d := dataOf(t, e)
 	if d["status"] != "CLOSED_WITH_DISCREPANCY" || d["receivedAt"] != "2026-10-25T09:30:00Z" || d["nodeId"] != "node-1" {
 		t.Fatalf("InboundShipmentReceived data = %v", d)
+	}
+	// ADR 0014: only the RECEIVED carton counts (the DAMAGED one does not), at
+	// its counted 12 eaches, under the EACH GTIN the case GTIN resolves to.
+	wantReceived := []any{map[string]any{"catalogItemId": "item-1", "gtin": gtinEach, "qtyEaches": float64(12)}}
+	if !reflect.DeepEqual(d["received"], wantReceived) {
+		t.Fatalf("InboundShipmentReceived received = %v, want %v", d["received"], wantReceived)
 	}
 	noMoreMessages(t, w.brokers, topicEvents, 3)
 }
