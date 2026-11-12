@@ -3,7 +3,7 @@ id: tools
 title: MCP tools
 sidebar_label: MCP tools
 sidebar_position: 2
-description: "The four read-only MCP tools of seller-inbound, every one declaring authority L1, plus the scorecard resource and the compliance SOP prompt, from the pinned tool registry."
+description: "The six read-only MCP tools of seller-inbound, every one declaring authority L1, plus the scorecard resource and the compliance SOP prompt, from the pinned tool registry."
 ---
 
 # MCP tools
@@ -26,11 +26,11 @@ Source: `cmd/mcp/main.go`, `cmd/mcp/router.go`, `internal/adapters/inbound/mcp/{
 **How this page was produced.** The list below comes from the pinned tool registry
 `internal/adapters/inbound/mcp/testdata/tool_registry.golden.json`, which `TestToolRegistryGolden` compares with the
 server's `tools/list` on every test run; it was not captured from a running server. Run `tools/list` against a live
-`cmd/mcp` to see the same four tools.
+`cmd/mcp` to see the same six tools.
 
 ## Annotations and authority
 
-All four tools carry `readOnlyHint: true`, `idempotentHint: true` and `openWorldHint: false`. There is no write tool:
+All six tools carry `readOnlyHint: true`, `idempotentHint: true` and `openWorldHint: false`. There is no write tool:
 the governance tests in `internal/adapters/inbound/mcp/governance_test.go` (`TestToolSurface` with its write-verb and
 write-seam sensors) fail on a write-named tool or a write seam, and `TestMCPAdapterDependencyRule` limits the adapter
 to the application and domain layers. A tool call adds no `outbox_events` row.
@@ -47,6 +47,8 @@ per tool in the golden registry and by the static sensor
 | `get_inbound_shipment` | `shipmentId` | none | read-only | `L1` |
 | `get_shipment_labels` | `shipmentId` | none | read-only | `L1` |
 | `get_seller_scorecard` | `sellerId` | `window` | read-only | `L1` |
+| `get_placement_plan` | `planId` | none | read-only | `L1` |
+| `list_placement_plans` | `sellerId`, `catalogItemId` | `limit` | read-only | `L1` |
 
 Every input schema is `additionalProperties: false`. The tools are bound to the same use cases as the REST `GET`
 routes. A failure is an `isError` tool result whose text is `<slug>: <detail>` with the REST slug (`not-found`,
@@ -95,6 +97,33 @@ Answers a seller's informational compliance scorecard ([ADR 0005](/docs/adr/0005
   count), `complianceViolations` and `complianceTier` (`GOOD`, `WATCH`, `AT_RISK`).
 - **Errors:** an unknown seller is `not-found`; any other window is `invalid-window`. A suspended seller has a
   scorecard.
+
+## `get_placement_plan`
+
+Reads one placement plan ([ADR 0012](/docs/adr/0012-the-placement-advisory)): the advisory that suggests, per vendor fulfilment node, how many units of one
+catalogue item a seller should send.
+
+- **Input:** `planId` (string, required, for example `pl-0f3a91`).
+- **Output:** `planId`, `sellerId`, `catalogItemId`, `coverDays`, `windowDays` (the observation window), `basis`
+  (`demand-heat-v1`), `state` (`SUGGESTED`, `ACCEPTED`, `SUPERSEDED`), `createdAt`, `acceptedAt` and `supersededAt`
+  (string or null) and `suggestions`: each with `nodeId`, `regionId`, `suggestedUnits` and the evidence
+  `regionDemandUnits`, `nodeAvailabilityUnits` and `coverDays`. A plan with no demand has an empty `suggestions` list;
+  that is a legal, recorded plan.
+- **Errors:** an unknown id is `not-found`.
+
+## `list_placement_plans`
+
+Lists the placement plans of one seller and catalogue item, newest first.
+
+- **Input:** `sellerId` (required, for example `seller-77`), `catalogItemId` (required, for example `item-1`) and
+  `limit` (optional integer, 1 to 100; omitted means 50).
+- **Output:** `{items}`, each item with the same shape as `get_placement_plan`.
+
+Both placement tools read the same use cases as the REST `GET /placement-plans/{planId}` and
+`GET /placement-plans?sellerId=&catalogItemId=`. They never compute or accept a plan: `POST /placement-plans` and
+`POST /placement-plans/{planId}/acceptances` are REST-only. The tool source is
+`internal/adapters/inbound/mcp/tools_placement.go`; both are pinned in
+`internal/adapters/inbound/mcp/testdata/tool_registry.golden.json`.
 
 ## Transport
 

@@ -25,7 +25,7 @@ nothing from the rest of the module, and only `cmd/` wires the layers together. 
 | Application | `internal/application/{ports,requests,views,outbox}` | The out ports (`SellerRepository`, `PlanRepository`, `ShipmentRepository`, `NodeViewRepository`, `PackagingViewRepository`, `ScorecardFacts`, `EventOutbox`, `ProcessedEvents`, `UnitOfWork`, `Clock`, `IDGenerator`, `SsccIssuer`, `ShipmentMetrics`), the request and view structs, and the already-encoded outbox `Message`. |
 | Inbound adapter | `internal/adapters/inbound/http` | chi router for `apis/openapi.yaml`: handlers, problem mapping (`errors.go`), the `Idempotency-Key` middleware, `/healthz`, `/readyz`. No auth middleware. |
 | Inbound adapter | `internal/adapters/inbound/kafka` | The node, catalog and receipt consumers: CloudEvents decode, dispatch on the full `type`, retry with backoff, dead-letter topic, consumer span. |
-| Inbound adapter | `internal/adapters/inbound/mcp` | The four read-only MCP tools. |
+| Inbound adapter | `internal/adapters/inbound/mcp` | The six read-only MCP tools. |
 | Inbound adapter | `internal/adapters/inbound/a2a` | The two read-only A2A skills and the Agent Card. |
 | Inbound adapter | `internal/adapters/inbound/requestlog` | The access-log middleware shared by the three routers. |
 | Outbound adapter | `internal/adapters/outbound/postgres` | pgxpool repositories, unit of work (`pgtx`), outbox repository, scorecard facts, embedded migrations. |
@@ -129,7 +129,8 @@ Source: `cmd/api/{main,wire_adapters,wire_background}.go` (wiring and workers), 
 ## Data stores
 
 One Postgres database owned by this context, created by the embedded migrations
-(`internal/adapters/outbound/postgres/migrations/`: `0001_seller_inbound_schema`, `0002_seller_scorecard`):
+(`internal/adapters/outbound/postgres/migrations/`: `0001_seller_inbound_schema`, `0002_seller_scorecard`,
+`0003_idempotency_key_global`, `0004_placement_advisory`):
 
 | Table | Holds |
 | --- | --- |
@@ -137,12 +138,14 @@ One Postgres database owned by this context, created by the embedded migrations
 | `inbound_plans` | The `InboundPlan` aggregate; the lines live in JSONB. |
 | `inbound_shipments` | The `InboundShipment` aggregate; its cartons and the unexpected SSCCs are JSONB (a shipment is always read and written whole). |
 | `sscc_registry` | Every carton SSCC of every shipment, unique network-wide; registered in the shipment's save transaction. |
-| `node_inbound_views` | Local copy of the nodes: type, status, profile revision, inbound limits. |
+| `node_inbound_views` | Local copy of the nodes: type, status, profile revision, inbound limits, and (0004) the operator and region. |
 | `catalog_pack_levels` | Local copy of the packaging hierarchy: item, level, GTIN, units per pack, active flag. |
 | `outbox_events` | The transactional outbox; one row per message and destination topic, with `attempts` and `last_error`. |
 | `processed_events` | The consumers' inbox: CloudEvents ids already applied. |
-| `idempotency_keys` | Stored answers of the `POST` routes, keyed by `(route, key)`, kept 24 h. |
+| `idempotency_keys` | Stored answers of the `POST` routes, keyed by the global `Idempotency-Key` (since migration 0003; `route` holds method and path for the fingerprint), kept 24 h. |
 | `seller_scorecard_receipts`, `seller_scorecard_occurrences` | The append-only facts the scorecard is computed from. |
+| `demand_heat_lines`, `listing_availability` | The two halves of the `DemandHeatView` read model of the placement advisory: live released order lines per assignment group, and the latest listing availability per item and node ([ADR 0012](/docs/adr/0012-the-placement-advisory)). |
+| `placement_plans` | The `PlacementPlan` aggregate; the per-node suggestions live in JSONB. |
 
 Plus the sequence `sscc_serial_seq`. Postgres is the only store: the binaries refuse to boot without `DATABASE_URL`
 and nothing is served from process memory. Kafka is the fleet's single broker; `cmd/api` produces to

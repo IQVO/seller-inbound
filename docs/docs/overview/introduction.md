@@ -53,8 +53,9 @@ only through the Vendor API of `vendor-connectivity`.
   allocates by them.
 - **Scoring that acts.** The scorecard is read-only information; suspending a seller stays the manual
   `POST /sellers/{id}/suspensions`. No chargebacks or money movement (payments are a future, Generic context).
-- **Inbound freight and placement advice.** The seller delivers to the node it names; which node should hold which item
-  is not modelled.
+- **Inbound freight.** The seller delivers to the node it names. A placement advisory exists (`PlacementPlan`, [ADR 0012](/docs/adr/0012-the-placement-advisory)):
+  a deterministic, advisory-only suggestion of how many units of an item to send to which vendor fulfilment node, read
+  over REST and MCP; accepting it drives nothing downstream, and the seller still ships through the normal inbound plan.
 - **EDI.** The published language is JSON over REST and CloudEvents on Kafka.
 - **Authentication.** REST, MCP and A2A are unauthenticated; the in-cluster boundary is the access control.
 

@@ -53,7 +53,7 @@ is at-least-once with an atomic effect.
 | Producer | Topic | Event types consumed | Effect |
 | --- | --- | --- | --- |
 | node-topology | `retailnetwork.node-topology.events` | `com.retailnetwork.logistics.node-topology.node.NodeRegistered`, `NodeOperationalProfileDeclared`, `NodeActivated`, `NodeSuspended`, `NodeRetired` | Folded into `node_inbound_views`: node type, status and inbound limits (`maxCartonWeightG`, `maxCartonDims`, `acceptsPallets`, `requiresSscc`). |
-| offer-availability | `retailnetwork.offer-availability.events` | `com.retailnetwork.commerce.offer-availability.catalogitem.CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired` | Folded into `catalog_pack_levels` (item, level, GTIN, units per pack, active flag). |
+| offer-availability | `retailnetwork.offer-availability.events` | `com.retailnetwork.commerce.offer-availability.catalogitem.CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired`; `com.retailnetwork.commerce.offer-availability.listing.ListingAvailabilityChanged` | Packaging events are folded into `catalog_pack_levels` (item, level, GTIN, units per pack, active flag); `ListingAvailabilityChanged` into `listing_availability` (latest availability per item and node, the availability half of the placement `DemandHeatView`, [ADR 0012](/docs/adr/0012-the-placement-advisory)). |
 | vendor-connectivity | `retailnetwork.vendor-connectivity.events` | `com.retailnetwork.partner.vendor-connectivity.inboundreceipt.InboundReceiptSubmitted` | Applied to the shipment: closes it and records discrepancies and compliance violations ([Use cases](/docs/ddd/use-cases)). |
 
 Payloads are decoded tolerantly: unknown fields are ignored, and a type this consumer has no handler for is committed
@@ -109,13 +109,16 @@ All three are unauthenticated. See [API reference](/docs/api-reference) and [MCP
   `InboundReceiptSubmitted` from vendor-connectivity. The OpenAPI contract says the same.
 - **Synchronous reads of node-topology or offer-availability.** None: local read models only.
 - **Outbound A2A or MCP clients.** None. This context is delegated to and never delegates.
-- **Payments, freight, placement advice, EDI.** Not modelled; there is no integration to them.
+- **Payments, freight, EDI.** Not modelled; there is no integration to them. Placement advice is modelled inside this context only ([ADR 0012](/docs/adr/0012-the-placement-advisory)): no sibling is called for it, and its one event, `PlacementPlanSuggested`, has an analytics-only consumer in v1.
 - **Downstream consumers of the analytics topic.** None inside the organisation.
 - **Item liveness.** `CatalogItemCreated` and `CatalogItemDiscontinued` are not consumed, so a plan line is not checked
   against whether the item is live.
 
 ## Discrepancies found
 
-- `internal/adapters/inbound/kafka/kafka.go` and `deadletter.go` still mention order-sourcing's
-  `FulfillmentReleasedToNode` and `FulfillmentCancelled` and a `retailnetwork.order-sourcing.events.dlq` example in their
-  comments. The code consumes no order-sourcing topic.
+- The demand half of the placement `DemandHeatView` is not fed in the running service. `internal/adapters/inbound/kafka/consumers.go`
+  defines `SourcingHandlers` and `NewSourcingConsumer` for order-sourcing's `FulfillmentReleasedToNode` and
+  `FulfillmentCancelled` (topic `retailnetwork.order-sourcing.events`, group `SOURCING_CONSUMER_GROUP`), and
+  `apis/asyncapi.yaml` lists both as consumed, but `cmd/api/wire_background.go` starts only the node, catalog and receipt
+  consumers and no code reads `SOURCING_CONSUMER_GROUP`. `demand_heat_lines` is therefore never written, so
+  `POST /placement-plans` records empty plans until the consumer is wired.
