@@ -18,7 +18,7 @@ model complexity 0.48 ([Core Domain Chart](/docs/ddd/core-domain-chart)).
   against the plan, count what arrives. Nothing in this context decides a promise or a route, which is what sets the
   network apart. It enables supply; it does not differentiate.
 - **Moderate complexity.** Three aggregates (one with a child entity and a six-state machine), eleven consumed event types
-  from four producers (nine read by running consumers), and invariants that depend on two local read models. The hard part is validating a carton set
+  from four producers (all eleven read by running consumers), and invariants that depend on two local read models. The hard part is validating a carton set
   against a plan and a packaging hierarchy, not the lifecycle.
 - **Not Generic.** Buying a seller-onboarding product would still leave the carton, SSCC and receipt-reconciliation
   rules to write, and they are specific to this network's model (`ownerRef`, the node's inbound limits).
@@ -41,7 +41,8 @@ Copied from the retail network's classification
 | `vendor-connectivity` | Supporting | `partner` | Upstream for the receipt, downstream for the manifest and closing status (Customer/Supplier both ways, events only). |
 | `node-performance` | Supporting | `partner` | Downstream: consumes `InboundShipmentShipped`. |
 | `seller-inbound` | **Supporting** | `partner` | This context. |
-| `delivery-promise`, `order-sourcing` | Core | `commerce` | No edge (Separate Ways). |
+| `order-sourcing` | Core | `commerce` | Upstream: release and cancel of fulfilment, the demand half of the placement advisory (Conformist, [ADR 0015](/docs/adr/0015-start-the-order-sourcing-consumer)). |
+| `delivery-promise` | Core | `commerce` | No edge (Separate Ways). |
 | `linehaul-transportation`, `last-mile-delivery` | Supporting | `logistics` | No edge. |
 | `customer-ordering` | Generic | `commerce` | No edge. |
 | `shipping-and-tracking` | Generic | `logistics` | No edge. |

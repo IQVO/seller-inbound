@@ -10,7 +10,7 @@
 // here at all (no unit of work, no outbox, no inbox, no SSCC issuer), so
 // this binary can never append to the outbox. It never starts the outbox
 // relay and never dials Kafka (no KAFKA_BROKERS, no consumer groups): the
-// relay and the three consumers run in cmd/api only. It makes no REST or
+// relay and the four consumers run in cmd/api only. It makes no REST or
 // MCP call to any sibling context.
 //
 // There is NO auth of any kind (fleet-wide revert 2026-09-11): no keys, no

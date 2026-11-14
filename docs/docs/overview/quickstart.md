@@ -22,7 +22,7 @@ contract.
 - Docker only for `make integration` (testcontainers boots its own Postgres and Kafka there).
 - `golangci-lint` (pinned `v2.14.0`) for `make lint`; `lefthook install` once per clone wires the git hooks.
 
-There is no in-memory mode: `cmd/api` refuses to boot without `DATABASE_URL`, `KAFKA_BROKERS`, the three consumer
+There is no in-memory mode: `cmd/api` refuses to boot without `DATABASE_URL`, `KAFKA_BROKERS`, the four consumer
 groups and `SSCC_COMPANY_PREFIX` ([Configuration](/docs/operations/configuration)).
 
 ## Make targets
@@ -50,6 +50,7 @@ export KAFKA_BROKERS="localhost:9092"
 export NODE_CONSUMER_GROUP=seller-inbound-node
 export CATALOG_CONSUMER_GROUP=seller-inbound-catalog
 export RECEIPT_CONSUMER_GROUP=seller-inbound-receipt
+export SOURCING_CONSUMER_GROUP=seller-inbound-sourcing
 export SSCC_COMPANY_PREFIX=0614141        # the network's GS1 company prefix, 6 to 11 digits
 go run ./cmd/api                          # migrations run at boot; REST on :8080
 ```
