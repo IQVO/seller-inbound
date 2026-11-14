@@ -687,7 +687,8 @@ paths:
         proportionally to their availability (evenly when all zero). An item
         with no demand anywhere yields an EMPTY plan, which is legal. A new
         plan for the same (sellerId, catalogItemId) supersedes the previous
-        one. Publishes PlacementPlanSuggested (analytics-only consumer in v1).
+        one. Publishes PlacementPlanSuggested (analytics-only consumer in v1). A
+        coverDays outside 1 to 90 is rejected with 400 invalid-cover-days.
       parameters:
       - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
