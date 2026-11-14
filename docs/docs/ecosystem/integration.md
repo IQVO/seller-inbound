@@ -30,7 +30,9 @@ flowchart LR
     SEL["sellers, console remote<br/>REST"]
     AG["agents<br/>MCP and A2A"]
     NT -->|"5 node events"| SI
-    OA -->|"2 packaging events"| SI
+    OA -->|"2 packaging events, ListingAvailabilityChanged"| SI
+    OS["order-sourcing<br/>topic retailnetwork.order-sourcing.events"]
+    OS -.->|"2 events, consumer not started"| SI
     VC -->|"InboundReceiptSubmitted"| SI
     SI -->|"Labelled, Shipped, Received<br/>topic retailnetwork.seller-inbound.events"| VC2
     SI -->|"InboundShipmentShipped"| NP
@@ -46,7 +48,9 @@ Source: `internal/adapters/inbound/kafka/consumers.go`, `internal/adapters/outbo
 
 ## Upstream: what seller-inbound consumes
 
-Three consumers run in `cmd/api`, each under a mandatory stable consumer group ([Runbook](/docs/operations/runbook)).
+Three consumers run in `cmd/api`, each under a mandatory stable consumer group ([Runbook](/docs/operations/runbook)); they
+read nine of the eleven consumed types in `apis/asyncapi.yaml` (the two order-sourcing types are not read, see
+[Discrepancies found](#discrepancies-found)).
 Each message is claimed in `processed_events` by its CloudEvents id in the same transaction as its effect, so delivery
 is at-least-once with an atomic effect.
 
@@ -82,7 +86,7 @@ payload.
 
 | Topic | Events | Known consumers |
 | --- | --- | --- |
-| `retailnetwork.seller-inbound.events` | `InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived`, `SellerSuspended`, `SellerReinstated` | offer-availability (`SellerSuspended`, `SellerReinstated`: suppresses and restores the seller's listings, ADR 0013; `InboundShipmentReceived.received`: creates owner-scoped listings, gap G51, ADR 0014); vendor-connectivity (builds the `InboundShipmentView` it serves on the Vendor API); node-performance (`InboundShipmentShipped`, the start of its inbound timeliness metric) |
+| `retailnetwork.seller-inbound.events` | `InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived`, `SellerSuspended`, `SellerReinstated`, `PlacementPlanSuggested` | offer-availability (`SellerSuspended`, `SellerReinstated`: suppresses and restores the seller's listings, ADR 0013; `InboundShipmentReceived.received`: creates owner-scoped listings, gap G51, ADR 0014); vendor-connectivity (builds the `InboundShipmentView` it serves on the Vendor API); node-performance (`InboundShipmentShipped`, the start of its inbound timeliness metric); none evidenced for `PlacementPlanSuggested` (analytics-only in v1, ADR 0012) |
 | `retailnetwork.seller-inbound.analytics` | `SellerOnboarded`, `InboundPlanConfirmed`, `InboundDiscrepancyRecorded`, `SellerComplianceViolationRecorded` | none in the organisation (published for analytics only) |
 
 The consumer groups of the downstream services are in `warehouse-infra` (`node-performance-seller-inbound` for

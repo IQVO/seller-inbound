@@ -120,6 +120,7 @@ narrows the primary key from `(route, key)` to `(key)`. Migration `0004` adds th
 | `retailnetwork.node-topology.events` | consumed | node consumer | `NODE_CONSUMER_GROUP` |
 | `retailnetwork.offer-availability.events` | consumed (packaging levels and `ListingAvailabilityChanged`) | catalog consumer | `CATALOG_CONSUMER_GROUP` |
 | `retailnetwork.vendor-connectivity.events` | consumed | receipt consumer | `RECEIPT_CONSUMER_GROUP` |
+| `retailnetwork.order-sourcing.events` | declared consumed in `apis/asyncapi.yaml` (`FulfillmentReleasedToNode`, `FulfillmentCancelled`); no consumer started by `cmd/api` | none | none read by the code (`apis/asyncapi.yaml` names `SOURCING_CONSUMER_GROUP`) |
 | `retailnetwork.seller-inbound.events` | published by the relay | outbox relay | n/a |
 | `retailnetwork.seller-inbound.analytics` | published by the relay | outbox relay | n/a |
 | `<topic>.dlq` | published on poison messages | each consumer | n/a |
