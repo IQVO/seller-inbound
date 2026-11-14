@@ -94,7 +94,7 @@ each `cmd/api` variable maps 1:1 to a `values.yaml` `config.*` key rendered into
 | `NODE_CONSUMER_GROUP` | `config.nodeConsumerGroup` | required, stable group id (node-topology) |
 | `CATALOG_CONSUMER_GROUP` | `config.catalogConsumerGroup` | required (offer-availability packaging) |
 | `RECEIPT_CONSUMER_GROUP` | `config.receiptConsumerGroup` | required (vendor-connectivity receipts) |
-| `SOURCING_CONSUMER_GROUP` | `config.sourcingConsumerGroup` | required (order-sourcing release and cancel, ADR 0015) |
+| `SOURCING_CONSUMER_GROUP` | `config.sourcingConsumerGroup` | required (order-sourcing release and cancel, ADR 0016) |
 | `SSCC_COMPANY_PREFIX` | `config.ssccCompanyPrefix` | required, the network's GS1 company prefix, 6 to 11 digits |
 | `SSCC_EXTENSION_DIGIT` | `config.ssccExtensionDigit` | `0`; a single digit 0..9 (ADR 0002 A5) |
 | `EVENT_PUBLISHER` | `config.eventPublisher` | `kafka` only; anything else is a boot error |

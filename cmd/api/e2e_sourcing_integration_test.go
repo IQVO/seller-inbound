@@ -48,7 +48,7 @@ func processed(w *world, id string) int {
 }
 
 // Phase 5c: order-sourcing's release and cancel events, read from its topic by
-// the fourth consumer, feed and empty demand_heat_lines (ADR 0012, ADR 0015).
+// the fourth consumer, feed and empty demand_heat_lines (ADR 0012, ADR 0016).
 // Kafka orders one partition, so an event is known to have been handled once a
 // LATER event of the same topic has been.
 func phaseSourcing(t *testing.T, w *world) {

@@ -77,11 +77,11 @@ the CloudEvents `id` (`processed_events`).
 | offer-availability | `retailnetwork.offer-availability.events` | `com.retailnetwork.commerce.offer-availability.catalogitem.CatalogItemPackLevelRetired` | Marks the level inactive. |
 | vendor-connectivity | `retailnetwork.vendor-connectivity.events` | `com.retailnetwork.partner.vendor-connectivity.inboundreceipt.InboundReceiptSubmitted` | Records the receipt on the shipment. |
 | offer-availability | `retailnetwork.offer-availability.events` | `com.retailnetwork.commerce.offer-availability.listing.ListingAvailabilityChanged` | Upserts the latest availability per item and node (`listing_availability`, availability half of the placement `DemandHeatView`, ADR 0012). |
-| order-sourcing | `retailnetwork.order-sourcing.events` | `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleasedToNode` | Replaces the assignment group's rows in `demand_heat_lines` with the released lines, one row per line (the demand half of the placement `DemandHeatView`, ADR 0012, ADR 0015). Extra fields of a merged release (`members`, per-line `assignmentId`, `ownerRef`) are ignored; the release instant is the CloudEvents `time`. |
+| order-sourcing | `retailnetwork.order-sourcing.events` | `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleasedToNode` | Replaces the assignment group's rows in `demand_heat_lines` with the released lines, one row per line (the demand half of the placement `DemandHeatView`, ADR 0012, ADR 0016). Extra fields of a merged release (`members`, per-line `assignmentId`, `ownerRef`) are ignored; the release instant is the CloudEvents `time`. |
 | order-sourcing | `retailnetwork.order-sourcing.events` | `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentCancelled` | Deletes the assignment group's `demand_heat_lines` rows; an unknown group is a no-op. |
 
 The contract lists eleven consumed types, and the eleven rows above are read by the four consumers `cmd/api` starts
-(node, catalog, receipt and sourcing, [ADR 0015](/docs/adr/0015-start-the-order-sourcing-consumer)).
+(node, catalog, receipt and sourcing, [ADR 0016](/docs/adr/0016-start-the-order-sourcing-consumer)).
 
 Failure handling (retry, dead letters, poison messages) is on [Integration](/docs/ecosystem/integration#upstream-what-seller-inbound-consumes).
 

@@ -41,7 +41,7 @@ Copied from the retail network's classification
 | `vendor-connectivity` | Supporting | `partner` | Upstream for the receipt, downstream for the manifest and closing status (Customer/Supplier both ways, events only). |
 | `node-performance` | Supporting | `partner` | Downstream: consumes `InboundShipmentShipped`. |
 | `seller-inbound` | **Supporting** | `partner` | This context. |
-| `order-sourcing` | Core | `commerce` | Upstream: release and cancel of fulfilment, the demand half of the placement advisory (Conformist, [ADR 0015](/docs/adr/0015-start-the-order-sourcing-consumer)). |
+| `order-sourcing` | Core | `commerce` | Upstream: release and cancel of fulfilment, the demand half of the placement advisory (Conformist, [ADR 0016](/docs/adr/0016-start-the-order-sourcing-consumer)). |
 | `delivery-promise` | Core | `commerce` | No edge (Separate Ways). |
 | `linehaul-transportation`, `last-mile-delivery` | Supporting | `logistics` | No edge. |
 | `customer-ordering` | Generic | `commerce` | No edge. |
