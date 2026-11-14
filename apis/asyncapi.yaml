@@ -105,7 +105,7 @@ channels:
   orderSourcingEvents:
     address: retailnetwork.order-sourcing.events
     title: order-sourcing integration topic
-    description: The order-sourcing integration topic, consumed under the mandatory consumer group `SOURCING_CONSUMER_GROUP` (ADR 0012, ADR 0015).
+    description: The order-sourcing integration topic, consumed under the mandatory consumer group `SOURCING_CONSUMER_GROUP` (ADR 0012).
     messages:
       FulfillmentReleasedToNode:
         $ref: '#/components/messages/FulfillmentReleasedToNode'
