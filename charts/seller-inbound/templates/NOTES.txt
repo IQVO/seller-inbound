@@ -22,7 +22,8 @@ Inbound shipment events are relayed from the transactional outbox onto
 retailnetwork.seller-inbound.events ({{ .Values.kafka.brokers }}); Postgres and Kafka are
 the only runtime.
 
-The three consumers are ON, each under its stable group id:
+The four consumers are ON, each under its stable group id:
   node-topology       group {{ .Values.config.nodeConsumerGroup }}
   offer-availability  group {{ .Values.config.catalogConsumerGroup }} (packaging)
   vendor-connectivity group {{ .Values.config.receiptConsumerGroup }} (receipts)
+  order-sourcing      group {{ .Values.config.sourcingConsumerGroup }} (release and cancel, demand heat)

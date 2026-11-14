@@ -198,8 +198,8 @@ each claimed in `processed_events` by the CloudEvents id:
   `demand_heat_lines`; a re-release of the same assignment group replaces its lines.
 - `ApplyFulfillmentCancelled` (order-sourcing `FulfillmentCancelled`) removes the group's lines.
 
-The two order-sourcing use cases are not started by `cmd/api`; see
-[Integration](/docs/ecosystem/integration#discrepancies-found).
+The two order-sourcing use cases are read by the fourth consumer `cmd/api` starts
+([ADR 0015](/docs/adr/0015-start-the-order-sourcing-consumer)); see [Integration](/docs/ecosystem/integration).
 
 ## Queries
 

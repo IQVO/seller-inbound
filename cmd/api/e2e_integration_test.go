@@ -213,6 +213,7 @@ func (e env) apply(t *testing.T) {
 	t.Setenv("NODE_CONSUMER_GROUP", "seller-inbound-node-e2e")
 	t.Setenv("CATALOG_CONSUMER_GROUP", "seller-inbound-catalog-e2e")
 	t.Setenv("RECEIPT_CONSUMER_GROUP", "seller-inbound-receipt-e2e")
+	t.Setenv("SOURCING_CONSUMER_GROUP", "seller-inbound-sourcing-e2e")
 	t.Setenv("SSCC_COMPANY_PREFIX", "0614141")
 	t.Setenv("HTTP_ADDR", e.addr)
 	t.Setenv("SHUTDOWN_DRAIN_DELAY", "0")
@@ -704,7 +705,7 @@ func TestRunOnRealPostgresAndKafka(t *testing.T) {
 	kc, brokers := startKafka(t)
 	// The consumed topics exist before the first start, as in the cluster: a group
 	// that joins before its topic exists is handed no partition.
-	for _, topic := range []string{topicNodes, topicOffers, topicVendor, topicEvents, topicAnalytics} {
+	for _, topic := range []string{topicNodes, topicOffers, topicVendor, topicSourcing, topicEvents, topicAnalytics} {
 		createTopic(t, brokers, topic)
 	}
 	w := &world{kc: kc, db: newPGView(t, dbURL), brokers: brokers,
@@ -717,5 +718,6 @@ func TestRunOnRealPostgresAndKafka(t *testing.T) {
 	phaseAnalytics(t, w)
 	phaseScorecard(t, s, w)
 	phaseIdempotency(t, s, w)
+	phaseSourcing(t, w)
 	phaseKafkaGoesAway(t, s, w)
 }

@@ -32,9 +32,11 @@ is always on (`replicaCount: 1`, HPA off by default). Three are optional and off
   `Idempotency-Key` header (24h replay).
 - Transactional outbox relay draining `outbox_events` to Kafka
   (`internal/adapters/outbound/outbox/relay.go`).
-- Three Kafka consumers: node (`retailnetwork.node-topology.events`), catalog
+- Four Kafka consumers: node (`retailnetwork.node-topology.events`), catalog
   (`retailnetwork.offer-availability.events`), receipt
-  (`retailnetwork.vendor-connectivity.events`) - `internal/adapters/inbound/kafka/consumers.go`.
+  (`retailnetwork.vendor-connectivity.events`), sourcing
+  (`retailnetwork.order-sourcing.events`) - `internal/adapters/inbound/kafka/consumers.go`,
+  started in `startBackground` (`cmd/api/wire_background.go`).
 - One loop: a 24h retention sweeper for expired idempotency keys (`startBackground` in
   `cmd/api/wire_background.go`).
 
@@ -50,7 +52,7 @@ the orchestrator restarts it (`watchWorkers`); it never sits "alive" with a dead
   migrations key is `optional: true`, the binary falls back to `DATABASE_URL`).
   Embedded migrations run at boot with backoff (`internal/bootretry`). The SSCC serial is
   the Postgres sequence `sscc_serial_seq`.
-- **Kafka** - `KAFKA_BROKERS` (required): relay sink, the three consumers, `/readyz`.
+- **Kafka** - `KAFKA_BROKERS` (required): relay sink, the four consumers, `/readyz`.
   Topics are auto-created by the first writer (`AllowAutoTopicCreation: true`,
   `internal/adapters/outbound/kafka/writer.go`). Publishes
   `retailnetwork.seller-inbound.events` and `retailnetwork.seller-inbound.analytics`
@@ -92,6 +94,7 @@ each `cmd/api` variable maps 1:1 to a `values.yaml` `config.*` key rendered into
 | `NODE_CONSUMER_GROUP` | `config.nodeConsumerGroup` | required, stable group id (node-topology) |
 | `CATALOG_CONSUMER_GROUP` | `config.catalogConsumerGroup` | required (offer-availability packaging) |
 | `RECEIPT_CONSUMER_GROUP` | `config.receiptConsumerGroup` | required (vendor-connectivity receipts) |
+| `SOURCING_CONSUMER_GROUP` | `config.sourcingConsumerGroup` | required (order-sourcing release and cancel, ADR 0015) |
 | `SSCC_COMPANY_PREFIX` | `config.ssccCompanyPrefix` | required, the network's GS1 company prefix, 6 to 11 digits |
 | `SSCC_EXTENSION_DIGIT` | `config.ssccExtensionDigit` | `0`; a single digit 0..9 (ADR 0002 A5) |
 | `EVENT_PUBLISHER` | `config.eventPublisher` | `kafka` only; anything else is a boot error |
@@ -120,14 +123,16 @@ narrows the primary key from `(route, key)` to `(key)`. Migration `0004` adds th
 | `retailnetwork.node-topology.events` | consumed | node consumer | `NODE_CONSUMER_GROUP` |
 | `retailnetwork.offer-availability.events` | consumed (packaging levels and `ListingAvailabilityChanged`) | catalog consumer | `CATALOG_CONSUMER_GROUP` |
 | `retailnetwork.vendor-connectivity.events` | consumed | receipt consumer | `RECEIPT_CONSUMER_GROUP` |
-| `retailnetwork.order-sourcing.events` | declared consumed in `apis/asyncapi.yaml` (`FulfillmentReleasedToNode`, `FulfillmentCancelled`); no consumer started by `cmd/api` | none | none read by the code (`apis/asyncapi.yaml` names `SOURCING_CONSUMER_GROUP`) |
+| `retailnetwork.order-sourcing.events` | consumed (`FulfillmentReleasedToNode`, `FulfillmentCancelled`) | sourcing consumer | `SOURCING_CONSUMER_GROUP` |
 | `retailnetwork.seller-inbound.events` | published by the relay | outbox relay | n/a |
 | `retailnetwork.seller-inbound.analytics` | published by the relay | outbox relay | n/a |
 | `<topic>.dlq` | published on poison messages | each consumer | n/a |
 
 Group ids are stable and service-prefixed, never the pod name. The ids the cluster uses are set in `warehouse-infra`
-`helm-values/seller-inbound.yaml`: `seller-inbound-node-topology`, `seller-inbound-catalog-packaging` and
-`seller-inbound-vendor-receipts`. Topics are auto-created by the first writer; the service creates none through
+`helm-values/seller-inbound.yaml`: `seller-inbound-node-topology`, `seller-inbound-catalog-packaging`,
+`seller-inbound-vendor-receipts` and `seller-inbound-order-sourcing`. A `kafka-go` group consumer that starts before its
+topic exists never picks it up later (fleet gap row 45), so restart the pod after `retailnetwork.order-sourcing.events`
+exists. Topics are auto-created by the first writer; the service creates none through
 an admin API (warehouse-infra pre-creates `retailnetwork.seller-inbound.events` at deploy, because a kafka-go group
 consumer started before its topic exists is never handed the partition).
 
@@ -168,15 +173,21 @@ consumer started before its topic exists is never handed the partition).
   re-arm it with attempts = 0 after fixing the cause` once at ERROR (`relay.go`,
   `AttemptCapReachedMsg`). Later rows are NOT blocked. Re-arm after fixing the cause:
   `UPDATE outbox_events SET attempts = 0 WHERE id = <id>;`
-- **Consumer lag or retry logs.** The three consumed topics belong to their producers;
+- **Consumer lag or retry logs.** The four consumed topics belong to their producers;
   if a producer has not written yet, its topic does not exist and the consumer only logs
-  reader retries - benign. A transient handler failure retries the SAME message with
+  reader retries; once the topic exists, restart the pod (see the topics section: a group
+  consumer started before its topic never picks it up). A transient handler failure retries the SAME message with
   capped exponential backoff up to 5 attempts, then dead-letters it to `<topic>.dlq`; a
   payload that can never be applied (undecodable, refused by the domain, a vendor receipt
   for a shipment this service does not know) is dead-lettered at once
   (`internal/adapters/inbound/kafka/consumer.go`, `deadletter.go`). Effects are idempotent
   on the CloudEvents id (`processed_events`), so replaying a `.dlq` topic re-applies safely
   only if the original was never committed - inspect `processed_events` first.
+- **Placement plans come back empty, or `demand_heat_lines` stays empty.** The rows come only from the
+  sourcing consumer (`SOURCING_CONSUMER_GROUP`): check its lag on `retailnetwork.order-sourcing.events` and the
+  `consumer running` log line with `consumer="sourcing consumer"`; if the topic was created after the pod
+  started, restart the pod. `SELECT count(*) FROM demand_heat_lines;` shows what the advisory sums; a region
+  whose node has no `region_id` in `node_inbound_views` contributes nothing until node-topology catches up.
 - **A seller reports `node-cannot-receive` for a node that exists.** The node view is
   fed by node-topology events: check that the node was `NodeActivated` and has a type with
   the INBOUND capability (`node_inbound_views`), and that the node consumer is not behind.
