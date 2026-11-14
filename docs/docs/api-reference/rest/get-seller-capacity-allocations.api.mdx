@@ -1,0 +1,78 @@
+---
+id: get-seller-capacity-allocations
+title: "Get a seller's inbound capacity reservations (GetSellerCapacityAllocations)"
+description: "The seller's inbound capacity reservations of one calendar month (ADR 0015): the dm3 its `DRAFT` and `CONFIRMED` plans"
+sidebar_label: "Get a seller's inbound capacity reservations (GetSellerCapacityAllocations)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "get api-method"
+info_path: docs/api-reference/rest/seller-inbound-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get a seller's inbound capacity reservations (GetSellerCapacityAllocations)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/sellers/{sellerId}/capacity-allocations"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+The seller's inbound capacity reservations of one calendar month (ADR 0015): the dm3 its `DRAFT` and `CONFIRMED` plans
+promise to each node. `CreateInboundPlan` reserves, `CancelInboundPlan` releases, confirmation keeps the hold; a
+reservation lives in the month of the plan's `createdAt`, so the allocation rolls over with the key. The read is the
+operator-facing honesty surface of the monthly capacity gate and publishes no event.
+
+`month` is a `YYYY-MM` key and defaults to the current month. The gate itself is enforced only when the node's declared
+monthly volume AND every line's seller-declared `unitVolumeDm3` are known; otherwise the plan is allowed and carries
+`capacityEnforced: false` (record-and-allow, ADR 0015).
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./get-seller-capacity-allocations.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./get-seller-capacity-allocations.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./get-seller-capacity-allocations.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

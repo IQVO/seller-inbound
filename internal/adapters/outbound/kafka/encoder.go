@@ -51,15 +51,37 @@ type planLineData struct {
 	CatalogItemID string `json:"catalogItemId"`
 	GTIN          string `json:"gtin"`
 	QtyEaches     int    `json:"qtyEaches"`
+	// UnitVolumeDm3 is the seller-declared volume of one each, dm3; omitted
+	// when undeclared (ADR 0015).
+	UnitVolumeDm3 int `json:"unitVolumeDm3,omitempty"`
+}
+
+type redistributionData struct {
+	NodeID    string `json:"nodeId"`
+	LineNo    int    `json:"lineNo"`
+	QtyEaches int    `json:"qtyEaches"`
+}
+
+type feeBasisData struct {
+	Basis   string   `json:"basis"`
+	Month   string   `json:"month"`
+	Dm3     int64    `json:"dm3"`
+	NodeIDs []string `json:"nodeIds"`
 }
 
 type planConfirmedData struct {
-	PlanID            string         `json:"planId"`
-	SellerID          string         `json:"sellerId"`
-	DestinationNodeID string         `json:"destinationNodeId"`
-	PackingOption     string         `json:"packingOption"`
-	Lines             []planLineData `json:"lines"`
-	ConfirmedAt       string         `json:"confirmedAt"`
+	PlanID            string `json:"planId"`
+	SellerID          string `json:"sellerId"`
+	DestinationNodeID string `json:"destinationNodeId"`
+	PackingOption     string `json:"packingOption"`
+	// PlacementOption is the ADR 0015 placement fact: SELLER_SPLIT or
+	// NETWORK_SPLIT; the redistribution and the fee basis follow only for
+	// NETWORK_SPLIT.
+	PlacementOption   string               `json:"placementOption"`
+	Lines             []planLineData       `json:"lines"`
+	Redistribution    []redistributionData `json:"redistribution,omitempty"`
+	PlacementFeeBasis *feeBasisData        `json:"placementFeeBasis,omitempty"`
+	ConfirmedAt       string               `json:"confirmedAt"`
 }
 
 type contentData struct {
@@ -267,10 +289,20 @@ func placementPayload(e placementplan.PlacementPlanSuggested) placementPlanData 
 func planPayload(e inboundplan.InboundPlanConfirmed) planConfirmedData {
 	lines := make([]planLineData, len(e.Lines))
 	for i, l := range e.Lines {
-		lines[i] = planLineData{CatalogItemID: l.CatalogItemID, GTIN: l.GTIN, QtyEaches: l.QtyEaches}
+		lines[i] = planLineData{CatalogItemID: l.CatalogItemID, GTIN: l.GTIN, QtyEaches: l.QtyEaches, UnitVolumeDm3: l.UnitVolumeDm3}
+	}
+	redistribution := make([]redistributionData, len(e.Redistribution))
+	for i, r := range e.Redistribution {
+		redistribution[i] = redistributionData{NodeID: r.NodeID, LineNo: r.LineNo, QtyEaches: r.QtyEaches}
+	}
+	var feeBasis *feeBasisData
+	if e.PlacementFeeBasis != nil {
+		feeBasis = &feeBasisData{Basis: e.PlacementFeeBasis.Basis, Month: e.PlacementFeeBasis.Month,
+			Dm3: e.PlacementFeeBasis.Dm3, NodeIDs: e.PlacementFeeBasis.NodeIDs}
 	}
 	return planConfirmedData{PlanID: string(e.PlanID), SellerID: e.SellerID, DestinationNodeID: e.DestinationNodeID,
-		PackingOption: string(e.Packing), Lines: lines, ConfirmedAt: ts(e.At)}
+		PackingOption: string(e.Packing), PlacementOption: string(e.PlacementOption), Lines: lines,
+		Redistribution: redistribution, PlacementFeeBasis: feeBasis, ConfirmedAt: ts(e.At)}
 }
 
 func receivedPayload(e inboundshipment.InboundShipmentReceived) receivedData {

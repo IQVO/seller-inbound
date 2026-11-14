@@ -58,9 +58,23 @@ func TestEncoder_GoldenWireFormatOfEveryPublishedEvent(t *testing.T) {
 		{seller.SellerReinstated{Header: hdr(), SellerID: "S-1"}, "seller", "SellerReinstated", "S-1", "events", TopicEvents,
 			`{"sellerId":"S-1","reinstatedAt":"2026-10-24T13:00:00Z"}`},
 		{inboundplan.InboundPlanConfirmed{Header: hdr(), PlanID: "pln-1", SellerID: "S-1", DestinationNodeID: "n-1", Packing: inboundplan.CasePacked,
-			Lines: []inboundplan.Line{{CatalogItemID: "item-1", GTIN: gtinC, QtyEaches: 120}}}, "inboundplan", "InboundPlanConfirmed", "pln-1", "analytics", TopicAnalytics,
+			PlacementOption: inboundplan.SellerSplit,
+			Lines:           []inboundplan.Line{{CatalogItemID: "item-1", GTIN: gtinC, QtyEaches: 120}}}, "inboundplan", "InboundPlanConfirmed", "pln-1", "analytics", TopicAnalytics,
 			`{"planId":"pln-1","sellerId":"S-1","destinationNodeId":"n-1","packingOption":"CASE_PACKED",` +
+				`"placementOption":"SELLER_SPLIT",` +
 				`"lines":[{"catalogItemId":"item-1","gtin":"00614141000036","qtyEaches":120}],"confirmedAt":"2026-10-24T13:00:00Z"}`},
+		{inboundplan.InboundPlanConfirmed{Header: hdr(), PlanID: "pln-2", SellerID: "S-1", DestinationNodeID: "n-1", Packing: inboundplan.Individual,
+			PlacementOption:   inboundplan.NetworkSplit,
+			Lines:             []inboundplan.Line{{CatalogItemID: "item-1", GTIN: "00614141000012", QtyEaches: 80, UnitVolumeDm3: 2}},
+			Redistribution:    []inboundplan.RedistributionLine{{NodeID: "fc-a", LineNo: 1, QtyEaches: 20}, {NodeID: "fc-b", LineNo: 1, QtyEaches: 60}},
+			PlacementFeeBasis: &inboundplan.FeeBasis{Basis: "NETWORK_SPLIT", Month: "2026-10", Dm3: 160, NodeIDs: []string{"fc-a", "fc-b"}}},
+			"inboundplan", "InboundPlanConfirmed", "pln-2", "analytics", TopicAnalytics,
+			`{"planId":"pln-2","sellerId":"S-1","destinationNodeId":"n-1","packingOption":"INDIVIDUAL",` +
+				`"placementOption":"NETWORK_SPLIT",` +
+				`"lines":[{"catalogItemId":"item-1","gtin":"00614141000012","qtyEaches":80,"unitVolumeDm3":2}],` +
+				`"redistribution":[{"nodeId":"fc-a","lineNo":1,"qtyEaches":20},{"nodeId":"fc-b","lineNo":1,"qtyEaches":60}],` +
+				`"placementFeeBasis":{"basis":"NETWORK_SPLIT","month":"2026-10","dm3":160,"nodeIds":["fc-a","fc-b"]},` +
+				`"confirmedAt":"2026-10-24T13:00:00Z"}`},
 		{inboundshipment.InboundShipmentLabelled{Header: hdr(), ShipmentID: "shp-1", PlanID: "pln-1", SellerID: "S-1", NodeID: "n-1", Cartons: labelledCartons()},
 			"inboundshipment", "InboundShipmentLabelled", "shp-1", "events", TopicEvents,
 			`{"shipmentId":"shp-1","planId":"pln-1","sellerId":"S-1","nodeId":"n-1","cartons":[{"sscc":"006141410000000012","parentSscc":"006141410000000104",` +

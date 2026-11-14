@@ -942,6 +942,51 @@ components:
         qtyEaches:
           type: integer
           minimum: 1
+        unitVolumeDm3:
+          type: integer
+          minimum: 1
+          maximum: 100000
+          description: The seller-declared volume of one each, in cubic decimetres (ADR 0015). Omitted when undeclared.
+    RedistributionLine:
+      type: object
+      description: One (node, line) share of a NETWORK_SPLIT plan's recorded redistribution (ADR 0015).
+      required:
+      - nodeId
+      - lineNo
+      - qtyEaches
+      properties:
+        nodeId:
+          type: string
+        lineNo:
+          type: integer
+          minimum: 1
+        qtyEaches:
+          type: integer
+          minimum: 1
+    PlacementFeeBasis:
+      type: object
+      description: The recorded placement fee basis of a NETWORK_SPLIT plan (ADR 0015), a fact for a later vendor-settlement context, never a charge.
+      required:
+      - basis
+      - month
+      - dm3
+      - nodeIds
+      properties:
+        basis:
+          type: string
+          enum:
+          - NETWORK_SPLIT
+        month:
+          type: string
+          pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$'
+        dm3:
+          type: integer
+          format: int64
+          minimum: 0
+        nodeIds:
+          type: array
+          items:
+            type: string
     CartonContent:
       type: object
       required:
@@ -1244,10 +1289,29 @@ components:
                 enum:
                 - INDIVIDUAL
                 - CASE_PACKED
+              placementOption:
+                type: string
+                enum:
+                - SELLER_SPLIT
+                - NETWORK_SPLIT
+                description: Who splits the inbound (ADR 0015); always present
+                  since that ADR.
               lines:
                 type: array
                 items:
                   $ref: '#/components/schemas/PlanLine'
+              redistribution:
+                type: array
+                description: The recorded capacity-split-v1 redistribution;
+                  present only for NETWORK_SPLIT (ADR 0015). Nothing downstream
+                  executes it.
+                items:
+                  $ref: '#/components/schemas/RedistributionLine'
+              placementFeeBasis:
+                description: The recorded fee-basis fact; present only for
+                  NETWORK_SPLIT (ADR 0015).
+                allOf:
+                - $ref: '#/components/schemas/PlacementFeeBasis'
               confirmedAt:
                 type: string
                 format: date-time

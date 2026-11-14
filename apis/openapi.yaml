@@ -238,14 +238,64 @@ paths:
           $ref: '#/components/responses/ValidationProblem'
         '500':
           $ref: '#/components/responses/InternalError'
+  /sellers/{sellerId}/capacity-allocations:
+    get:
+      tags:
+      - Sellers
+      operationId: getSellerCapacityAllocations
+      summary: Get a seller's inbound capacity reservations (GetSellerCapacityAllocations)
+      x-pagination-exempt: report
+      description: |
+        The seller's inbound capacity reservations of one calendar month (ADR 0015): the dm3 its `DRAFT` and `CONFIRMED` plans
+        promise to each node. `CreateInboundPlan` reserves, `CancelInboundPlan` releases, confirmation keeps the hold; a
+        reservation lives in the month of the plan's `createdAt`, so the allocation rolls over with the key. The read is the
+        operator-facing honesty surface of the monthly capacity gate and publishes no event.
+
+        `month` is a `YYYY-MM` key and defaults to the current month. The gate itself is enforced only when the node's declared
+        monthly volume AND every line's seller-declared `unitVolumeDm3` are known; otherwise the plan is allowed and carries
+        `capacityEnforced: false` (record-and-allow, ADR 0015).
+      parameters:
+      - $ref: '#/components/parameters/SellerIdPath'
+      - name: month
+        in: query
+        required: false
+        description: The calendar month, `YYYY-MM`; defaults to the current month.
+        schema:
+          type: string
+          pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$'
+          example: '2026-11'
+      responses:
+        '200':
+          description: The seller's reservations of the month, ordered by nodeId.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CapacityAllocations'
+              example:
+                sellerId: seller-77
+                month: '2026-11'
+                items:
+                - nodeId: node-0f3a91
+                  reservedDm3: 490
+                  updatedAt: '2026-11-14T13:00:00Z'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationProblem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /inbound-plans:
     post:
       tags:
       - Inbound Plans
       operationId: createInboundPlan
       summary: Create an inbound plan (CreateInboundPlan)
-      description: Declares what the seller will send to one destination node. The plan starts `DRAFT`. The seller must be `ACTIVE`; the node must be `ACTIVE` with the INBOUND capability (`node-cannot-receive`).
-        Every line is in eaches; for `CASE_PACKED` each line's quantity must be a whole number of the case GTIN's units per pack.
+      description: |-
+        Declares what the seller will send to one destination node. The plan starts `DRAFT`. The seller must be `ACTIVE`; the node must be `ACTIVE` with the INBOUND capability (`node-cannot-receive`).
+        Every line is in eaches; for `CASE_PACKED` each line's quantity must be a whole number of the case GTIN's units per pack. Under ADR 0015, when the node declared
+        `monthlyVolumeDm3` AND every line carries `unitVolumeDm3`, the plan's total volume is checked against the node's tier-factored monthly limit (`inbound-capacity-exceeded`);
+        either side unknown records `capacityEnforced: false` and never blocks the plan. A `NETWORK_SPLIT` placementOption must destination an ACTIVE `INBOUND_CROSS_DOCK`
+        and records the redistribution and the fee basis as facts.
       parameters:
       - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -258,10 +308,12 @@ paths:
               sellerId: seller-77
               destinationNodeId: node-0f3a91
               packingOption: CASE_PACKED
+              placementOption: SELLER_SPLIT
               lines:
               - catalogItemId: item-004512
                 gtin: '00614141000036'
                 qtyEaches: 24
+                unitVolumeDm3: 8
       responses:
         '201':
           headers:
@@ -277,7 +329,9 @@ paths:
                 sellerId: seller-77
                 destinationNodeId: node-0f3a91
                 packingOption: CASE_PACKED
+                placementOption: SELLER_SPLIT
                 state: DRAFT
+                capacityEnforced: false
                 lines:
                 - catalogItemId: item-004512
                   gtin: '00614141000036'
@@ -314,7 +368,9 @@ paths:
                 sellerId: seller-77
                 destinationNodeId: node-0f3a91
                 packingOption: CASE_PACKED
+                placementOption: SELLER_SPLIT
                 state: CONFIRMED
+                capacityEnforced: true
                 lines:
                 - catalogItemId: item-004512
                   gtin: '00614141000036'
@@ -350,7 +406,9 @@ paths:
                 sellerId: seller-77
                 destinationNodeId: node-0f3a91
                 packingOption: CASE_PACKED
+                placementOption: SELLER_SPLIT
                 state: CONFIRMED
+                capacityEnforced: true
                 lines:
                 - catalogItemId: item-004512
                   gtin: '00614141000036'
@@ -390,7 +448,9 @@ paths:
                 sellerId: seller-77
                 destinationNodeId: node-0f3a91
                 packingOption: CASE_PACKED
+                placementOption: SELLER_SPLIT
                 state: CANCELLED
+                capacityEnforced: false
                 lines:
                 - catalogItemId: item-004512
                   gtin: '00614141000036'
@@ -967,7 +1027,9 @@ components:
             $ref: '#/components/schemas/Problem'
     ValidationProblem:
       description: 'The request is malformed or breaks a rule. Problem types: `validation-failed`, `case-pack-not-uniform` (`ErrCasePackNotUniform`), `case-qty-mismatches-gtin` (`ErrCaseQtyMismatchesGtin`),
-        `carton-overweight` (`ErrCartonOverweight`), `carton-oversize` (`ErrCartonOversize`), `invalid-sscc` (`ErrInvalidSscc`) and `carton-contents-mismatch-plan` (`ErrCartonContentsMismatchPlan`).'
+        `carton-overweight` (`ErrCartonOverweight`), `carton-oversize` (`ErrCartonOversize`), `invalid-sscc` (`ErrInvalidSscc`), `carton-contents-mismatch-plan` (`ErrCartonContentsMismatchPlan`),
+        `inbound-capacity-exceeded` (`ErrInboundCapacityExceeded`, ADR 0015), `network-split-destination` (`ErrNetworkSplitDestination`, ADR 0015)
+        and `network-split-unavailable` (`ErrNetworkSplitUnavailable`, ADR 0015).'
       content:
         application/problem+json:
           schema:
@@ -1166,6 +1228,108 @@ components:
           maximum: 2147483647
           example: 24
           description: Eaches, never cases.
+        unitVolumeDm3:
+          type: integer
+          minimum: 1
+          maximum: 100000
+          example: 8
+          description: 'The seller-declared volume of one each, in cubic decimetres (ADR 0015). Omitted or 0 = undeclared: the capacity gate then records itself unenforced and never blocks the plan.'
+    PlacementOption:
+      type: string
+      enum:
+      - SELLER_SPLIT
+      - NETWORK_SPLIT
+      default: SELLER_SPLIT
+      example: NETWORK_SPLIT
+      description: '`SELLER_SPLIT` (the default) sends everything to the destination the seller picked; `NETWORK_SPLIT` destinations an ACTIVE `INBOUND_CROSS_DOCK` and records a redistribution of the plan''s eaches across the region''s fulfilment centres (ADR 0015). The redistribution is a recorded fact: nothing downstream executes it.'
+    RedistributionLine:
+      type: object
+      description: One (node, line) share of a NETWORK_SPLIT plan's recorded redistribution (capacity-split-v1, ADR 0015).
+      required:
+      - nodeId
+      - lineNo
+      - qtyEaches
+      properties:
+        nodeId:
+          type: string
+          maxLength: 64
+          pattern: ^[A-Za-z0-9][A-Za-z0-9._:-]*$
+          example: node-b41
+        lineNo:
+          type: integer
+          minimum: 1
+          example: 1
+          description: The line's 1-based position in the plan.
+        qtyEaches:
+          type: integer
+          minimum: 1
+          example: 20
+    PlacementFeeBasis:
+      type: object
+      description: The recorded placement fee basis of a NETWORK_SPLIT plan (ADR 0015) - a fact for a future vendor-settlement context, never a charge.
+      required:
+      - basis
+      - month
+      - dm3
+      - nodeIds
+      properties:
+        basis:
+          type: string
+          enum:
+          - NETWORK_SPLIT
+        month:
+          type: string
+          pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$'
+          example: '2026-11'
+        dm3:
+          type: integer
+          format: int64
+          minimum: 0
+          example: 160
+          description: The plan's total declared volume; 0 when any line's unit volume is undeclared.
+        nodeIds:
+          type: array
+          items:
+            type: string
+          description: The redistribution's recipients, unique and sorted.
+    CapacityAllocation:
+      type: object
+      description: One row of the reservation table (ADR 0015) - the dm3 a seller's DRAFT and CONFIRMED plans of the month promise to one node.
+      required:
+      - nodeId
+      - reservedDm3
+      - updatedAt
+      properties:
+        nodeId:
+          type: string
+          example: node-0f3a91
+        reservedDm3:
+          type: integer
+          format: int64
+          minimum: 0
+          example: 490
+        updatedAt:
+          type: string
+          format: date-time
+    CapacityAllocations:
+      type: object
+      description: The seller's inbound capacity reservations of one calendar month (ADR 0015).
+      required:
+      - sellerId
+      - month
+      - items
+      properties:
+        sellerId:
+          type: string
+          example: seller-77
+        month:
+          type: string
+          pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$'
+          example: '2026-11'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CapacityAllocation'
     ComputePlacementPlanRequest:
       type: object
       required:
@@ -1289,6 +1453,8 @@ components:
           example: node-0f3a91
         packingOption:
           $ref: '#/components/schemas/PackingOption'
+        placementOption:
+          $ref: '#/components/schemas/PlacementOption'
         lines:
           type: array
           minItems: 1
@@ -1309,8 +1475,10 @@ components:
       - sellerId
       - destinationNodeId
       - packingOption
+      - placementOption
       - state
       - lines
+      - capacityEnforced
       - createdAt
       properties:
         planId:
@@ -1324,6 +1492,8 @@ components:
           example: node-0f3a91
         packingOption:
           $ref: '#/components/schemas/PackingOption'
+        placementOption:
+          $ref: '#/components/schemas/PlacementOption'
         state:
           type: string
           enum:
@@ -1335,6 +1505,19 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PlanLine'
+        redistribution:
+          type: array
+          description: The recorded capacity-split-v1 redistribution; present only for NETWORK_SPLIT (ADR 0015).
+          items:
+            $ref: '#/components/schemas/RedistributionLine'
+        placementFeeBasis:
+          description: The recorded fee-basis fact; present only for NETWORK_SPLIT (ADR 0015).
+          allOf:
+          - $ref: '#/components/schemas/PlacementFeeBasis'
+        capacityEnforced:
+          type: boolean
+          example: true
+          description: Whether the monthly capacity gate was actually applied - both the node's declared monthly volume and every line's unit volume known (ADR 0015). false never blocks the plan; the unenforced fact is recorded.
         createdAt:
           type: string
           format: date-time
