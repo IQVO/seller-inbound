@@ -27,8 +27,8 @@ facts are read from local tables fed by Kafka ([Integration](/docs/ecosystem/int
 - Quantities are always eaches; GTINs are normalised to 14 digits; variable-measure GTINs (indicator digit 9) are
   refused.
 
-Source: `internal/application/usecases/{sellers,plans,shipments,scorecard,consumers}.go`, domain rules in
-`internal/domain/{seller,inboundplan,inboundshipment,network}`.
+Source: `internal/application/usecases/{sellers,plans,shipments,scorecard,consumers,placement}.go`, domain rules in
+`internal/domain/{seller,inboundplan,inboundshipment,network,placementplan}`.
 
 ## Summary
 
@@ -44,10 +44,15 @@ Source: `internal/application/usecases/{sellers,plans,shipments,scorecard,consum
 | `AddCarton` | `POST /inbound-shipments/{shipmentId}/cartons` | none |
 | `LabelShipment` | `POST /inbound-shipments/{shipmentId}/labels` | `InboundShipmentLabelled` |
 | `ShipInboundShipment` | `POST /inbound-shipments/{shipmentId}/dispatches` | `InboundShipmentShipped` |
+| `ComputePlacementPlan` | `POST /placement-plans` | `PlacementPlanSuggested` |
+| `AcceptPlacementPlan` | `POST /placement-plans/{planId}/acceptances` | none |
 | `ApplyInboundReceipt` | `InboundReceiptSubmitted` on Kafka | `InboundDiscrepancyRecorded`, `SellerComplianceViolationRecorded`, `InboundShipmentReceived` |
 | `ApplyNodeRegistered`, `ApplyNodeProfileDeclared`, `ApplyNodeActivated`, `ApplyNodeSuspended`, `ApplyNodeRetired` | node-topology events | none (updates `node_inbound_views`) |
 | `ApplyPackagingDeclared`, `ApplyPackLevelRetired` | offer-availability events | none (updates `catalog_pack_levels`) |
+| `ApplyListingAvailabilityChanged` | offer-availability `ListingAvailabilityChanged` | none (updates `listing_availability`) |
+| `ApplyFulfillmentReleased`, `ApplyFulfillmentCancelled` | order-sourcing `FulfillmentReleasedToNode`, `FulfillmentCancelled` | none (updates `demand_heat_lines`) |
 | `GetInboundPlan`, `GetInboundShipment`, `GetLabels`, `GetSellerScorecard` | `GET` routes, MCP tools, A2A skills | none |
+| `GetPlacementPlan`, `ListPlacementPlans` | `GET /placement-plans/{planId}`, `GET /placement-plans`, MCP tools | none |
 
 ## Seller commands
 
@@ -132,6 +137,27 @@ Source: `internal/application/usecases/{sellers,plans,shipments,scorecard,consum
 - **Events:** `InboundShipmentShipped`. Every ship attempt, successful or not, increments the counter
   `seller_inbound.shipment.shipped` ([Observability](/docs/operations/observability)).
 
+## Placement advisory commands
+
+The advisory of [ADR 0012](/docs/adr/0012-the-placement-advisory) (`internal/application/usecases/placement.go`). It
+suggests, per vendor fulfilment node, how many units of one item to send; it moves no stock.
+
+### ComputePlacementPlan
+
+- **Inputs:** `sellerId`, `catalogItemId`, optional `coverDays` (default 14, from 1 to 90).
+- **Invariants:** seller `ACTIVE` (`requireActiveSeller`); `coverDays` in range (`ports.ErrInvalidCoverDays`).
+- **Effect:** reads the demand view over the 28-day observation window, the vendor fulfilment nodes and the node
+  availability, builds the suggestions deterministically, moves the seller's previous plan of the item to `SUPERSEDED`
+  and records the new plan as `SUGGESTED` (`plp-...`). An item with no demand yields an empty plan, still recorded and
+  still published.
+- **Events:** `PlacementPlanSuggested`.
+
+### AcceptPlacementPlan
+
+- **Invariants:** the plan exists (`not-found`) and is `SUGGESTED` (`illegal-transition` otherwise). The seller is not
+  checked.
+- **Effect:** `ACCEPTED`. Advisory only in v1: no event and no effect outside the aggregate.
+
 ## Consumed events
 
 ### ApplyInboundReceipt (policy ReceiveOnVendorReceipt)
@@ -161,6 +187,20 @@ already seen is kept when `NodeRegistered` arrives late, a `RETIRED` node stays 
 than the one held replaces the limits, and a retired GTIN is never reactivated. Each is claimed in `processed_events`
 by the CloudEvents id.
 
+### Demand and availability views (placement advisory)
+
+Three more consumer use cases feed the read model of the advisory ([ADR 0012](/docs/adr/0012-the-placement-advisory)),
+each claimed in `processed_events` by the CloudEvents id:
+
+- `ApplyListingAvailabilityChanged` (offer-availability `ListingAvailabilityChanged`) saves the node's current declared
+  availability of the item in `listing_availability`.
+- `ApplyFulfillmentReleased` (order-sourcing `FulfillmentReleasedToNode`) records the release's lines in
+  `demand_heat_lines`; a re-release of the same assignment group replaces its lines.
+- `ApplyFulfillmentCancelled` (order-sourcing `FulfillmentCancelled`) removes the group's lines.
+
+The two order-sourcing use cases are not started by `cmd/api`; see
+[Integration](/docs/ecosystem/integration#discrepancies-found).
+
 ## Queries
 
 | Query | Reads | Notes |
@@ -169,3 +209,5 @@ by the CloudEvents id.
 | `GetInboundShipment` | `inbound_shipments` and cartons | State, cartons, per-carton receipt status. |
 | `GetLabels` | the shipment's cartons | One label per carton: `LBL-<sscc>`, GS1-128 element string `(00)<sscc>`, a human-readable line `(00) E PPPP PPPP SSSS SSSS C`, contents summary in eaches. Available in any state. |
 | `GetSellerScorecard` | `seller_scorecard_receipts`, `seller_scorecard_occurrences` | `window` `7d` or `30d` (default `30d`, anything else `invalid-window`); unknown seller `not-found`; a suspended seller has a scorecard. A pure read: it raises nothing and never suspends the seller. |
+| `GetPlacementPlan` | `placement_plans` | `not-found` for an unknown plan. |
+| `ListPlacementPlans` | `placement_plans` | One seller's plans, optionally of one item, newest first, keyset-paged (`internal/application/usecases/placement.go`). |
