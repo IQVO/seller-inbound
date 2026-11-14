@@ -59,7 +59,7 @@ Rules of the contract:
   `validation-failed` 422, plus one slug per model `Err...` name.
 - Suspending a suspended seller and reinstating an active one answer `200` with the account and publish no event (ADR 0002 A3). Every other command finds the state it
   needs or answers `illegal-transition`.
-- Events (AsyncAPI `apis/asyncapi.yaml`): `InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived` on the events topic; the other six on the analytics topic.
+- Events (AsyncAPI `apis/asyncapi.yaml`): ten types. `InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived`, `PlacementPlanSuggested`, `SellerSuspended` and `SellerReinstated` go only to the events topic; the other four (`SellerOnboarded`, `InboundPlanConfirmed`, `InboundDiscrepancyRecorded`, `SellerComplianceViolationRecorded`) go to the analytics topic.
 
 
 <div

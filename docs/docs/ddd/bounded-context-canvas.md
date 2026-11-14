@@ -68,7 +68,7 @@ at pack time; the receipt side only records).
 | agents | query | the reads above and the placement-plan reads | MCP `get_inbound_plan`, `get_inbound_shipment`, `get_shipment_labels`, `get_seller_scorecard`, `get_placement_plan`, `list_placement_plans`; A2A skills `seller_compliance`, `inbound_status` | read-only, unauthenticated |
 | `vendor-connectivity` | event | `InboundReceiptSubmitted` | Kafka `retailnetwork.vendor-connectivity.events` | Customer/Supplier |
 | `node-topology` | event | `NodeRegistered`, `NodeOperationalProfileDeclared`, `NodeActivated`, `NodeSuspended`, `NodeRetired` | Kafka `retailnetwork.node-topology.events` | Conformist |
-| `offer-availability` | event | `CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired` | Kafka `retailnetwork.offer-availability.events` | Conformist |
+| `offer-availability` | event | `CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired`, `ListingAvailabilityChanged` | Kafka `retailnetwork.offer-availability.events` | Conformist |
 
 All write routes take an `Idempotency-Key`. No authentication, as in every other context of the fleet.
 
