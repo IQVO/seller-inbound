@@ -59,7 +59,7 @@ The `:verb` actions share a chi pattern per resource (`/sellers/{sellerAction}`,
   [ADR 0010](/docs/adr/0010-fleet-rest-api-guideline).
 - **Errors** are RFC 9457 `application/problem+json` with `type` = the bare slug (not a URL), `title`, `status`,
   `detail` and `instance`. The slugs are `not-found`, `illegal-transition`, `concurrent-update`, `validation-failed`,
-  `invalid-window`, `seller-exists`, `seller-suspended`, `node-cannot-receive`, `sscc-not-unique`, `invalid-sscc`,
+  `invalid-window`, `invalid-cover-days`, `seller-exists`, `seller-suspended`, `node-cannot-receive`, `sscc-not-unique`, `invalid-sscc`,
   `case-pack-not-uniform`, `case-qty-mismatches-gtin`, `carton-overweight`, `carton-oversize`,
   `carton-contents-mismatch-plan`, `shipment-not-labelled`, `idempotency-key-required`, `idempotency-key-invalid`, `idempotency-key-reused`,
   `dependency-unavailable` and `internal-error`. The full status table is on

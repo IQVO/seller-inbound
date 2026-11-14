@@ -1,7 +1,7 @@
 ---
 id: compute-placement-plan
 title: "Compute a placement plan for one seller item (ComputePlacementPlan)"
-description: "Roadmap feature F6 (ADR 0012): reads the DemandHeatView (fulfilments locked per (item, region) over the observation window and current listing availability per node) and records a deterministic placement advisory. For each region with demand, suggested units per node = max(0, ceil(demand x coverDays / windowDays) - region availability) split across the region's ACTIVE vendor fulfilment centres proportionally to their availability (evenly when all zero). An item with no demand anywhere yields an EMPTY plan, which is legal. A new plan for the same (sellerId, catalogItemId) supersedes the previous one. Publishes PlacementPlanSuggested (analytics-only consumer in v1)."
+description: "Roadmap feature F6 (ADR 0012): reads the DemandHeatView (fulfilments locked per (item, region) over the observation window and current listing availability per node) and records a deterministic placement advisory. For each region with demand, suggested units per node = max(0, ceil(demand x coverDays / windowDays) - region availability) split across the region's ACTIVE vendor fulfilment centres proportionally to their availability (evenly when all zero). An item with no demand anywhere yields an EMPTY plan, which is legal. A new plan for the same (sellerId, catalogItemId) supersedes the previous one. Publishes PlacementPlanSuggested (analytics-only consumer in v1). A coverDays outside 1 to 90 is rejected with 400 invalid-cover-days."
 sidebar_label: "Compute a placement plan for one seller item (ComputePlacementPlan)"
 hide_title: true
 hide_table_of_contents: true
@@ -38,7 +38,7 @@ import Translate from "@docusaurus/Translate";
 
 
 
-Roadmap feature F6 (ADR 0012): reads the DemandHeatView (fulfilments locked per (item, region) over the observation window and current listing availability per node) and records a deterministic placement advisory. For each region with demand, suggested units per node = max(0, ceil(demand x coverDays / windowDays) - region availability) split across the region's ACTIVE vendor fulfilment centres proportionally to their availability (evenly when all zero). An item with no demand anywhere yields an EMPTY plan, which is legal. A new plan for the same (sellerId, catalogItemId) supersedes the previous one. Publishes PlacementPlanSuggested (analytics-only consumer in v1).
+Roadmap feature F6 (ADR 0012): reads the DemandHeatView (fulfilments locked per (item, region) over the observation window and current listing availability per node) and records a deterministic placement advisory. For each region with demand, suggested units per node = max(0, ceil(demand x coverDays / windowDays) - region availability) split across the region's ACTIVE vendor fulfilment centres proportionally to their availability (evenly when all zero). An item with no demand anywhere yields an EMPTY plan, which is legal. A new plan for the same (sellerId, catalogItemId) supersedes the previous one. Publishes PlacementPlanSuggested (analytics-only consumer in v1). A coverDays outside 1 to 90 is rejected with 400 invalid-cover-days.
 
 <Heading
   id={"request"}

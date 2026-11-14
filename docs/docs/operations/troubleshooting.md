@@ -66,6 +66,7 @@ request path). The table is `problemCatalogue` in `internal/adapters/inbound/htt
 | Status | `type` | Raised when |
 | --- | --- | --- |
 | 400 | `invalid-window` | `window` of the scorecard is not `7d` or `30d`. |
+| 400 | `invalid-cover-days` | `coverDays` of `POST /placement-plans` is outside 1 to 90 (0 or absent means the default, 14). |
 | 404 | `not-found` | Unknown seller, plan or shipment, or an unknown `:action` suffix. |
 | 409 | `seller-suspended` | A suspended seller creates a plan, shipment or carton, confirms a plan, or ships. |
 | 409 | `seller-exists` | `POST /sellers` for a `sellerId` already onboarded. |
