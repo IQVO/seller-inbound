@@ -33,6 +33,7 @@ type Deps struct {
 	Shipments      ports.ShipmentRepository
 	Nodes          ports.NodeViewRepository
 	Scorecard      ports.ScorecardFacts
+	Capacity       ports.CapacityAllocations
 	Packaging      ports.PackagingViewRepository
 	DemandHeat     ports.DemandHeatView
 	Listings       ports.ListingView

@@ -14,6 +14,8 @@ against its account (no authentication, consistent with the fleet):
 
 - `POST /sellers` -> `OnboardSeller` (201)
 - `POST /sellers/{id}/suspensions` -> `SuspendSeller`; `POST /sellers/{id}/reinstatements` -> `ReinstateSeller`
+- `GET /sellers/{id}/scorecard` -> `GetSellerScorecard`; `GET /sellers/{id}/capacity-allocations` -> `GetSellerCapacityAllocations`
+  (the ADR 0015 reservation read; `month` is an optional `YYYY-MM` query, default the current month)
 - `POST /inbound-plans` -> `CreateInboundPlan` (201); `GET /inbound-plans/{planId}` -> `GetInboundPlan`
 - `POST /inbound-plans/{planId}/confirmations` -> `ConfirmInboundPlan`; `/cancellations` -> `CancelInboundPlan`
 - `POST /inbound-plans/{planId}/shipments` -> `CreateInboundShipment` (201)

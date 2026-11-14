@@ -27,7 +27,7 @@ func newEnv(t *testing.T) *env {
 	clock := memory.NewClock(t0)
 	issuer := &memory.SsccIssuer{}
 	svc := usecases.New(usecases.Deps{
-		UoW: store.UnitOfWork(), Sellers: store.Sellers(), Plans: store.Plans(), Shipments: store.Shipments(), Nodes: store.Nodes(), Scorecard: store.Scorecard(),
+		UoW: store.UnitOfWork(), Sellers: store.Sellers(), Plans: store.Plans(), Shipments: store.Shipments(), Nodes: store.Nodes(), Scorecard: store.Scorecard(), Capacity: store.Capacity(),
 		Packaging: store.Packaging(), DemandHeat: store.DemandHeat(), Listings: store.Listings(), PlacementPlans: store.PlacementPlans(),
 		Outbox: store.Outbox(), Inbox: store.Inbox(), Clock: clock, IDs: &memory.SequentialIDs{}, SSCC: issuer,
 	}, usecases.Config{})

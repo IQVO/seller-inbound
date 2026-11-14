@@ -83,18 +83,40 @@ type planLineDTO struct {
 	CatalogItemID string `json:"catalogItemId"`
 	GTIN          string `json:"gtin"`
 	QtyEaches     int    `json:"qtyEaches"`
+	// UnitVolumeDm3 is the seller-declared volume of one each, dm3; omitted
+	// when undeclared (ADR 0015).
+	UnitVolumeDm3 int `json:"unitVolumeDm3,omitempty"`
+}
+
+type redistributionDTO struct {
+	NodeID    string `json:"nodeId"`
+	LineNo    int    `json:"lineNo"`
+	QtyEaches int    `json:"qtyEaches"`
+}
+
+type feeBasisDTO struct {
+	Basis   string   `json:"basis"`
+	Month   string   `json:"month"`
+	Dm3     int64    `json:"dm3"`
+	NodeIDs []string `json:"nodeIds"`
 }
 
 type planDTO struct {
-	PlanID            string        `json:"planId"`
-	SellerID          string        `json:"sellerId"`
-	DestinationNodeID string        `json:"destinationNodeId"`
-	PackingOption     string        `json:"packingOption"`
-	State             string        `json:"state"`
-	Lines             []planLineDTO `json:"lines"`
-	CreatedAt         time.Time     `json:"createdAt"`
-	ConfirmedAt       *time.Time    `json:"confirmedAt,omitempty"`
-	CancelledAt       *time.Time    `json:"cancelledAt,omitempty"`
+	PlanID            string `json:"planId"`
+	SellerID          string `json:"sellerId"`
+	DestinationNodeID string `json:"destinationNodeId"`
+	PackingOption     string `json:"packingOption"`
+	// PlacementOption and the split facts are ADR 0015; capacityEnforced says
+	// whether the monthly gate was actually applied.
+	PlacementOption   string              `json:"placementOption"`
+	State             string              `json:"state"`
+	Lines             []planLineDTO       `json:"lines"`
+	Redistribution    []redistributionDTO `json:"redistribution,omitempty"`
+	PlacementFeeBasis *feeBasisDTO        `json:"placementFeeBasis,omitempty"`
+	CapacityEnforced  bool                `json:"capacityEnforced"`
+	CreatedAt         time.Time           `json:"createdAt"`
+	ConfirmedAt       *time.Time          `json:"confirmedAt,omitempty"`
+	CancelledAt       *time.Time          `json:"cancelledAt,omitempty"`
 }
 
 type contentDTO struct {
@@ -161,11 +183,22 @@ func toScorecardDTO(v views.SellerScorecard) scorecardDTO {
 func toPlanDTO(v views.Plan) planDTO {
 	lines := make([]planLineDTO, len(v.Lines))
 	for i, l := range v.Lines {
-		lines[i] = planLineDTO{CatalogItemID: l.CatalogItemID, GTIN: l.GTIN, QtyEaches: l.QtyEaches}
+		lines[i] = planLineDTO{CatalogItemID: l.CatalogItemID, GTIN: l.GTIN, QtyEaches: l.QtyEaches, UnitVolumeDm3: l.UnitVolumeDm3}
+	}
+	redistribution := make([]redistributionDTO, len(v.Redistribution))
+	for i, r := range v.Redistribution {
+		redistribution[i] = redistributionDTO{NodeID: r.NodeID, LineNo: r.LineNo, QtyEaches: r.QtyEaches}
+	}
+	var feeBasis *feeBasisDTO
+	if v.PlacementFeeBasis != nil {
+		feeBasis = &feeBasisDTO{Basis: v.PlacementFeeBasis.Basis, Month: v.PlacementFeeBasis.Month,
+			Dm3: v.PlacementFeeBasis.Dm3, NodeIDs: v.PlacementFeeBasis.NodeIDs}
 	}
 	return planDTO{
 		PlanID: v.PlanID, SellerID: v.SellerID, DestinationNodeID: v.DestinationNodeID, PackingOption: v.PackingOption,
-		State: v.State, Lines: lines, CreatedAt: v.CreatedAt.UTC(), ConfirmedAt: instant(v.ConfirmedAt), CancelledAt: instant(v.CancelledAt),
+		PlacementOption: v.PlacementOption, State: v.State, Lines: lines, Redistribution: redistribution,
+		PlacementFeeBasis: feeBasis, CapacityEnforced: v.CapacityEnforced,
+		CreatedAt: v.CreatedAt.UTC(), ConfirmedAt: instant(v.ConfirmedAt), CancelledAt: instant(v.CancelledAt),
 	}
 }
 

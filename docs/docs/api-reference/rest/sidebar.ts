@@ -38,6 +38,12 @@ const sidebar: SidebarsConfig = {
           label: "Get a seller's compliance scorecard (GetSellerScorecard)",
           className: "api-method get",
         },
+        {
+          type: "doc",
+          id: "api-reference/rest/get-seller-capacity-allocations",
+          label: "Get a seller's inbound capacity reservations (GetSellerCapacityAllocations)",
+          className: "api-method get",
+        },
       ],
     },
     {

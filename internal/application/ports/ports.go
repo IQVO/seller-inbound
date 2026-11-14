@@ -13,6 +13,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/claudioed/seller-inbound/internal/domain/capacity"
 	"github.com/claudioed/seller-inbound/internal/domain/inboundplan"
 	"github.com/claudioed/seller-inbound/internal/domain/inboundshipment"
 	"github.com/claudioed/seller-inbound/internal/domain/network"
@@ -60,6 +61,10 @@ type NodeViewRepository interface {
 	// the view holds (ADR 0012), ordered by node id. Placement suggestions
 	// are split across these only.
 	VendorFulfillmentCenters(ctx context.Context) ([]network.Node, error)
+	// RegionFulfillmentCenters returns every ACTIVE FULFILLMENT_CENTER of the
+	// region, ordered by node id (ADR 0015): the candidates a NETWORK_SPLIT
+	// plan's redistribution is computed from.
+	RegionFulfillmentCenters(ctx context.Context, regionID string) ([]network.Node, error)
 }
 
 // PackagingViewRepository stores the CatalogPackagingView read model (upsert).
@@ -129,6 +134,25 @@ type ScorecardFacts interface {
 	// Counts sums the seller's facts recorded in [since, until], both inclusive.
 	// A seller with no facts answers zero counts and a non-nil empty map.
 	Counts(ctx context.Context, sellerID string, since, until time.Time) (scorecard.Counts, error)
+}
+
+// CapacityAllocations stores the inbound capacity reservations of ADR 0015:
+// one row per (seller, YYYY-MM month, node) holding the dm3 the seller's
+// DRAFT and CONFIRMED plans promise. Maintained transactionally by the use
+// cases (CreateInboundPlan reserves, CancelInboundPlan releases, confirm
+// keeps); write-side bookkeeping, not an aggregate and not an event stream.
+type CapacityAllocations interface {
+	// Reserved answers the seller's reserved dm3 for the month and node.
+	// An unseen key answers 0.
+	Reserved(ctx context.Context, sellerID, month, nodeID string) (int64, error)
+	// Reserve adds dm3 to the key's reservation (0 is a no-op).
+	Reserve(ctx context.Context, sellerID, month, nodeID string, dm3 int64, at time.Time) error
+	// Release subtracts dm3 from the key's reservation, never below 0
+	// (0 is a no-op).
+	Release(ctx context.Context, sellerID, month, nodeID string, dm3 int64) error
+	// Allocations answers the seller's reservations of the month, ordered by
+	// node id (the operator-facing honesty surface, ADR 0015).
+	Allocations(ctx context.Context, sellerID, month string) ([]capacity.Allocation, error)
 }
 
 // EventOutbox is the write side of the transactional outbox. Called with the

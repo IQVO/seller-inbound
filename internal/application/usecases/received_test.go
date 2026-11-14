@@ -127,7 +127,7 @@ func TestReceiptFailsTheUnitWhenThePackagingViewCannotBeRead(t *testing.T) {
 	issuer := &memory.SsccIssuer{}
 	e := &env{store: store, clock: memory.NewClock(t0), sscc: issuer}
 	e.svc = usecases.New(usecases.Deps{
-		UoW: store.UnitOfWork(), Sellers: store.Sellers(), Plans: store.Plans(), Shipments: store.Shipments(), Nodes: store.Nodes(), Scorecard: store.Scorecard(),
+		UoW: store.UnitOfWork(), Sellers: store.Sellers(), Plans: store.Plans(), Shipments: store.Shipments(), Nodes: store.Nodes(), Scorecard: store.Scorecard(), Capacity: store.Capacity(),
 		Packaging: view, DemandHeat: store.DemandHeat(), Listings: store.Listings(), PlacementPlans: store.PlacementPlans(),
 		Outbox: store.Outbox(), Inbox: store.Inbox(), Clock: e.clock, IDs: &memory.SequentialIDs{}, SSCC: issuer,
 	}, usecases.Config{})

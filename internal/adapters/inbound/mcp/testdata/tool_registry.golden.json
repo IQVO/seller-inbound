@@ -32,6 +32,9 @@
             "string"
           ]
         },
+        "capacityEnforced": {
+          "type": "boolean"
+        },
         "confirmedAt": {
           "type": [
             "null",
@@ -56,6 +59,9 @@
               },
               "qtyEaches": {
                 "type": "integer"
+              },
+              "unitVolumeDm3": {
+                "type": "integer"
               }
             },
             "required": [
@@ -73,8 +79,70 @@
         "packingOption": {
           "type": "string"
         },
+        "placementFeeBasis": {
+          "additionalProperties": false,
+          "properties": {
+            "basis": {
+              "type": "string"
+            },
+            "dm3": {
+              "type": "integer"
+            },
+            "month": {
+              "type": "string"
+            },
+            "nodeIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "null",
+                "array"
+              ]
+            }
+          },
+          "required": [
+            "basis",
+            "month",
+            "dm3",
+            "nodeIds"
+          ],
+          "type": [
+            "null",
+            "object"
+          ]
+        },
+        "placementOption": {
+          "type": "string"
+        },
         "planId": {
           "type": "string"
+        },
+        "redistribution": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "lineNo": {
+                "type": "integer"
+              },
+              "nodeId": {
+                "type": "string"
+              },
+              "qtyEaches": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "nodeId",
+              "lineNo",
+              "qtyEaches"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
         },
         "sellerId": {
           "type": "string"
@@ -88,8 +156,10 @@
         "sellerId",
         "destinationNodeId",
         "packingOption",
+        "placementOption",
         "state",
         "lines",
+        "capacityEnforced",
         "createdAt"
       ],
       "type": "object"

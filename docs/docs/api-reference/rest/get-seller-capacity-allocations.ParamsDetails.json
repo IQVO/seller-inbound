@@ -1,0 +1,1 @@
+{"parameters":[{"name":"sellerId","in":"path","required":true,"description":"The seller id.","schema":{"type":"string"},"example":"seller-77"},{"name":"month","in":"query","required":false,"description":"The calendar month, `YYYY-MM`; defaults to the current month.","schema":{"type":"string","pattern":"^[0-9]{4}-(0[1-9]|1[0-2])$","example":"2026-11"}}]}

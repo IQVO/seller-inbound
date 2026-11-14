@@ -20,6 +20,9 @@ const (
 	MaxLines = 500
 	// MaxQtyEaches is the largest quantity of one line (the Postgres integer ceiling).
 	MaxQtyEaches = shared.MaxInt32
+	// MaxUnitVolumeDm3 is the largest seller-declared volume of one each, in
+	// cubic decimetres (ADR 0015). 0 means undeclared.
+	MaxUnitVolumeDm3 = 100000
 )
 
 // ID identifies a plan (planId).
@@ -50,48 +53,69 @@ const (
 func (p PackingOption) Valid() bool { return p == Individual || p == CasePacked }
 
 // Line is one planned catalogue item, in eaches. GTIN is the 14-digit form.
+// UnitVolumeDm3 is the seller-declared volume of one each in cubic decimetres:
+// 0 = undeclared, else 1..MaxUnitVolumeDm3 (ADR 0015).
 type Line struct {
 	CatalogItemID string
 	GTIN          string
 	QtyEaches     int
+	UnitVolumeDm3 int
 }
 
 // Plan is the aggregate root.
 type Plan struct {
-	id          ID
-	sellerID    string
-	destination string
-	packing     PackingOption
-	lines       []Line
-	state       State
-	createdAt   time.Time
-	confirmedAt time.Time
-	cancelledAt time.Time
-	version     int64
+	id                ID
+	sellerID          string
+	destination       string
+	packing           PackingOption
+	lines             []Line
+	placementOption   PlacementOption
+	redistribution    []RedistributionLine
+	splitLimitKnown   bool
+	placementFeeBasis *FeeBasis
+	capacityEnforced  bool
+	state             State
+	createdAt         time.Time
+	confirmedAt       time.Time
+	cancelledAt       time.Time
+	version           int64
 }
 
 // Snapshot is the persisted form of a plan. Restore validates it.
 type Snapshot struct {
-	ID            ID
-	SellerID      string
-	DestinationID string
-	Packing       PackingOption
-	Lines         []Line
-	State         State
-	CreatedAt     time.Time
-	ConfirmedAt   time.Time
-	CancelledAt   time.Time
-	Version       int64
+	ID                ID
+	SellerID          string
+	DestinationID     string
+	Packing           PackingOption
+	Lines             []Line
+	PlacementOption   PlacementOption
+	Redistribution    []RedistributionLine
+	SplitLimitKnown   bool
+	PlacementFeeBasis *FeeBasis
+	CapacityEnforced  bool
+	State             State
+	CreatedAt         time.Time
+	ConfirmedAt       time.Time
+	CancelledAt       time.Time
+	Version           int64
 }
 
 // NewPlan is the input of Create. Lines carry the GTIN as the client sent it
-// (8, 12, 13 or 14 digits); Create normalises it to 14 digits.
+// (8, 12, 13 or 14 digits); Create normalises it to 14 digits. The
+// redistribution, the fee basis and capacityEnforced are the facts the use
+// case computed under ADR 0015; an empty PlacementOption defaults to
+// SELLER_SPLIT.
 type NewPlan struct {
-	ID            ID
-	SellerID      string
-	DestinationID string
-	Packing       PackingOption
-	Lines         []Line
+	ID                ID
+	SellerID          string
+	DestinationID     string
+	Packing           PackingOption
+	Lines             []Line
+	PlacementOption   PlacementOption
+	Redistribution    []RedistributionLine
+	SplitLimitKnown   bool
+	PlacementFeeBasis *FeeBasis
+	CapacityEnforced  bool
 }
 
 // Create builds a DRAFT plan at version 1. It raises no event: the model
@@ -106,10 +130,16 @@ func Create(in NewPlan, now time.Time) (*Plan, error) {
 		if err != nil {
 			return nil, shared.Invalid("lines[%d].gtin: %v", i, err)
 		}
-		lines[i] = Line{CatalogItemID: l.CatalogItemID, GTIN: g.String(), QtyEaches: l.QtyEaches}
+		lines[i] = Line{CatalogItemID: l.CatalogItemID, GTIN: g.String(), QtyEaches: l.QtyEaches, UnitVolumeDm3: l.UnitVolumeDm3}
+	}
+	option := in.PlacementOption
+	if option == "" {
+		option = SellerSplit
 	}
 	p, err := build(Snapshot{ID: in.ID, SellerID: in.SellerID, DestinationID: in.DestinationID, Packing: in.Packing,
-		Lines: lines, State: Draft, CreatedAt: now, Version: 1})
+		Lines: lines, PlacementOption: option, Redistribution: in.Redistribution, SplitLimitKnown: in.SplitLimitKnown,
+		PlacementFeeBasis: in.PlacementFeeBasis, CapacityEnforced: in.CapacityEnforced,
+		State: Draft, CreatedAt: now, Version: 1})
 	if err != nil {
 		return nil, shared.Invalid("%v", err)
 	}
@@ -131,7 +161,11 @@ func build(s Snapshot) (*Plan, error) {
 	}
 	return &Plan{
 		id: s.ID, sellerID: s.SellerID, destination: s.DestinationID, packing: s.Packing,
-		lines: append([]Line(nil), s.Lines...), state: s.State, createdAt: s.CreatedAt.UTC(),
+		lines: append([]Line(nil), s.Lines...), placementOption: s.PlacementOption,
+		redistribution:    append([]RedistributionLine(nil), s.Redistribution...),
+		splitLimitKnown:   s.SplitLimitKnown,
+		placementFeeBasis: copyFeeBasis(s.PlacementFeeBasis), capacityEnforced: s.CapacityEnforced,
+		state: s.State, createdAt: s.CreatedAt.UTC(),
 		confirmedAt: shared.UTC(s.ConfirmedAt), cancelledAt: shared.UTC(s.CancelledAt), version: s.Version,
 	}, nil
 }
@@ -149,6 +183,9 @@ func checkValues(s Snapshot) error {
 	if !s.Packing.Valid() {
 		return errors.New("packingOption must be INDIVIDUAL or CASE_PACKED")
 	}
+	if !s.PlacementOption.Valid() {
+		return errors.New("placementOption must be SELLER_SPLIT or NETWORK_SPLIT")
+	}
 	if s.CreatedAt.IsZero() {
 		return errors.New("createdAt is required")
 	}
@@ -156,6 +193,9 @@ func checkValues(s Snapshot) error {
 		return errors.New("version must be at least 1")
 	}
 	if err := checkLines(s.Lines); err != nil {
+		return err
+	}
+	if err := checkSplit(s); err != nil {
 		return err
 	}
 	return checkState(s)
@@ -180,9 +220,16 @@ func checkLines(lines []Line) error {
 		if l.QtyEaches < 1 || l.QtyEaches > MaxQtyEaches {
 			return fmt.Errorf("lines[%d].qtyEaches must be between 1 and %d", i, MaxQtyEaches)
 		}
+		if l.UnitVolumeDm3 < 0 || l.UnitVolumeDm3 > MaxUnitVolumeDm3 {
+			return fmt.Errorf("lines[%d].unitVolumeDm3 must be between 0 (undeclared) and %d", i, MaxUnitVolumeDm3)
+		}
 	}
 	return nil
 }
+
+// checkSplit pins the placement facts of ADR 0015: a redistribution and a fee
+// basis exist exactly when the option is NETWORK_SPLIT, the redistribution
+// covers every line exactly, and the fee basis names the recipients and the
 
 func checkState(s Snapshot) error {
 	switch s.State {
@@ -214,6 +261,7 @@ func (p *Plan) Confirm(now time.Time) ([]shared.Event, error) {
 	ev := InboundPlanConfirmed{
 		Header: shared.Header{Version: p.version, At: p.confirmedAt}, PlanID: p.id, SellerID: p.sellerID,
 		DestinationNodeID: p.destination, Packing: p.packing, Lines: p.Lines(),
+		PlacementOption: p.placementOption, Redistribution: p.Redistribution(), PlacementFeeBasis: p.PlacementFeeBasis(),
 	}
 	return []shared.Event{ev}, nil
 }
@@ -240,35 +288,7 @@ func (p *Plan) EnsureConfirmed() error {
 // Snapshot returns the persisted form.
 func (p *Plan) Snapshot() Snapshot {
 	return Snapshot{ID: p.id, SellerID: p.sellerID, DestinationID: p.destination, Packing: p.packing, Lines: p.Lines(),
+		PlacementOption: p.placementOption, Redistribution: p.Redistribution(), SplitLimitKnown: p.splitLimitKnown,
+		PlacementFeeBasis: p.PlacementFeeBasis(), CapacityEnforced: p.capacityEnforced,
 		State: p.state, CreatedAt: p.createdAt, ConfirmedAt: p.confirmedAt, CancelledAt: p.cancelledAt, Version: p.version}
-}
-
-// ID returns the planId.
-func (p *Plan) ID() ID { return p.id }
-
-// SellerID returns the owner of the planned stock.
-func (p *Plan) SellerID() string { return p.sellerID }
-
-// DestinationNodeID returns the node the stock is sent to.
-func (p *Plan) DestinationNodeID() string { return p.destination }
-
-// Packing returns the packing option.
-func (p *Plan) Packing() PackingOption { return p.packing }
-
-// Lines returns a copy of the planned lines.
-func (p *Plan) Lines() []Line { return append([]Line(nil), p.lines...) }
-
-// State returns the lifecycle state.
-func (p *Plan) State() State { return p.state }
-
-// Version returns the optimistic-concurrency version.
-func (p *Plan) Version() int64 { return p.version }
-
-// PlannedByItem returns the planned eaches per catalogItemId.
-func (p *Plan) PlannedByItem() map[string]int {
-	out := make(map[string]int, len(p.lines))
-	for _, l := range p.lines {
-		out[l.CatalogItemID] = l.QtyEaches
-	}
-	return out
 }
