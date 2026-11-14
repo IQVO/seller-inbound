@@ -28,3 +28,4 @@ The *Status* column is copied from each ADR's own `## Status` section.
 | [0012](./0012-the-placement-advisory.md) | the placement advisory (PlacementPlan, DemandHeatView) | Accepted (2026-11-06) |
 | [0013](./0013-seller-status-is-an-integration-fact.md) | Seller status is an integration fact | Accepted (2026-11-08) |
 | [0014](./0014-received-stock-is-published-per-item.md) | Received stock is published per item | Accepted (2026-11-09) |
+| [0015](./0015-inbound-capacity-allocation.md) | Inbound capacity allocation and placement options | Accepted (2026-11-14) |
