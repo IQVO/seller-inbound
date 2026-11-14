@@ -24,3 +24,7 @@ The retail network is modelled as ten bounded contexts, each its own service and
 ## Consequences
 
 Relationships and the full consumed-event list are in the model and in the AsyncAPI contract added with the first feature PR.
+
+## Addendum 2026-11-13: current state
+
+The event list above is the first nine. The context now publishes ten types: `PlacementPlanSuggested` was added by ADR 0012 (`apis/asyncapi.yaml`, `internal/adapters/outbound/kafka/encoder.go`). Six types go only to `retailnetwork.seller-inbound.events` and four only to `.analytics` (see the addendum to ADR 0002). The consumed list is in `apis/asyncapi.yaml`: eleven types from four producers (see the addendum to ADR 0003).
