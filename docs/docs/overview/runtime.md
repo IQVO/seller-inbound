@@ -30,7 +30,7 @@ absolute http(s) URL the card advertises) is mandatory; the chart deploys it beh
 | `DATABASE_URL` | required | Postgres DSN of the service's pool. A boot error names it when unset. |
 | `MIGRATIONS_DATABASE_URL` | `DATABASE_URL` | Direct DSN for the boot migrations (golang-migrate holds a session advisory lock, which breaks behind a transaction-pooling proxy). |
 | `KAFKA_BROKERS` | required | Comma-separated `host:port` list (relay, consumers and `/readyz`). A boot error names it when unset or blank. |
-| `NODE_CONSUMER_GROUP`, `CATALOG_CONSUMER_GROUP`, `RECEIPT_CONSUMER_GROUP` | required | Stable consumer group ids of the node-topology, offer-availability (packaging) and seller-inbound (receipts) consumers. A boot error names the missing one. |
+| `NODE_CONSUMER_GROUP`, `CATALOG_CONSUMER_GROUP`, `RECEIPT_CONSUMER_GROUP`, `SOURCING_CONSUMER_GROUP` | required | Stable consumer group ids of the node-topology, offer-availability (packaging), vendor-connectivity (receipts) and order-sourcing (release and cancel) consumers. A boot error names the missing one. |
 | `SSCC_COMPANY_PREFIX` | required | The network's GS1 company prefix, 6 to 11 digits; SSCCs the network issues are built from it (ADR 0002 A5). A boot error names it when unset or invalid. |
 | `SSCC_EXTENSION_DIGIT` | `0` | Extension digit of issued SSCCs, one digit 0..9. |
 | `EVENT_PUBLISHER` | `kafka` | Only `kafka` is accepted; any other value is a boot error. |
@@ -48,7 +48,7 @@ Configuration errors are raised before anything is opened or bound.
 ## Boot and stop
 
 1. Validate the environment. 2. Run the embedded migrations and ping Postgres, both with
-backoff. 3. Start the outbox relay, the three consumers and the daily retention sweeper. 4. Serve.
+backoff. 3. Start the outbox relay, the four consumers and the daily retention sweeper. 4. Serve.
 
 On SIGINT/SIGTERM: `/readyz` flips to 503 `not_ready`, wait `SHUTDOWN_DRAIN_DELAY`, drain
 HTTP (10 s), stop and await the consumers and the loop (10 s), then the relay (10 s), close the
@@ -89,7 +89,7 @@ the orchestrator restarts it.
 | `database.url` or `database.existingSecret` (+ `existingSecretKey`) | `DATABASE_URL` | `secretKeyRef`, never in the ConfigMap; render fails when neither is set. |
 | `database.migrationsExistingSecretKey` | `MIGRATIONS_DATABASE_URL` | `secretKeyRef` with `optional: true`; the binary falls back to `DATABASE_URL`. |
 | `kafka.brokers` | `KAFKA_BROKERS` | Required. |
-| `config.nodeConsumerGroup`, `config.catalogConsumerGroup`, `config.receiptConsumerGroup` | `NODE_`/`CATALOG_`/`RECEIPT_CONSUMER_GROUP` | Required, stable and service-prefixed (`seller-inbound-node`, ...), never the pod name. |
+| `config.nodeConsumerGroup`, `config.catalogConsumerGroup`, `config.receiptConsumerGroup`, `config.sourcingConsumerGroup` | `NODE_`/`CATALOG_`/`RECEIPT_`/`SOURCING_CONSUMER_GROUP` | Required, stable and service-prefixed (`seller-inbound-node`, ...), never the pod name. |
 | `config.ssccCompanyPrefix`, `config.ssccExtensionDigit` | `SSCC_COMPANY_PREFIX`, `SSCC_EXTENSION_DIGIT` | The prefix is required (6 to 11 digits, the render fails otherwise); the extension digit is optional. |
 | `config.eventPublisher` | `EVENT_PUBLISHER` | Only `kafka`; `*_MODE` and a non-kafka publisher in `extraEnv` are refused. |
 | `config.outboxRelayInterval`, `shutdownDrainDelay` | the relay and drain variables | Optional; not rendered while empty so the binary default applies. `shutdownDrainDelay` takes whole seconds. |

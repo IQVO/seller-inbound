@@ -2,7 +2,7 @@
 # (cmd/api, always), the optional, default-off mcp Deployment (cmd/mcp,
 # ADR 0006 — the read-only MCP server) and the optional, default-off frontend
 # Deployment (the seller_inbound_mfe web remote, ADR 0007). The outbox relay,
-# the three Kafka consumers and the three loops run inside the api only; there
+# the four Kafka consumers and the three loops run inside the api only; there
 # is no projector or reports component.
 
 replicaCount: 1

@@ -55,7 +55,8 @@ own Postgres and Kafka with testcontainers, so there is no `DATABASE_URL`, no do
 fitness tests enforce this (`TestPostgresIntegrationTestsUseTestcontainers`, `TestKafkaIntegrationTestsUseTestcontainers`).
 
 - `cmd/api/e2e_integration_test.go` starts the real `run` entry point against the containers and walks the REST API,
-  the three consumers and the relay end to end.
+  the four consumers and the relay end to end (the sourcing consumer: a merged release lands `demand_heat_lines` rows, a
+  replayed event id is a no-op, a cancel removes the rows).
 - `cmd/mcp` and `cmd/a2a` have their own `main_integration_test.go`.
 - `internal/adapters/outbound/postgres` covers the repositories, the scorecard tables, and that an outbox row written
   under a span stores its `traceparent`.

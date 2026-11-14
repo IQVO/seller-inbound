@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-10-24).
+Accepted (2026-10-24). Amended by [ADR 0015](./0015-start-the-order-sourcing-consumer.md) (a fourth consumer group variable).
 
 ## Context
 

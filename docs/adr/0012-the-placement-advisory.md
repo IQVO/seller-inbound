@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-11-06).
+Accepted (2026-11-06). Amended by [ADR 0015](./0015-start-the-order-sourcing-consumer.md) (the order-sourcing consumer is started).
 
 ## Context
 
