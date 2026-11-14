@@ -8,4 +8,5 @@ config:
   nodeConsumerGroup: "seller-inbound-node"
   catalogConsumerGroup: "seller-inbound-catalog"
   receiptConsumerGroup: "seller-inbound-receipt"
+  sourcingConsumerGroup: "seller-inbound-sourcing"
   ssccCompanyPrefix: "0614141"

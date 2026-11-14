@@ -94,6 +94,7 @@ KAFKA_BROKERS: {{ .Values.kafka.brokers | quote }}
 NODE_CONSUMER_GROUP: {{ .Values.config.nodeConsumerGroup | quote }}
 CATALOG_CONSUMER_GROUP: {{ .Values.config.catalogConsumerGroup | quote }}
 RECEIPT_CONSUMER_GROUP: {{ .Values.config.receiptConsumerGroup | quote }}
+SOURCING_CONSUMER_GROUP: {{ .Values.config.sourcingConsumerGroup | quote }}
 SSCC_COMPANY_PREFIX: {{ .Values.config.ssccCompanyPrefix | quote }}
 OUTBOX_MAX_ATTEMPTS: {{ .Values.config.outboxMaxAttempts | quote }}
 {{- with .Values.config.outboxRelayInterval }}
@@ -129,13 +130,13 @@ EVENT_PUBLISHER=log. There is no default broker and no log sink.
 {{- end -}}
 
 {{/*
-The three consumers always run, each under a STABLE consumer group id that
+The four consumers always run, each under a STABLE consumer group id that
 comes from values (cmd/api exits at boot without NODE_CONSUMER_GROUP,
-CATALOG_CONSUMER_GROUP and RECEIPT_CONSUMER_GROUP). A stable id is what lets a
+CATALOG_CONSUMER_GROUP, RECEIPT_CONSUMER_GROUP and SOURCING_CONSUMER_GROUP). A stable id is what lets a
 rescheduled pod resume from its committed offsets; never derive it from the pod name.
 */}}
 {{- define "seller-inbound.requireConsumerGroups" -}}
-{{- range $c := list (dict "key" "nodeConsumerGroup" "env" "NODE_CONSUMER_GROUP") (dict "key" "catalogConsumerGroup" "env" "CATALOG_CONSUMER_GROUP") (dict "key" "receiptConsumerGroup" "env" "RECEIPT_CONSUMER_GROUP") -}}
+{{- range $c := list (dict "key" "nodeConsumerGroup" "env" "NODE_CONSUMER_GROUP") (dict "key" "catalogConsumerGroup" "env" "CATALOG_CONSUMER_GROUP") (dict "key" "receiptConsumerGroup" "env" "RECEIPT_CONSUMER_GROUP") (dict "key" "sourcingConsumerGroup" "env" "SOURCING_CONSUMER_GROUP") -}}
 {{- if not (index $.Values.config $c.key) -}}
 {{- fail (printf "config.%s is required (%s): the consumer always runs on real Kafka and cmd/api exits at boot without a group. Use a STABLE, service-prefixed id, never the pod name." $c.key $c.env) -}}
 {{- end -}}
