@@ -25,12 +25,14 @@ type planLineBody struct {
 	CatalogItemID string `json:"catalogItemId"`
 	GTIN          string `json:"gtin"`
 	QtyEaches     int    `json:"qtyEaches"`
+	UnitVolumeDm3 int    `json:"unitVolumeDm3,omitempty"`
 }
 
 type createPlanBody struct {
 	SellerID          string         `json:"sellerId"`
 	DestinationNodeID string         `json:"destinationNodeId"`
 	PackingOption     string         `json:"packingOption"`
+	PlacementOption   string         `json:"placementOption,omitempty"`
 	Lines             []planLineBody `json:"lines"`
 }
 
@@ -67,15 +69,36 @@ type sellerResponse struct {
 }
 
 type planResponse struct {
-	PlanID            string         `json:"planId"`
-	SellerID          string         `json:"sellerId"`
-	DestinationNodeID string         `json:"destinationNodeId"`
-	PackingOption     string         `json:"packingOption"`
-	State             string         `json:"state"`
-	Lines             []planLineBody `json:"lines"`
-	CreatedAt         time.Time      `json:"createdAt"`
-	ConfirmedAt       *time.Time     `json:"confirmedAt,omitempty"`
-	CancelledAt       *time.Time     `json:"cancelledAt,omitempty"`
+	PlanID            string               `json:"planId"`
+	SellerID          string               `json:"sellerId"`
+	DestinationNodeID string               `json:"destinationNodeId"`
+	PackingOption     string               `json:"packingOption"`
+	PlacementOption   string               `json:"placementOption"`
+	State             string               `json:"state"`
+	Lines             []planLineBody       `json:"lines"`
+	Redistribution    []redistributionBody `json:"redistribution,omitempty"`
+	PlacementFeeBasis *feeBasisBody        `json:"placementFeeBasis,omitempty"`
+	CapacityEnforced  bool                 `json:"capacityEnforced"`
+	CreatedAt         time.Time            `json:"createdAt"`
+	ConfirmedAt       *time.Time           `json:"confirmedAt,omitempty"`
+	CancelledAt       *time.Time           `json:"cancelledAt,omitempty"`
+}
+
+// redistributionBody is one (node, line) share of a NETWORK_SPLIT plan's
+// recorded redistribution (ADR 0015).
+type redistributionBody struct {
+	NodeID    string `json:"nodeId"`
+	LineNo    int    `json:"lineNo"`
+	QtyEaches int    `json:"qtyEaches"`
+}
+
+// feeBasisBody is the recorded placement fee basis (ADR 0015): a fact for a
+// later vendor-settlement context, never a charge.
+type feeBasisBody struct {
+	Basis   string   `json:"basis"`
+	Month   string   `json:"month"`
+	Dm3     int64    `json:"dm3"`
+	NodeIDs []string `json:"nodeIds"`
 }
 
 type cartonResponse struct {
@@ -153,10 +176,20 @@ func sellerOut(v views.Seller) sellerResponse {
 func planOut(v views.Plan) planResponse {
 	lines := make([]planLineBody, len(v.Lines))
 	for i, l := range v.Lines {
-		lines[i] = planLineBody(l)
+		lines[i] = planLineBody{CatalogItemID: l.CatalogItemID, GTIN: l.GTIN, QtyEaches: l.QtyEaches, UnitVolumeDm3: l.UnitVolumeDm3}
+	}
+	redistribution := make([]redistributionBody, len(v.Redistribution))
+	for i, r := range v.Redistribution {
+		redistribution[i] = redistributionBody{NodeID: r.NodeID, LineNo: r.LineNo, QtyEaches: r.QtyEaches}
+	}
+	var feeBasis *feeBasisBody
+	if v.PlacementFeeBasis != nil {
+		feeBasis = &feeBasisBody{Basis: v.PlacementFeeBasis.Basis, Month: v.PlacementFeeBasis.Month, Dm3: v.PlacementFeeBasis.Dm3, NodeIDs: v.PlacementFeeBasis.NodeIDs}
 	}
 	return planResponse{PlanID: v.PlanID, SellerID: v.SellerID, DestinationNodeID: v.DestinationNodeID, PackingOption: v.PackingOption,
-		State: v.State, Lines: lines, CreatedAt: v.CreatedAt.UTC(), ConfirmedAt: tptr(v.ConfirmedAt), CancelledAt: tptr(v.CancelledAt)}
+		PlacementOption: v.PlacementOption, State: v.State, Lines: lines, Redistribution: redistribution, PlacementFeeBasis: feeBasis,
+		CapacityEnforced: v.CapacityEnforced,
+		CreatedAt:        v.CreatedAt.UTC(), ConfirmedAt: tptr(v.ConfirmedAt), CancelledAt: tptr(v.CancelledAt)}
 }
 
 func cartonOut(c views.Carton) cartonResponse {
@@ -229,10 +262,10 @@ func (s *Server) handleCreatePlan(w http.ResponseWriter, r *http.Request) {
 	}
 	lines := make([]requests.PlanLine, len(in.Lines))
 	for i, l := range in.Lines {
-		lines[i] = requests.PlanLine(l)
+		lines[i] = requests.PlanLine{CatalogItemID: l.CatalogItemID, GTIN: l.GTIN, QtyEaches: l.QtyEaches, UnitVolumeDm3: l.UnitVolumeDm3}
 	}
 	v, err := s.Service.CreateInboundPlan(r.Context(), requests.CreateInboundPlan{SellerID: in.SellerID,
-		DestinationNodeID: in.DestinationNodeID, PackingOption: in.PackingOption, Lines: lines})
+		DestinationNodeID: in.DestinationNodeID, PackingOption: in.PackingOption, PlacementOption: in.PlacementOption, Lines: lines})
 	created(w, r, planOut(v), err)
 }
 

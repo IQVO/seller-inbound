@@ -44,7 +44,7 @@ func newHarness(t *testing.T) *harness {
 	clock := memory.NewClock(now)
 	deps := usecases.Deps{
 		UoW: store.UnitOfWork(), Sellers: store.Sellers(), Plans: store.Plans(), Shipments: store.Shipments(),
-		Nodes: store.Nodes(), Scorecard: store.Scorecard(), Packaging: store.Packaging(),
+		Nodes: store.Nodes(), Scorecard: store.Scorecard(), Capacity: store.Capacity(), Packaging: store.Packaging(),
 		Outbox: store.Outbox(), Inbox: store.Inbox(), Clock: clock, IDs: &memory.SequentialIDs{}, SSCC: &memory.SsccIssuer{},
 	}
 	svc := usecases.New(deps, usecases.Config{})

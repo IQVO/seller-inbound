@@ -5,7 +5,9 @@ import "github.com/claudioed/seller-inbound/internal/domain/shared"
 // Entity is the CloudEvents entity segment of the InboundPlan's events.
 const Entity = "inboundplan"
 
-// InboundPlanConfirmed is raised by Confirm. Its fields are the model's data list.
+// InboundPlanConfirmed is raised by Confirm. Its fields are the model's data
+// list. The placement fields are the facts of ADR 0015: placementOption
+// always, the redistribution and the fee basis only for NETWORK_SPLIT.
 type InboundPlanConfirmed struct {
 	shared.Header
 	PlanID            ID
@@ -13,6 +15,9 @@ type InboundPlanConfirmed struct {
 	DestinationNodeID string
 	Packing           PackingOption
 	Lines             []Line
+	PlacementOption   PlacementOption
+	Redistribution    []RedistributionLine
+	PlacementFeeBasis *FeeBasis
 }
 
 // EventName returns "InboundPlanConfirmed".

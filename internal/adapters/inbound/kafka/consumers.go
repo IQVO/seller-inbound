@@ -67,8 +67,9 @@ type wireInboundLimits struct {
 		W int `json:"w"`
 		H int `json:"h"`
 	} `json:"maxCartonDimsMm"`
-	AcceptsPallets *bool `json:"acceptsPallets"`
-	RequiresSscc   *bool `json:"requiresSscc"`
+	AcceptsPallets   *bool `json:"acceptsPallets"`
+	RequiresSscc     *bool `json:"requiresSscc"`
+	MonthlyVolumeDm3 int   `json:"monthlyVolumeDm3"` // node-topology ADR 0016 (wave 4); 0/absent = undeclared
 }
 
 type profileDeclaredData struct {
@@ -193,7 +194,8 @@ func inboundRequest(w *wireInboundLimits) *requests.NodeInbound {
 	if w == nil {
 		return nil
 	}
-	out := &requests.NodeInbound{MaxCartonWeightG: w.MaxCartonWeightG, AcceptsPallets: w.AcceptsPallets, RequiresSscc: w.RequiresSscc}
+	out := &requests.NodeInbound{MaxCartonWeightG: w.MaxCartonWeightG, AcceptsPallets: w.AcceptsPallets,
+		RequiresSscc: w.RequiresSscc, MonthlyVolumeDm3: w.MonthlyVolumeDm3}
 	if d := w.MaxCartonDimsMm; d != nil {
 		out.MaxCartonDims = &requests.Dims{L: d.L, W: d.W, H: d.H}
 	}

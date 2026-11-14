@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/claudioed/seller-inbound/internal/application/ports"
+	"github.com/claudioed/seller-inbound/internal/domain/capacity"
 	"github.com/claudioed/seller-inbound/internal/domain/inboundshipment"
 	"github.com/claudioed/seller-inbound/internal/domain/network"
 	"github.com/claudioed/seller-inbound/internal/domain/scorecard"
@@ -50,6 +51,9 @@ var problemCatalogue = []struct {
 	{inboundshipment.ErrCartonOversize, problem{http.StatusUnprocessableEntity, "carton-oversize", "The carton is larger than the destination node accepts"}},
 	{inboundshipment.ErrInvalidSscc, problem{http.StatusUnprocessableEntity, "invalid-sscc", "The SSCC must be 18 digits with a valid check digit"}},
 	{inboundshipment.ErrCartonContentsMismatchPlan, problem{http.StatusUnprocessableEntity, "carton-contents-mismatch-plan", "The carton contents do not fit the plan"}},
+	{capacity.ErrInboundCapacityExceeded, problem{http.StatusUnprocessableEntity, "inbound-capacity-exceeded", "The plan would exceed the seller's monthly inbound capacity at this node"}},
+	{capacity.ErrNetworkSplitDestination, problem{http.StatusUnprocessableEntity, "network-split-destination", "A network-split plan destinations an inbound cross-dock"}},
+	{capacity.ErrNetworkSplitUnavailable, problem{http.StatusUnprocessableEntity, "network-split-unavailable", "The destination region holds no fulfilment centre to redistribute to"}},
 	{ports.ErrNotFound, problem{http.StatusNotFound, "not-found", "Not found"}},
 	{seller.ErrSellerSuspended, problem{http.StatusConflict, "seller-suspended", "The seller is suspended"}},
 	{seller.ErrSellerExists, problem{http.StatusConflict, "seller-exists", "The seller is already onboarded"}},

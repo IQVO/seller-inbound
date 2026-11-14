@@ -56,7 +56,7 @@ func seededService(t *testing.T) (*usecases.Service, world) {
 	store := memory.NewStore()
 	svc := usecases.New(usecases.Deps{
 		UoW: store.UnitOfWork(), Sellers: store.Sellers(), Plans: store.Plans(), Shipments: store.Shipments(),
-		Nodes: store.Nodes(), Scorecard: store.Scorecard(), Packaging: store.Packaging(),
+		Nodes: store.Nodes(), Scorecard: store.Scorecard(), Capacity: store.Capacity(), Packaging: store.Packaging(),
 		Outbox: store.Outbox(), Inbox: store.Inbox(), Clock: memory.NewClock(now), IDs: &memory.SequentialIDs{}, SSCC: &memory.SsccIssuer{},
 	}, usecases.Config{})
 	caseGTIN, eachGTIN := gtin(t, "0614141000036"), gtin(t, "0614141000012")

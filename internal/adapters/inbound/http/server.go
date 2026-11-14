@@ -75,6 +75,7 @@ func NewRouter(s *Server, logger *slog.Logger, serviceName string) http.Handler 
 	r.Method(http.MethodPost, "/sellers/{sellerId}/suspensions", write(s.handleSuspendSeller))
 	r.Method(http.MethodPost, "/sellers/{sellerId}/reinstatements", write(s.handleReinstateSeller))
 	r.Get("/sellers/{sellerId}/scorecard", s.handleGetScorecard)
+	r.Get("/sellers/{sellerId}/capacity-allocations", s.handleCapacityAllocations)
 	r.Method(http.MethodPost, "/inbound-plans", write(s.handleCreatePlan))
 	r.Method(http.MethodPost, "/inbound-plans/{planId}/confirmations", write(s.handleConfirmPlan))
 	r.Method(http.MethodPost, "/inbound-plans/{planId}/cancellations", write(s.handleCancelPlan))

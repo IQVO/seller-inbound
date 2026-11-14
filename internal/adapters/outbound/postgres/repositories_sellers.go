@@ -69,19 +69,82 @@ type lineJSON struct {
 	CatalogItemID string `json:"catalogItemId"`
 	GTIN          string `json:"gtin"`
 	QtyEaches     int    `json:"qtyEaches"`
+	UnitVolumeDm3 int    `json:"unitVolumeDm3,omitempty"`
+}
+
+// redistributionJSON is the persisted []RedistributionLine (ADR 0015).
+type redistributionJSON struct {
+	NodeID    string `json:"nodeId"`
+	LineNo    int    `json:"lineNo"`
+	QtyEaches int    `json:"qtyEaches"`
+}
+
+// feeBasisJSON is the persisted PlacementFeeBasis (ADR 0015).
+type feeBasisJSON struct {
+	Basis   string   `json:"basis"`
+	Month   string   `json:"month"`
+	Dm3     int64    `json:"dm3"`
+	NodeIDs []string `json:"nodeIds"`
+}
+
+func redistributionToJSON(in []inboundplan.RedistributionLine) ([]byte, error) {
+	if len(in) == 0 {
+		return nil, nil
+	}
+	out := make([]redistributionJSON, len(in))
+	for i, r := range in {
+		out[i] = redistributionJSON{NodeID: r.NodeID, LineNo: r.LineNo, QtyEaches: r.QtyEaches}
+	}
+	return json.Marshal(out)
+}
+
+func feeBasisToJSON(f *inboundplan.FeeBasis) ([]byte, error) {
+	if f == nil {
+		return nil, nil
+	}
+	return json.Marshal(feeBasisJSON{Basis: f.Basis, Month: f.Month, Dm3: f.Dm3, NodeIDs: f.NodeIDs})
+}
+
+func redistributionFromJSON(raw []byte) ([]inboundplan.RedistributionLine, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	var in []redistributionJSON
+	if err := json.Unmarshal(raw, &in); err != nil {
+		return nil, err
+	}
+	out := make([]inboundplan.RedistributionLine, len(in))
+	for i, r := range in {
+		out[i] = inboundplan.RedistributionLine{NodeID: r.NodeID, LineNo: r.LineNo, QtyEaches: r.QtyEaches}
+	}
+	return out, nil
+}
+
+func feeBasisFromJSON(raw []byte) (*inboundplan.FeeBasis, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	var f feeBasisJSON
+	if err := json.Unmarshal(raw, &f); err != nil {
+		return nil, err
+	}
+	return &inboundplan.FeeBasis{Basis: f.Basis, Month: f.Month, Dm3: f.Dm3, NodeIDs: f.NodeIDs}, nil
 }
 
 // Get returns the plan or ports.ErrNotFound.
 func (r *PlanRepo) Get(ctx context.Context, id inboundplan.ID) (*inboundplan.Plan, error) {
 	var (
-		s                      inboundplan.Snapshot
-		lines                  []byte
-		confirmed, cancelledAt *time.Time
+		s                        inboundplan.Snapshot
+		lines                    []byte
+		redistribution, feeBasis []byte
+		confirmed, cancelledAt   *time.Time
 	)
 	err := queryFor(ctx, r.pool).QueryRow(ctx, `
-		SELECT plan_id, seller_id, destination_node_id, packing_option, state, lines, created_at, confirmed_at, cancelled_at, version
+		SELECT plan_id, seller_id, destination_node_id, packing_option, state, lines, created_at, confirmed_at, cancelled_at, version,
+			placement_option, redistribution, split_limit_known, placement_fee_basis, capacity_enforced
 		FROM inbound_plans WHERE plan_id = $1`, string(id)).
-		Scan(&s.ID, &s.SellerID, &s.DestinationID, &s.Packing, &s.State, &lines, &s.CreatedAt, &confirmed, &cancelledAt, &s.Version)
+		Scan(&s.ID, &s.SellerID, &s.DestinationID, &s.Packing, &s.State, &lines, &s.CreatedAt, &confirmed, &cancelledAt, &s.Version,
+			&s.PlacementOption, &redistribution, &s.SplitLimitKnown, &feeBasis, &s.CapacityEnforced)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ports.ErrNotFound
 	}
@@ -93,30 +156,48 @@ func (r *PlanRepo) Get(ctx context.Context, id inboundplan.ID) (*inboundplan.Pla
 		return nil, fmt.Errorf("decode plan %s lines: %w", id, err)
 	}
 	for _, l := range in {
-		s.Lines = append(s.Lines, inboundplan.Line{CatalogItemID: l.CatalogItemID, GTIN: l.GTIN, QtyEaches: l.QtyEaches})
+		s.Lines = append(s.Lines, inboundplan.Line{CatalogItemID: l.CatalogItemID, GTIN: l.GTIN, QtyEaches: l.QtyEaches, UnitVolumeDm3: l.UnitVolumeDm3})
+	}
+	if s.Redistribution, err = redistributionFromJSON(redistribution); err != nil {
+		return nil, fmt.Errorf("decode plan %s redistribution: %w", id, err)
+	}
+	if s.PlacementFeeBasis, err = feeBasisFromJSON(feeBasis); err != nil {
+		return nil, fmt.Errorf("decode plan %s fee basis: %w", id, err)
 	}
 	s.ConfirmedAt, s.CancelledAt = zeroIfNil(confirmed), zeroIfNil(cancelledAt)
 	return inboundplan.Restore(s)
 }
 
-// Save persists the plan under the optimistic-concurrency rule.
+// Save persists the plan under the optimistic-concurrency rule. The placement
+// facts of ADR 0015 are immutable after create, so the update path carries
+// only the lifecycle columns.
 func (r *PlanRepo) Save(ctx context.Context, p *inboundplan.Plan) error {
 	s := p.Snapshot()
 	lines := make([]lineJSON, len(s.Lines))
 	for i, l := range s.Lines {
-		lines[i] = lineJSON{CatalogItemID: l.CatalogItemID, GTIN: l.GTIN, QtyEaches: l.QtyEaches}
+		lines[i] = lineJSON{CatalogItemID: l.CatalogItemID, GTIN: l.GTIN, QtyEaches: l.QtyEaches, UnitVolumeDm3: l.UnitVolumeDm3}
 	}
 	raw, err := json.Marshal(lines)
+	if err != nil {
+		return err
+	}
+	redistribution, err := redistributionToJSON(s.Redistribution)
+	if err != nil {
+		return err
+	}
+	feeBasis, err := feeBasisToJSON(s.PlacementFeeBasis)
 	if err != nil {
 		return err
 	}
 	q := queryFor(ctx, r.pool)
 	if s.Version == 1 {
 		_, err := q.Exec(ctx, `
-			INSERT INTO inbound_plans (plan_id, seller_id, destination_node_id, packing_option, state, lines, created_at, confirmed_at, cancelled_at, version)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+			INSERT INTO inbound_plans (plan_id, seller_id, destination_node_id, packing_option, state, lines, created_at, confirmed_at, cancelled_at, version,
+				placement_option, redistribution, split_limit_known, placement_fee_basis, capacity_enforced)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
 			string(s.ID), s.SellerID, s.DestinationID, string(s.Packing), string(s.State), raw, s.CreatedAt,
-			nullTime(s.ConfirmedAt), nullTime(s.CancelledAt), s.Version)
+			nullTime(s.ConfirmedAt), nullTime(s.CancelledAt), s.Version,
+			string(s.PlacementOption), redistribution, s.SplitLimitKnown, feeBasis, s.CapacityEnforced)
 		return saveErr(err)
 	}
 	tag, err := q.Exec(ctx, `

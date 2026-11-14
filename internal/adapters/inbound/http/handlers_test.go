@@ -42,7 +42,7 @@ func newAPILogged(t *testing.T, logger *slog.Logger) *api {
 	t.Helper()
 	s := memory.NewStore()
 	svc := usecases.New(usecases.Deps{
-		UoW: s.UnitOfWork(), Sellers: s.Sellers(), Plans: s.Plans(), Shipments: s.Shipments(), Nodes: s.Nodes(), Scorecard: s.Scorecard(), Packaging: s.Packaging(),
+		UoW: s.UnitOfWork(), Sellers: s.Sellers(), Plans: s.Plans(), Shipments: s.Shipments(), Nodes: s.Nodes(), Scorecard: s.Scorecard(), Capacity: s.Capacity(), Packaging: s.Packaging(),
 		Outbox: s.Outbox(), Inbox: s.Inbox(), Clock: memory.NewClock(t0), IDs: &memory.SequentialIDs{}, SSCC: &memory.SsccIssuer{},
 	}, usecases.Config{})
 	ctx := context.Background()

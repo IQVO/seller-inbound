@@ -152,6 +152,20 @@ func (r *NodeViewRepository) VendorFulfillmentCenters(ctx context.Context) ([]ne
 	return out, nil
 }
 
+// RegionFulfillmentCenters returns every ACTIVE FULFILLMENT_CENTER of the
+// region, ordered by node id (ADR 0015 capacity-split-v1 candidates).
+func (r *NodeViewRepository) RegionFulfillmentCenters(ctx context.Context, regionID string) ([]network.Node, error) {
+	defer r.s.enter(ctx)()
+	var out []network.Node
+	for _, n := range r.s.nodes {
+		if n.Type == network.TypeFulfillmentCenter && n.Status == network.NodeActive && n.RegionID == regionID {
+			out = append(out, n)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out, nil
+}
+
 // PackagingViewRepository is the in-memory ports.PackagingViewRepository.
 type PackagingViewRepository struct{ s *Store }
 
