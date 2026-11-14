@@ -20,6 +20,7 @@ import (
 	"sync"
 
 	"github.com/claudioed/seller-inbound/internal/application/ports"
+	"github.com/claudioed/seller-inbound/internal/domain/capacity"
 	"github.com/claudioed/seller-inbound/internal/domain/inboundplan"
 	"github.com/claudioed/seller-inbound/internal/domain/inboundshipment"
 	"github.com/claudioed/seller-inbound/internal/domain/network"
@@ -73,6 +74,7 @@ type Store struct {
 	demand         map[demandKey][]network.DemandLine
 	listings       map[availKey]network.NodeAvailability
 	placementPlans map[placementplan.ID]placementplan.Snapshot
+	capacity       map[allocKey]capacity.Allocation
 	inbox          map[string]string
 	outbox         []shared.Event
 	receipts       map[string]scorecard.Receipt
@@ -86,8 +88,8 @@ func NewStore() *Store {
 		shipments: map[inboundshipment.ID]inboundshipment.Snapshot{}, sscc: map[string]inboundshipment.ID{},
 		nodes: map[string]network.Node{}, packaging: map[packKey]network.PackLevel{},
 		demand: map[demandKey][]network.DemandLine{}, listings: map[availKey]network.NodeAvailability{},
-		placementPlans: map[placementplan.ID]placementplan.Snapshot{}, inbox: map[string]string{},
-		receipts: map[string]scorecard.Receipt{},
+		placementPlans: map[placementplan.ID]placementplan.Snapshot{}, capacity: map[allocKey]capacity.Allocation{},
+		inbox: map[string]string{}, receipts: map[string]scorecard.Receipt{},
 	}
 }
 
@@ -103,6 +105,7 @@ type state struct {
 	demand         map[demandKey][]network.DemandLine
 	listings       map[availKey]network.NodeAvailability
 	placementPlans map[placementplan.ID]placementplan.Snapshot
+	capacity       map[allocKey]capacity.Allocation
 	inbox          map[string]string
 	outbox         []shared.Event
 	receipts       map[string]scorecard.Receipt
@@ -121,14 +124,14 @@ func (s *Store) capture() state {
 	return state{sellers: cloneMap(s.sellers), plans: cloneMap(s.plans), shipments: cloneMap(s.shipments), sscc: cloneMap(s.sscc),
 		nodes: cloneMap(s.nodes), packaging: cloneMap(s.packaging), inbox: cloneMap(s.inbox), outbox: slices.Clone(s.outbox),
 		demand: cloneMap(s.demand), listings: cloneMap(s.listings), placementPlans: cloneMap(s.placementPlans),
-		receipts: cloneMap(s.receipts), occurs: slices.Clone(s.occurs)}
+		capacity: cloneMap(s.capacity), receipts: cloneMap(s.receipts), occurs: slices.Clone(s.occurs)}
 }
 
 func (s *Store) restore(st state) {
 	s.sellers, s.plans, s.shipments, s.sscc = st.sellers, st.plans, st.shipments, st.sscc
 	s.nodes, s.packaging, s.inbox, s.outbox = st.nodes, st.packaging, st.inbox, st.outbox
 	s.demand, s.listings, s.placementPlans = st.demand, st.listings, st.placementPlans
-	s.receipts, s.occurs = st.receipts, st.occurs
+	s.capacity, s.receipts, s.occurs = st.capacity, st.receipts, st.occurs
 }
 
 // txKey marks a ctx that carries the open unit of work of one store.
@@ -199,6 +202,9 @@ func (s *Store) Listings() *ListingView { return &ListingView{s} }
 
 // PlacementPlans returns the in-memory PlacementPlanRepository double.
 func (s *Store) PlacementPlans() *PlacementPlanRepository { return &PlacementPlanRepository{s} }
+
+// Capacity returns the in-memory CapacityAllocations double (ADR 0015).
+func (s *Store) Capacity() *CapacityAllocations { return &CapacityAllocations{s} }
 
 // Inbox returns the ProcessedEvents double.
 func (s *Store) Inbox() *Inbox { return &Inbox{s} }

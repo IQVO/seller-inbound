@@ -25,7 +25,7 @@ contracts and ADRs on `develop`; each page carries a `Source:` line where it sta
 | [Class diagrams](/docs/ddd/class-diagram) | UML class diagram | Domain types and the hexagonal layout. |
 | [Entity-relationship diagram](/docs/ddd/entity-relationship) | ER diagram | The Postgres schema of migrations 0001 to 0004: fourteen tables and one sequence. |
 | [Sequence diagrams](/docs/ddd/sequence-diagrams) | UML sequence diagram | `AddCarton`, `ShipInboundShipment`, the receipt consumer and plan confirmation, with error branches. |
-| [Domain events](/docs/ddd/domain-events) | Event catalogue | Nine published events with payloads and an example envelope; the eight consumed. |
+| [Domain events](/docs/ddd/domain-events) | Event catalogue | Ten published events with payloads and an example envelope; the eleven consumed. |
 
 Related pages outside the pack: [Use cases](/docs/ddd/use-cases), [Subdomain classification](/docs/ddd/subdomain-classification),
 [Integration](/docs/ecosystem/integration) and the [event catalogue](/docs/api-reference/events).

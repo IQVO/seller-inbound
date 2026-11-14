@@ -17,7 +17,7 @@ signals themselves see [Observability](/docs/operations/observability); for rout
 | Symptom | Cause | Check | Fix |
 | --- | --- | --- | --- |
 | Process exits at once with `DATABASE_URL is required: this context runs on real Postgres, there is no in-memory mode` | The variable is empty. There is no in-memory runtime. | The error line `service exited with error` names the variable (`cmd/api/config.go` `loadRuntime`). | Set `DATABASE_URL` ([Configuration](/docs/operations/configuration)). |
-| Exit with `KAFKA_BROKERS is required`, `NODE_CONSUMER_GROUP is required: the consumer always runs on real Kafka` (or the catalog or receipt group), or `SSCC_COMPANY_PREFIX is required` | A mandatory `cmd/api` variable is missing. | Same log line. | Set it. The chart's `config.nodeConsumerGroup`, `config.catalogConsumerGroup`, `config.receiptConsumerGroup`, `config.ssccCompanyPrefix` and `kafka.brokers` must all be non-empty. |
+| Exit with `KAFKA_BROKERS is required`, `NODE_CONSUMER_GROUP is required: the consumer always runs on real Kafka` (or the catalog, receipt or `SOURCING_CONSUMER_GROUP` group), or `SSCC_COMPANY_PREFIX is required` | A mandatory `cmd/api` variable is missing. | Same log line. | Set it. The chart's `config.nodeConsumerGroup`, `config.catalogConsumerGroup`, `config.receiptConsumerGroup`, `config.sourcingConsumerGroup`, `config.ssccCompanyPrefix` and `kafka.brokers` must all be non-empty. |
 | Exit with `EVENT_PUBLISHER=log is not supported: this context publishes to real Kafka` or `EVENT_PUBLISHER: unknown value` | Only `kafka` (or unset) is accepted. | `cmd/api/config.go` `parsePublisherMode`. | Unset the variable or set `kafka`. |
 | Exit with an `invalid SSCC configuration` error | `SSCC_COMPANY_PREFIX` is not 6 to 11 digits, or `SSCC_EXTENSION_DIGIT` is not one digit 0..9. | `internal/adapters/outbound/sscc/sscc.go` (`ErrInvalidConfig`). | Correct the value. The prefix must be the network's real GS1 company prefix. |
 | `cmd/a2a` exits naming `A2A_AGENT_URL` | The Agent Card URL is missing, relative or not `http(s)`. | `cmd/a2a/main.go` `validateBootConfig`. | Set an absolute URL, for example `http://seller-inbound-a2a.warehouse-systems.svc.cluster.local:8093/`. |
@@ -48,6 +48,7 @@ signals themselves see [Observability](/docs/operations/observability); for rout
 | A vendor receipt is dead-lettered with `receipt nodeId ... is not the shipment's node` | The receipt names a different node than the shipment's. | `x-dlq-error` header. | Fix vendor-connectivity's event; this service never edits a shipment to match the dock. |
 | A shipment stays `SHIPPED` | The receipt consumer has not received `InboundReceiptSubmitted`, or only a partial receipt arrived (state `RECEIVING`). | `SELECT state FROM inbound_shipments WHERE shipment_id = ...`; consumer lag of `RECEIPT_CONSUMER_GROUP`. | Wait for the vendor; the shipment closes once every manifest carton has an answer. |
 | Plans cannot target a node that exists | The local view `node_inbound_views` is fed by node-topology events; a node never seen is treated as unable to receive. | `SELECT * FROM node_inbound_views WHERE node_id = ...`: status must be `ACTIVE`, type `FULFILLMENT_CENTER` or `INBOUND_CROSS_DOCK`. | Check the node consumer lag; the node must have been `NodeRegistered` and `NodeActivated`. |
+| Placement plans come back empty and `demand_heat_lines` has no rows | The rows come only from order-sourcing's `FulfillmentReleasedToNode`, read by the sourcing consumer; a `kafka-go` group consumer started before its topic exists never picks it up later (fleet gap row 45). | `SELECT count(*) FROM demand_heat_lines;`; consumer lag of `SOURCING_CONSUMER_GROUP`; whether `retailnetwork.order-sourcing.events` exists. | Restart the pod once the topic exists; wait for order-sourcing to release. |
 | `case-qty-mismatches-gtin` for a correct case | The pack level comes from offer-availability events (`catalog_pack_levels`). | `SELECT * FROM catalog_pack_levels WHERE catalog_item_id = ...`: an active CASE row with this GTIN and `units_per_pack >= 2`. | Check the catalog consumer lag; a retired GTIN is never reactivated. |
 
 ## SSCC
@@ -66,6 +67,7 @@ request path). The table is `problemCatalogue` in `internal/adapters/inbound/htt
 | Status | `type` | Raised when |
 | --- | --- | --- |
 | 400 | `invalid-window` | `window` of the scorecard is not `7d` or `30d`. |
+| 400 | `invalid-cover-days` | `coverDays` of `POST /placement-plans` is outside 1 to 90 (0 or absent means the default, 14). |
 | 404 | `not-found` | Unknown seller, plan or shipment, or an unknown `:action` suffix. |
 | 409 | `seller-suspended` | A suspended seller creates a plan, shipment or carton, confirms a plan, or ships. |
 | 409 | `seller-exists` | `POST /sellers` for a `sellerId` already onboarded. |

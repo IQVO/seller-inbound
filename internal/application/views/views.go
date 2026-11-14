@@ -19,6 +19,26 @@ type PlanLine struct {
 	CatalogItemID string
 	GTIN          string
 	QtyEaches     int
+	// UnitVolumeDm3 is the seller-declared volume of one each in dm3; 0 =
+	// undeclared (ADR 0015).
+	UnitVolumeDm3 int
+}
+
+// RedistributionLine is one (node, line) share of a NETWORK_SPLIT plan's
+// recorded redistribution (ADR 0015).
+type RedistributionLine struct {
+	NodeID    string
+	LineNo    int
+	QtyEaches int
+}
+
+// FeeBasis is the recorded placement fee basis of a NETWORK_SPLIT plan: a
+// fact for a later vendor-settlement context, never a charge (ADR 0015).
+type FeeBasis struct {
+	Basis   string
+	Month   string
+	Dm3     int64
+	NodeIDs []string
 }
 
 // Plan is an inbound plan.
@@ -27,11 +47,20 @@ type Plan struct {
 	SellerID          string
 	DestinationNodeID string
 	PackingOption     string
-	State             string
-	Lines             []PlanLine
-	CreatedAt         time.Time
-	ConfirmedAt       time.Time
-	CancelledAt       time.Time
+	// PlacementOption is SELLER_SPLIT (default) or NETWORK_SPLIT (ADR 0015).
+	PlacementOption string
+	State           string
+	Lines           []PlanLine
+	// Redistribution and PlacementFeeBasis are the recorded NETWORK_SPLIT
+	// facts; empty/nil for SELLER_SPLIT (ADR 0015).
+	Redistribution    []RedistributionLine
+	PlacementFeeBasis *FeeBasis
+	// CapacityEnforced reports whether the monthly capacity gate was applied
+	// (both the node limit and every line volume known, ADR 0015).
+	CapacityEnforced bool
+	CreatedAt        time.Time
+	ConfirmedAt      time.Time
+	CancelledAt      time.Time
 }
 
 // Content is one content line of a carton.
@@ -144,4 +173,20 @@ type PlacementPlan struct {
 	CreatedAt     time.Time
 	AcceptedAt    time.Time
 	SupersededAt  time.Time
+}
+
+// CapacityAllocation is one row of the reservation table of a seller's month
+// (ADR 0015): the dm3 the seller's DRAFT and CONFIRMED plans promise to one
+// node.
+type CapacityAllocation struct {
+	NodeID      string
+	ReservedDm3 int64
+	UpdatedAt   time.Time
+}
+
+// CapacityAllocations answers GET /sellers/{sellerId}/capacity-allocations.
+type CapacityAllocations struct {
+	SellerID string
+	Month    string
+	Items    []CapacityAllocation
 }

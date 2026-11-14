@@ -21,7 +21,7 @@ A variable read by several binaries has a row in each table with that binary's o
 
 ## `cmd/api`
 
-Composition root of the REST API, the three Kafka consumers, the outbox relay and the retention sweeper
+Composition root of the REST API, the four Kafka consumers, the outbox relay and the retention sweeper
 (`cmd/api/main.go`, `config.go`, `wire_adapters.go`, `wire_background.go`, `telemetry.go`).
 
 | Variable | Default | Required? | Meaning |
@@ -29,11 +29,12 @@ Composition root of the REST API, the three Kafka consumers, the outbox relay an
 | `HTTP_ADDR` | `:8080` | no | Listen address of the REST server (also serves `/healthz` and `/readyz`). |
 | `DATABASE_URL` | none | **yes** | Postgres DSN of the service pool. Missing = boot error `DATABASE_URL is required: this context runs on real Postgres, there is no in-memory mode`. |
 | `MIGRATIONS_DATABASE_URL` | value of `DATABASE_URL` | no | Direct (non-pooled) DSN used only for the boot migrations: golang-migrate holds a session advisory lock that does not survive a transaction-pooling proxy. An empty value falls back to `DATABASE_URL`. |
-| `KAFKA_BROKERS` | none | **yes** | Comma-separated broker list (entries trimmed, blanks dropped). Used by the relay sink, the three consumers and the `/readyz` metadata check. Missing = boot error `KAFKA_BROKERS is required`. |
+| `KAFKA_BROKERS` | none | **yes** | Comma-separated broker list (entries trimmed, blanks dropped). Used by the relay sink, the four consumers and the `/readyz` metadata check. Missing = boot error `KAFKA_BROKERS is required`. |
 | `EVENT_PUBLISHER` | `kafka` | no | Only `kafka` (or empty) is accepted. `log` is a boot error (`EVENT_PUBLISHER=log is not supported`), any other value is a boot error. The variable stays because deployment manifests set it. |
 | `NODE_CONSUMER_GROUP` | none | **yes** | Stable consumer group id of the node-topology consumer. Missing = boot error naming the variable. |
 | `CATALOG_CONSUMER_GROUP` | none | **yes** | Stable consumer group id of the offer-availability (packaging) consumer. |
 | `RECEIPT_CONSUMER_GROUP` | none | **yes** | Stable consumer group id of the vendor-connectivity (receipts) consumer. |
+| `SOURCING_CONSUMER_GROUP` | none | **yes** | Stable consumer group id of the order-sourcing (release and cancel) consumer, which feeds `demand_heat_lines` ([ADR 0016](/docs/adr/0016-start-the-order-sourcing-consumer)). Missing = boot error naming the variable. |
 | `SSCC_COMPANY_PREFIX` | none | **yes** | The network's GS1 company prefix, 6 to 11 digits. Missing or invalid = boot error. SSCCs issued by the network are built from it. |
 | `SSCC_EXTENSION_DIGIT` | `0` | no | Extension digit of issued SSCCs, one digit 0..9. A non-numeric value or one outside 0..9 is a boot error. |
 | `OUTBOX_RELAY_INTERVAL` | `1s` | no | Pause between relay passes that did not fill a batch. A Go duration (`500ms`, `2s`) or plain seconds (`2`, `0.5`). Unparsable or non-positive values log a WARN and use the default. |

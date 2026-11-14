@@ -72,7 +72,8 @@ func limitsFromRequest(in *requests.NodeInbound) *network.InboundLimits {
 	if in == nil {
 		return nil
 	}
-	out := &network.InboundLimits{MaxCartonWeightG: in.MaxCartonWeightG, AcceptsPallets: in.AcceptsPallets, RequiresSscc: in.RequiresSscc}
+	out := &network.InboundLimits{MaxCartonWeightG: in.MaxCartonWeightG, AcceptsPallets: in.AcceptsPallets,
+		RequiresSscc: in.RequiresSscc, MonthlyVolumeDm3: in.MonthlyVolumeDm3}
 	if d := in.MaxCartonDims; d != nil {
 		out.MaxCartonDims = &network.Dims{L: d.L, W: d.W, H: d.H}
 	}

@@ -19,10 +19,12 @@ flowchart LR
     NT["node-topology<br/>Supporting"]
     OA["offer-availability<br/>Supporting"]
     VC["vendor-connectivity<br/>Supporting"]
+    OS["order-sourcing<br/>Core"]
     SI["seller-inbound<br/>Supporting"]
     NT -->|"U to D: CF<br/>Kafka node events"| SI
-    OA -->|"U to D: CF<br/>Kafka catalog and packaging"| SI
+    OA -->|"U to D: CF<br/>Kafka catalog, packaging<br/>and listing availability"| SI
     VC -->|"U to D: C/S<br/>Kafka InboundReceiptSubmitted"| SI
+    OS -->|"U to D: CF<br/>Kafka FulfillmentReleasedToNode,<br/>FulfillmentCancelled"| SI
 ```
 
 Source: `internal/adapters/inbound/kafka/consumers.go` (topics and types consumed).
@@ -50,7 +52,7 @@ Source: `internal/adapters/outbound/kafka/encoder.go` (topic routing), `internal
 `apis/asyncapi.yaml`.
 
 Omitted: the contexts with no edge to this one, which are Separate Ways: `delivery-promise`, `customer-ordering`,
-`order-sourcing`, `linehaul-transportation`, `last-mile-delivery`, `shipping-and-tracking`. The service also exposes a
+`linehaul-transportation`, `last-mile-delivery`, `shipping-and-tracking`. The service also exposes a
 read-only MCP server and A2A agent ([API reference](/docs/api-reference)); they add no relationship.
 
 ## Relationships
@@ -58,7 +60,8 @@ read-only MCP server and A2A agent ([API reference](/docs/api-reference)); they 
 | Neighbour | Direction | Pattern | Channel | Messages | Why this pattern |
 | --- | --- | --- | --- | --- | --- |
 | `node-topology` | U → D | Conformist | Kafka `retailnetwork.node-topology.events` | `NodeRegistered`, `NodeOperationalProfileDeclared`, `NodeActivated`, `NodeSuspended`, `NodeRetired` | A node's status, capabilities and inbound limits are node-topology's facts. Kept in `node_inbound_views`. |
-| `offer-availability` | U → D | Conformist | Kafka `retailnetwork.offer-availability.events` | `CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired` | The packaging hierarchy and its GTINs are the catalogue's. Kept in `catalog_pack_levels`. |
+| `offer-availability` | U → D | Conformist | Kafka `retailnetwork.offer-availability.events` | `CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired`, `ListingAvailabilityChanged` | The packaging hierarchy and its GTINs are the catalogue's. Kept in `catalog_pack_levels`. `ListingAvailabilityChanged` is kept in `listing_availability`, the availability half of the placement `DemandHeatView` ([ADR 0012](/docs/adr/0012-the-placement-advisory)). |
+| `order-sourcing` | U → D | Conformist | Kafka `retailnetwork.order-sourcing.events` | `FulfillmentReleasedToNode`, `FulfillmentCancelled` | A release is the observed demand and a cancel withdraws it; they are order-sourcing's facts. Kept in `demand_heat_lines` ([ADR 0016](/docs/adr/0016-start-the-order-sourcing-consumer)). |
 | `vendor-connectivity` | U → D (SI downstream) | Customer/Supplier | Kafka `retailnetwork.vendor-connectivity.events` | `InboundReceiptSubmitted` | The receipt shape is the published language; seller-inbound states what it needs. |
 | `vendor-connectivity` | U → D (SI upstream) | Customer/Supplier | Kafka `retailnetwork.seller-inbound.events` | `InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived` | The Vendor API needs the manifest and the closing status; seller-inbound publishes what it needs. |
 | `offer-availability` | U → D (SI upstream) | Conformist (offer-availability conforms) | Kafka `retailnetwork.seller-inbound.events` | `SellerSuspended`, `SellerReinstated`, `InboundShipmentReceived` | A suspended seller's listings must not stay live (G48, ADR 0013); offer-availability suppresses and restores them. Received seller stock becomes owner-scoped listings from `received` (G51, ADR 0014). |

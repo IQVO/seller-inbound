@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-10-24).
+Accepted (2026-10-24). Amended by [ADR 0016](./0016-start-the-order-sourcing-consumer.md) (a fourth consumer group variable).
 
 ## Context
 
@@ -38,3 +38,7 @@ Type strings carry each producer's own tier segment and must match byte for byte
 
 - A destination node or a pack level the views have not seen yet is refused as `node-cannot-receive` or `case-qty-mismatches-gtin`; the caller retries after the events arrive.
 - A change in a producer's payload that removes a field this context relies on fails loudly in its dead-letter topic, not silently.
+
+## Addendum 2026-11-13: current state
+
+The decision lists the first eight types from three producers. `apis/asyncapi.yaml` now declares eleven types from four producers: offer-availability `ListingAvailabilityChanged` and order-sourcing `FulfillmentReleasedToNode` and `FulfillmentCancelled` were added by ADR 0012 (use cases in `internal/application/usecases/consumers.go`). `cmd/api` starts the node, catalog and receipt consumers only (`cmd/api/wire_background.go`); the order-sourcing consumer (`NewSourcingConsumer`) was defined but not started when this note was written; [ADR 0016](./0016-start-the-order-sourcing-consumer.md) starts it, so all eleven types are read by the running service.

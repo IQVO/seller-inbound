@@ -30,7 +30,7 @@ Page map (source under `docs/docs/`):
 | Ecosystem | [Integration](docs/docs/ecosystem/integration.md), [MCP tools](docs/docs/mcp/tools.md) |
 | DDD | [Ubiquitous language](docs/docs/ddd/ubiquitous-language.md), [Use cases](docs/docs/ddd/use-cases.md), [Subdomain classification](docs/docs/ddd/subdomain-classification.md), [DDD artifacts](docs/docs/ddd/ddd-artifacts.md) (the 10-page ddd-crew pack) |
 | API reference | [Overview](docs/docs/api-reference/overview.md) (REST pages generated from `apis/openapi.yaml`), [Events](docs/docs/api-reference/events.md) |
-| Decisions | [ADR index](docs/adr/index.md), decisions 0001 to 0009 |
+| Decisions | [ADR index](docs/adr/index.md), decisions 0001 to 0015 |
 
 The design source is the retail-network pages on warehouse-docs, which this site's DDD pack was started from:
 
@@ -48,7 +48,7 @@ In-tree decisions: [docs/adr/](docs/adr/index.md).
 Hexagonal / ports & adapters. Dependencies point inward only:
 
 ```
-cmd/api/                     composition root: seller REST API + outbox relay + the three
+cmd/api/                     composition root: seller REST API + outbox relay + the four
                              Kafka consumers + the retention loop, on real Postgres and
                              real Kafka (no in-memory mode, no log sink, no consumer off)
 cmd/mcp/                     read-only MCP server (Streamable HTTP on /mcp)
@@ -64,7 +64,8 @@ internal/
     views/                   the read models
   adapters/
     inbound/http/            chi handlers, RFC 9457 problem mapping, idempotency middleware
-    inbound/kafka/           node-topology, offer-availability, vendor-connectivity consumers
+    inbound/kafka/           node-topology, offer-availability, vendor-connectivity and
+                             order-sourcing consumers
     inbound/mcp/             the six read-only MCP tools
     inbound/a2a/             the two read-only A2A skills
     inbound/requestlog/      the request log line
@@ -78,8 +79,8 @@ internal/
   architecture/              the fitness tests below
   bootretry/ testing/        boot retry, shared test helpers
 apis/                        openapi.yaml (REST) + asyncapi.yaml (events)
-docs/adr/                    9 ADRs + index
-features/                    8 godog feature files
+docs/adr/                    16 ADRs + index
+features/                    6 godog feature files
 charts/seller-inbound/       the Helm chart
 web/                         the operator micro-frontend remote
 ```
@@ -95,15 +96,20 @@ com.retailnetwork.partner.seller-inbound.inboundshipment.InboundShipmentShipped
 com.retailnetwork.partner.seller-inbound.seller.SellerOnboarded
 ```
 
-Specified in `apis/asyncapi.yaml` — nine published and eight consumed events:
+Specified in `apis/asyncapi.yaml` — ten published and eleven consumed event types (counted from its `send` and `receive` operations):
 
 | Topic | Direction | Messages |
 |---|---|---|
-| `retailnetwork.seller-inbound.events` | publishes (via the transactional outbox) | `InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived`, `SellerSuspended`, `SellerReinstated` (ADR 0013) |
+| `retailnetwork.seller-inbound.events` | publishes (via the transactional outbox) | `InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived`, `SellerSuspended`, `SellerReinstated` (ADR 0013), `PlacementPlanSuggested` (ADR 0012) |
 | `retailnetwork.seller-inbound.analytics` | publishes (analytics-only, via the outbox) | `SellerOnboarded`, `InboundPlanConfirmed`, `InboundDiscrepancyRecorded`, `SellerComplianceViolationRecorded` |
-| `retailnetwork.node-topology.events` | consumes | `NodeRegistered`, `NodeActivated`, `NodeSuspended`, `NodeRetired`, `NodeOperationalProfileDeclared` |
-| `retailnetwork.offer-availability.events` | consumes | `CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired` |
-| `retailnetwork.vendor-connectivity.events` | consumes | `InboundReceiptSubmitted` (the carton-level receipt that closes a shipment) |
+| `retailnetwork.node-topology.events` | consumes (`NODE_CONSUMER_GROUP`) | `NodeRegistered`, `NodeActivated`, `NodeSuspended`, `NodeRetired`, `NodeOperationalProfileDeclared` |
+| `retailnetwork.offer-availability.events` | consumes (`CATALOG_CONSUMER_GROUP`) | `CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired`, `ListingAvailabilityChanged` (availability half of the placement `DemandHeatView`, ADR 0012) |
+| `retailnetwork.vendor-connectivity.events` | consumes (`RECEIPT_CONSUMER_GROUP`) | `InboundReceiptSubmitted` (the carton-level receipt that closes a shipment) |
+| `retailnetwork.order-sourcing.events` | consumes (`SOURCING_CONSUMER_GROUP`) | `FulfillmentReleasedToNode`, `FulfillmentCancelled` (demand half of the placement `DemandHeatView`, ADR 0012, ADR 0016) |
+
+All eleven consumed types are read by the four consumers `cmd/api` starts (`cmd/api/wire_background.go`, [ADR 0016](docs/adr/0016-start-the-order-sourcing-consumer.md)). A `kafka-go` group consumer that starts before its topic exists never picks it up later, so restart the pod after `retailnetwork.order-sourcing.events` exists (fleet gap row 45).
+
+`PlacementPlanSuggested` is analytics-only today: it goes to the events topic so a consumer could subscribe later without a topic change, but no consumer of it is evidenced in this repository (ADR 0012, `streamFor` in `internal/adapters/outbound/kafka/encoder.go`). Whether it keeps no operational consumer beyond v1 is an open decision, not settled here.
 
 The vendor's receipt (an event from vendor-connectivity) closes the shipment; every discrepancy and compliance violation is recorded, never corrected.
 
@@ -117,6 +123,7 @@ export KAFKA_BROKERS="localhost:9092"
 export NODE_CONSUMER_GROUP=seller-inbound-node
 export CATALOG_CONSUMER_GROUP=seller-inbound-catalog
 export RECEIPT_CONSUMER_GROUP=seller-inbound-receipt
+export SOURCING_CONSUMER_GROUP=seller-inbound-sourcing
 export SSCC_COMPANY_PREFIX=1234567          # the network's GS1 company prefix, 6-11 digits
 go run ./cmd/api                            # migrations run at boot; REST on :8080
 ```
@@ -135,6 +142,7 @@ go run ./cmd/api                            # migrations run at boot; REST on :8
 | `NODE_CONSUMER_GROUP` | **required** | Stable group id of the node-topology consumer |
 | `CATALOG_CONSUMER_GROUP` | **required** | Stable group id of the offer-availability consumer |
 | `RECEIPT_CONSUMER_GROUP` | **required** | Stable group id of the vendor-connectivity consumer |
+| `SOURCING_CONSUMER_GROUP` | **required** | Stable group id of the order-sourcing consumer (feeds `demand_heat_lines`) |
 | `SSCC_COMPANY_PREFIX` | **required** | The network's GS1 company prefix, 6 to 11 digits |
 | `SSCC_EXTENSION_DIGIT` | `0` | SSCC extension digit 0..9 (ADR 0002 A5) |
 | `OUTBOX_RELAY_INTERVAL` | `1s` | Relay poll interval (Go duration or seconds) |
@@ -170,7 +178,7 @@ What it does, route by route:
 
 ## Helm chart
 
-Deploy with `charts/seller-inbound`. Values that matter: `config.*` (the env above, incl. the three consumer groups and `SSCC_COMPANY_PREFIX`), `database.url` (or `existingSecret`), `kafka.brokers`, `otel.enabled` (on by default; `false` renders no `OTEL_*` env at all) and `environment`. `mcp.enabled=true` (default off) adds the MCP Deployment + ClusterIP Service; `a2a.enabled=true` (default off) adds the A2A agent's; `frontend.enabled=true` adds the web remote's nginx Deployment + ClusterIP Service — it needs no database and no Kafka, and this chart never routes it (the web gateway owns `/mfes/seller-inbound/`). Linted and rendered in CI by the `helm-lint` (`ct lint`) and `chart-tests` jobs.
+Deploy with `charts/seller-inbound`. Values that matter: `config.*` (the env above, incl. the four consumer groups and `SSCC_COMPANY_PREFIX`), `database.url` (or `existingSecret`), `kafka.brokers`, `otel.enabled` (on by default; `false` renders no `OTEL_*` env at all) and `environment`. `mcp.enabled=true` (default off) adds the MCP Deployment + ClusterIP Service; `a2a.enabled=true` (default off) adds the A2A agent's; `frontend.enabled=true` adds the web remote's nginx Deployment + ClusterIP Service — it needs no database and no Kafka, and this chart never routes it (the web gateway owns `/mfes/seller-inbound/`). Linted and rendered in CI by the `helm-lint` (`ct lint`) and `chart-tests` jobs.
 
 ### Running the MCP server in Kubernetes
 
@@ -198,7 +206,7 @@ Deployed, the remote is served by its own nginx pod behind the web gateway at `h
 ## Tests
 
 - **Unit**: `make test` — domain, use cases, handlers, adapters.
-- **BDD**: `make bdd` — godog scenarios in `features/` (8 feature files).
+- **BDD**: `make bdd` — godog scenarios in `features/` (6 feature files).
 - **Integration**: `make integration` — testcontainers Postgres + Kafka.
 - **Mutation**: `make mutation` (blocking subset) / `make mutation-full` — gremlins, config in `.gremlins.yaml`.
 - **Architecture fitness**: `make arch-test` — `internal/architecture/` (hexagonal rule, CloudEvents-only, catalogue, Kafka rules, read-only MCP/A2A).
@@ -208,7 +216,7 @@ CI (`.github/workflows/ci.yml`) runs `lint`, `guide-lint`, `complexity`, `test`,
 
 ## Architecture Decision Records
 
-[docs/adr/](docs/adr/index.md) — index plus 9 ADRs (0001–0009: bounded context, aggregates and invariants, consumed contracts and local read models, CloudEvents envelope and type catalogue, seller compliance scorecard, read-only MCP server, console web remote, fleet observability standard, A2A inbound adapter).
+[docs/adr/](docs/adr/index.md) — index plus 16 ADRs (0001–0016: bounded context, aggregates and invariants, consumed contracts and local read models, CloudEvents envelope and type catalogue, seller compliance scorecard, read-only MCP server, console web remote, fleet observability standard, A2A inbound adapter, fleet REST API guideline, agent authority levels and complete MCP surface, placement advisory, seller status as an integration fact, received stock published per item, inbound capacity allocation, start of the order-sourcing consumer).
 
 ## License
 

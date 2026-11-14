@@ -68,7 +68,7 @@ at pack time; the receipt side only records).
 | agents | query | the reads above and the placement-plan reads | MCP `get_inbound_plan`, `get_inbound_shipment`, `get_shipment_labels`, `get_seller_scorecard`, `get_placement_plan`, `list_placement_plans`; A2A skills `seller_compliance`, `inbound_status` | read-only, unauthenticated |
 | `vendor-connectivity` | event | `InboundReceiptSubmitted` | Kafka `retailnetwork.vendor-connectivity.events` | Customer/Supplier |
 | `node-topology` | event | `NodeRegistered`, `NodeOperationalProfileDeclared`, `NodeActivated`, `NodeSuspended`, `NodeRetired` | Kafka `retailnetwork.node-topology.events` | Conformist |
-| `offer-availability` | event | `CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired` | Kafka `retailnetwork.offer-availability.events` | Conformist |
+| `offer-availability` | event | `CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired`, `ListingAvailabilityChanged` | Kafka `retailnetwork.offer-availability.events` | Conformist |
 
 All write routes take an `Idempotency-Key`. No authentication, as in every other context of the fleet.
 
@@ -118,5 +118,6 @@ from `SHIPPED` to the first receipt; share of case-packed cartons refused at `Ad
 ## 11. Open questions
 
 From the network gap register (G41 to G55, in IQVO/warehouse-docs): commingling, compliance scoring beyond the
-informational scorecard (nothing acts on its tier), inbound freight, EDI adapters, FEFO, who creates owner-scoped
-listings from received stock, pallets and inner packs.
+informational scorecard (nothing acts on its tier), inbound freight, EDI adapters, FEFO, pallets and inner packs.
+G51 (who creates owner-scoped listings from received stock) is closed: `InboundShipmentReceived` carries `received` per
+item and offer-availability creates the listings ([ADR 0014](/docs/adr/0014-received-stock-is-published-per-item)).

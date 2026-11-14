@@ -18,17 +18,22 @@ type SuspendSeller struct {
 }
 
 // PlanLine is one line of an inbound plan, in eaches. GTIN is as sent.
+// UnitVolumeDm3 is the seller-declared volume of one each (0 = undeclared,
+// ADR 0015).
 type PlanLine struct {
 	CatalogItemID string
 	GTIN          string
 	QtyEaches     int
+	UnitVolumeDm3 int
 }
 
-// CreateInboundPlan is command CreateInboundPlan.
+// CreateInboundPlan is command CreateInboundPlan. PlacementOption is ""
+// (SELLER_SPLIT) or NETWORK_SPLIT (ADR 0015).
 type CreateInboundPlan struct {
 	SellerID          string
 	DestinationNodeID string
 	PackingOption     string
+	PlacementOption   string
 	Lines             []PlanLine
 }
 
@@ -59,12 +64,14 @@ type AddCarton struct {
 type Dims struct{ L, W, H int }
 
 // NodeInbound is the optional inbound block of a node profile. Zero values and
-// nil pointers mean "not declared".
+// nil pointers mean "not declared". MonthlyVolumeDm3 is the node's declared
+// monthly inbound volume in dm3 (ADR 0015).
 type NodeInbound struct {
 	MaxCartonWeightG int
 	MaxCartonDims    *Dims
 	AcceptsPallets   *bool
 	RequiresSscc     *bool
+	MonthlyVolumeDm3 int
 }
 
 // NodeRegistered is the consumed node-topology NodeRegistered. Operator and

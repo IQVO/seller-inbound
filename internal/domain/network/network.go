@@ -42,12 +42,15 @@ const (
 type Dims struct{ L, W, H int }
 
 // InboundLimits are the inbound limits a node declared. Pointers and zero
-// values mean "not declared".
+// values mean "not declared". MonthlyVolumeDm3 is the volumetric figure of
+// ADR 0015: the dm3 the node accepts as inbound per calendar month (0 = the
+// node declared none).
 type InboundLimits struct {
 	MaxCartonWeightG int
 	MaxCartonDims    *Dims
 	AcceptsPallets   *bool
 	RequiresSscc     *bool
+	MonthlyVolumeDm3 int
 }
 
 // Node is one row of NodeInboundView.

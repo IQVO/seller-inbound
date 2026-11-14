@@ -30,7 +30,9 @@ flowchart LR
     SEL["sellers, console remote<br/>REST"]
     AG["agents<br/>MCP and A2A"]
     NT -->|"5 node events"| SI
-    OA -->|"2 packaging events"| SI
+    OA -->|"2 packaging events, ListingAvailabilityChanged"| SI
+    OS["order-sourcing<br/>topic retailnetwork.order-sourcing.events"]
+    OS -->|"FulfillmentReleasedToNode, FulfillmentCancelled"| SI
     VC -->|"InboundReceiptSubmitted"| SI
     SI -->|"Labelled, Shipped, Received<br/>topic retailnetwork.seller-inbound.events"| VC2
     SI -->|"InboundShipmentShipped"| NP
@@ -46,7 +48,9 @@ Source: `internal/adapters/inbound/kafka/consumers.go`, `internal/adapters/outbo
 
 ## Upstream: what seller-inbound consumes
 
-Three consumers run in `cmd/api`, each under a mandatory stable consumer group ([Runbook](/docs/operations/runbook)).
+Four consumers run in `cmd/api`, each under a mandatory stable consumer group ([Runbook](/docs/operations/runbook)); they
+read all eleven consumed types in `apis/asyncapi.yaml` (node-topology 5, offer-availability 3, vendor-connectivity 1,
+order-sourcing 2; [ADR 0016](/docs/adr/0016-start-the-order-sourcing-consumer)).
 Each message is claimed in `processed_events` by its CloudEvents id in the same transaction as its effect, so delivery
 is at-least-once with an atomic effect.
 
@@ -55,11 +59,12 @@ is at-least-once with an atomic effect.
 | node-topology | `retailnetwork.node-topology.events` | `com.retailnetwork.logistics.node-topology.node.NodeRegistered`, `NodeOperationalProfileDeclared`, `NodeActivated`, `NodeSuspended`, `NodeRetired` | Folded into `node_inbound_views`: node type, status and inbound limits (`maxCartonWeightG`, `maxCartonDims`, `acceptsPallets`, `requiresSscc`). |
 | offer-availability | `retailnetwork.offer-availability.events` | `com.retailnetwork.commerce.offer-availability.catalogitem.CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired`; `com.retailnetwork.commerce.offer-availability.listing.ListingAvailabilityChanged` | Packaging events are folded into `catalog_pack_levels` (item, level, GTIN, units per pack, active flag); `ListingAvailabilityChanged` into `listing_availability` (latest availability per item and node, the availability half of the placement `DemandHeatView`, [ADR 0012](/docs/adr/0012-the-placement-advisory)). |
 | vendor-connectivity | `retailnetwork.vendor-connectivity.events` | `com.retailnetwork.partner.vendor-connectivity.inboundreceipt.InboundReceiptSubmitted` | Applied to the shipment: closes it and records discrepancies and compliance violations ([Use cases](/docs/ddd/use-cases)). |
+| order-sourcing | `retailnetwork.order-sourcing.events` | `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleasedToNode`, `FulfillmentCancelled` | A release replaces its assignment group's rows in `demand_heat_lines` (the demand half of the placement `DemandHeatView`, [ADR 0012](/docs/adr/0012-the-placement-advisory)); a cancel deletes them. Extra fields of a merged release (`members`, per-line `assignmentId`, `ownerRef`) are ignored. |
 
 Payloads are decoded tolerantly: unknown fields are ignored, and a type this consumer has no handler for is committed
 past without a log line.
 
-**Failure behaviour (all three consumers).** The offset is committed only after the effect committed. A transient
+**Failure behaviour (all four consumers).** The offset is committed only after the effect committed. A transient
 failure (database error) is retried with capped exponential backoff, 200 ms doubling to 5 s, up to 5 attempts, then the
 message goes to `<topic>.dlq` with the headers `x-dlq-source-topic`, `x-dlq-source-partition`, `x-dlq-source-offset`,
 `x-dlq-error` and `x-dlq-failed-at`. A message that can never be applied is dead-lettered at once: not a valid
@@ -71,7 +76,9 @@ the process exits non-zero so the orchestrator restarts it. Out-of-order node an
 
 **Cold start.** Until node-topology has published a node as `ACTIVE`, plans for it are refused `node-cannot-receive`;
 until offer-availability has published a CASE level, a case-packed carton for that item is refused
-`case-qty-mismatches-gtin`. There is no live lookup to fall back on.
+`case-qty-mismatches-gtin`; until order-sourcing has released something, a placement plan has no demand and is empty.
+There is no live lookup to fall back on. A `kafka-go` group consumer that starts before its topic exists never picks the
+topic up later (fleet gap row 45), so restart the pod after `retailnetwork.order-sourcing.events` exists.
 
 ## Downstream: what seller-inbound publishes
 
@@ -82,7 +89,7 @@ payload.
 
 | Topic | Events | Known consumers |
 | --- | --- | --- |
-| `retailnetwork.seller-inbound.events` | `InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived`, `SellerSuspended`, `SellerReinstated` | offer-availability (`SellerSuspended`, `SellerReinstated`: suppresses and restores the seller's listings, ADR 0013; `InboundShipmentReceived.received`: creates owner-scoped listings, gap G51, ADR 0014); vendor-connectivity (builds the `InboundShipmentView` it serves on the Vendor API); node-performance (`InboundShipmentShipped`, the start of its inbound timeliness metric) |
+| `retailnetwork.seller-inbound.events` | `InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived`, `SellerSuspended`, `SellerReinstated`, `PlacementPlanSuggested` | offer-availability (`SellerSuspended`, `SellerReinstated`: suppresses and restores the seller's listings, ADR 0013; `InboundShipmentReceived.received`: creates owner-scoped listings, gap G51, ADR 0014); vendor-connectivity (builds the `InboundShipmentView` it serves on the Vendor API); node-performance (`InboundShipmentShipped`, the start of its inbound timeliness metric); none evidenced for `PlacementPlanSuggested` (analytics-only in v1, ADR 0012) |
 | `retailnetwork.seller-inbound.analytics` | `SellerOnboarded`, `InboundPlanConfirmed`, `InboundDiscrepancyRecorded`, `SellerComplianceViolationRecorded` | none in the organisation (published for analytics only) |
 
 The consumer groups of the downstream services are in `warehouse-infra` (`node-performance-seller-inbound` for
@@ -113,12 +120,3 @@ All three are unauthenticated. See [API reference](/docs/api-reference) and [MCP
 - **Downstream consumers of the analytics topic.** None inside the organisation.
 - **Item liveness.** `CatalogItemCreated` and `CatalogItemDiscontinued` are not consumed, so a plan line is not checked
   against whether the item is live.
-
-## Discrepancies found
-
-- The demand half of the placement `DemandHeatView` is not fed in the running service. `internal/adapters/inbound/kafka/consumers.go`
-  defines `SourcingHandlers` and `NewSourcingConsumer` for order-sourcing's `FulfillmentReleasedToNode` and
-  `FulfillmentCancelled` (topic `retailnetwork.order-sourcing.events`, group `SOURCING_CONSUMER_GROUP`), and
-  `apis/asyncapi.yaml` lists both as consumed, but `cmd/api/wire_background.go` starts only the node, catalog and receipt
-  consumers and no code reads `SOURCING_CONSUMER_GROUP`. `demand_heat_lines` is therefore never written, so
-  `POST /placement-plans` records empty plans until the consumer is wired.

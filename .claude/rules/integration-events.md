@@ -71,7 +71,7 @@ content mode. This is a hard rule, not a preference:
 
 Constants and tolerant payload structs: `internal/adapters/inbound/kafka/consumers.go`. Each
 consumer's group comes from its mandatory variable (`NODE_CONSUMER_GROUP`,
-`CATALOG_CONSUMER_GROUP`, `RECEIPT_CONSUMER_GROUP`).
+`CATALOG_CONSUMER_GROUP`, `RECEIPT_CONSUMER_GROUP`, `SOURCING_CONSUMER_GROUP`).
 
 | `type` | topic | handler (use case) |
 | --- | --- | --- |

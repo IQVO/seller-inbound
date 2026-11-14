@@ -24,7 +24,7 @@ nothing from the rest of the module, and only `cmd/` wires the layers together. 
 | Application | `internal/application/usecases` | One method of `Service` per command, query or consumed event ([Use cases](/docs/ddd/use-cases)). |
 | Application | `internal/application/{ports,requests,views,outbox}` | The out ports (`SellerRepository`, `PlanRepository`, `ShipmentRepository`, `NodeViewRepository`, `PackagingViewRepository`, `ScorecardFacts`, `EventOutbox`, `ProcessedEvents`, `UnitOfWork`, `Clock`, `IDGenerator`, `SsccIssuer`, `ShipmentMetrics`), the request and view structs, and the already-encoded outbox `Message`. |
 | Inbound adapter | `internal/adapters/inbound/http` | chi router for `apis/openapi.yaml`: handlers, problem mapping (`errors.go`), the `Idempotency-Key` middleware, `/healthz`, `/readyz`. No auth middleware. |
-| Inbound adapter | `internal/adapters/inbound/kafka` | The node, catalog and receipt consumers: CloudEvents decode, dispatch on the full `type`, retry with backoff, dead-letter topic, consumer span. |
+| Inbound adapter | `internal/adapters/inbound/kafka` | The node, catalog, receipt and sourcing consumers: CloudEvents decode, dispatch on the full `type`, retry with backoff, dead-letter topic, consumer span. |
 | Inbound adapter | `internal/adapters/inbound/mcp` | The six read-only MCP tools. |
 | Inbound adapter | `internal/adapters/inbound/a2a` | The two read-only A2A skills and the Agent Card. |
 | Inbound adapter | `internal/adapters/inbound/requestlog` | The access-log middleware shared by the three routers. |
@@ -48,7 +48,7 @@ shipment counter are ports too, so the use cases never touch infrastructure.
 
 | Binary | Role | Port | Probes |
 | --- | --- | --- | --- |
-| `cmd/api` | REST API, the node, catalog and receipt consumers, the outbox relay and the retention sweeper in one process, all always on, on real Postgres and Kafka. Files: `main.go` (run and shutdown order), `config.go` (env parsing, `loadRuntime`), `wire_adapters.go`, `wire_background.go`, `telemetry.go`. | `HTTP_ADDR`, default `:8080` | `GET /healthz` (liveness), `GET /readyz` (drain gate, Postgres ping, a Kafka broker answers a metadata request; never topics) |
+| `cmd/api` | REST API, the node, catalog, receipt and sourcing consumers, the outbox relay and the retention sweeper in one process, all always on, on real Postgres and Kafka. Files: `main.go` (run and shutdown order), `config.go` (env parsing, `loadRuntime`), `wire_adapters.go`, `wire_background.go`, `telemetry.go`. | `HTTP_ADDR`, default `:8080` | `GET /healthz` (liveness), `GET /readyz` (drain gate, Postgres ping, a Kafka broker answers a metadata request; never topics) |
 | `cmd/mcp` | Read-only MCP server (Streamable HTTP) over the read use cases; no relay, consumer or Kafka ([ADR 0006](/docs/adr/0006-read-only-mcp-server)). | `MCP_ADDR`, default `:8090` | `GET /healthz` |
 | `cmd/a2a` | Read-only A2A (Agent2Agent) agent: JSON-RPC 2.0 at `/` and `/a2a`, Agent Card at `/.well-known/agent-card.json`; no relay, consumer or Kafka ([ADR 0009](/docs/adr/0009-a2a-inbound-adapter)). | `A2A_ADDR`, default `:8093` | `GET /healthz` |
 
@@ -69,7 +69,7 @@ flowchart TB
     subgraph api["cmd/api (one process)"]
         direction TB
         http["inbound/http<br/>chi, problem+json, Idempotency-Key"]
-        kin["inbound/kafka<br/>node, catalog, receipt consumers<br/>retry, DLQ, dedupe"]
+        kin["inbound/kafka<br/>node, catalog, receipt, sourcing consumers<br/>retry, DLQ, dedupe"]
         subgraph app["internal/application"]
             uc["usecases.Service"]
             ports["ports"]

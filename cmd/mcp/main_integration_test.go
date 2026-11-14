@@ -105,7 +105,7 @@ func seedThroughWriteUseCases(t *testing.T, url string) seeded {
 	}
 	svc := usecases.New(usecases.Deps{
 		UoW: postgres.NewUnitOfWork(pool), Sellers: postgres.NewSellerRepo(pool), Plans: postgres.NewPlanRepo(pool),
-		Shipments: postgres.NewShipmentRepo(pool), Nodes: postgres.NewNodeViewRepo(pool), Scorecard: postgres.NewScorecardFacts(pool),
+		Shipments: postgres.NewShipmentRepo(pool), Nodes: postgres.NewNodeViewRepo(pool), Scorecard: postgres.NewScorecardFacts(pool), Capacity: postgres.NewCapacityRepo(pool),
 		Packaging: postgres.NewPackagingViewRepo(pool), Outbox: postgres.NewEventOutbox(ob, outboundkafka.NewEncoder()),
 		Inbox: postgres.NewProcessedEventRepo(pool), Clock: clock.System{}, IDs: ids.UUID{}, SSCC: issuer,
 	}, usecases.Config{Logger: quietLogger()})
