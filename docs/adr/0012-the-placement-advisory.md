@@ -56,3 +56,7 @@ no new subscription and no synchronous call.
   later ADR once the advisory has consumers.
 - Demand is observed at LOCK time, not delivery time: it measures where the
   network actually fulfilled, which is the signal placement should feed.
+
+## Addendum 2026-11-13: current state
+
+The demand half of `DemandHeatView` is fed by order-sourcing `FulfillmentReleasedToNode` and `FulfillmentCancelled`, not by `FulfillmentLocked` (`ApplyFulfillmentReleased` and `ApplyFulfillmentCancelled`, `internal/application/usecases/consumers.go`; `apis/asyncapi.yaml`). Demand is therefore observed at release time, not lock time. `PlacementPlanSuggested` goes only to the events topic (`internal/adapters/outbound/kafka/encoder.go`, `streamFor`). The order-sourcing consumer is not started by `cmd/api` (`cmd/api/wire_background.go`).
