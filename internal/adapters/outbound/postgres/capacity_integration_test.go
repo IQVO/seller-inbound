@@ -10,6 +10,7 @@ import (
 	"github.com/claudioed/seller-inbound/internal/adapters/outbound/postgres"
 	"github.com/claudioed/seller-inbound/internal/domain/inboundplan"
 	"github.com/claudioed/seller-inbound/internal/domain/network"
+	"github.com/claudioed/seller-inbound/internal/testing/pgtest"
 )
 
 // TestPlanRepoCarriesTheCapacityFacts round-trips a NETWORK_SPLIT plan and a
