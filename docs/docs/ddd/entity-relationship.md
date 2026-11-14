@@ -154,8 +154,9 @@ erDiagram
 
 `demand_heat_lines` holds one row per live released line of an assignment group (a later release of the group replaces
 its rows, `FulfillmentCancelled` deletes them) and `listing_availability` the latest `ListingAvailabilityChanged` per
-item and node. The `placement_plans` suggestions are value objects stored as `JSONB`. Nothing in the running `cmd/api`
-writes `demand_heat_lines` yet; see [Integration](/docs/ecosystem/integration#upstream-what-seller-inbound-consumes).
+item and node. The `placement_plans` suggestions are value objects stored as `JSONB`. The running
+`cmd/api` writes `demand_heat_lines` through the order-sourcing consumer; see
+[Integration](/docs/ecosystem/integration#upstream-what-seller-inbound-consumes).
 
 Outbox, inbox and idempotency (infrastructure tables):
 

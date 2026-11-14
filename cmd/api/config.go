@@ -22,7 +22,7 @@ var (
 )
 
 // consumerGroups are the mandatory consumer group variables.
-var consumerGroups = []string{"NODE_CONSUMER_GROUP", "CATALOG_CONSUMER_GROUP", "RECEIPT_CONSUMER_GROUP"}
+var consumerGroups = []string{"NODE_CONSUMER_GROUP", "CATALOG_CONSUMER_GROUP", "RECEIPT_CONSUMER_GROUP", "SOURCING_CONSUMER_GROUP"}
 
 // runtimeEnv is the validated environment: the brokers, every consumer group
 // and the SSCC issuing configuration.

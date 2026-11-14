@@ -32,6 +32,7 @@ GROUPS = {
     "nodeConsumerGroup": "seller-inbound-node",
     "catalogConsumerGroup": "seller-inbound-catalog",
     "receiptConsumerGroup": "seller-inbound-receipt",
+    "sourcingConsumerGroup": "seller-inbound-sourcing",
 }
 URLS = {
     "ssccCompanyPrefix": "0614141",
@@ -82,7 +83,7 @@ MCP_ENV = {"MCP_ADDR", "LOG_LEVEL", "SERVICE_VERSION", "ENVIRONMENT", "DATABASE_
 # dials Kafka.
 MCP_STRAY = {"KAFKA_BROKERS", "EVENT_PUBLISHER", "SSCC_COMPANY_PREFIX", "SSCC_EXTENSION_DIGIT",
              "OUTBOX_RELAY_INTERVAL", "OUTBOX_MAX_ATTEMPTS",
-             "NODE_CONSUMER_GROUP", "CATALOG_CONSUMER_GROUP", "RECEIPT_CONSUMER_GROUP"}
+             "NODE_CONSUMER_GROUP", "CATALOG_CONSUMER_GROUP", "RECEIPT_CONSUMER_GROUP", "SOURCING_CONSUMER_GROUP"}
 
 
 # Exactly the env vars cmd/a2a (main.go, telemetry.go) reads (its own contract;

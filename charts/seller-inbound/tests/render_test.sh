@@ -13,11 +13,12 @@ release=seller-inbound
 api_go=($(ls "$repo_dir"/cmd/api/*.go | grep -v -E '_test\.go$|/telemetry\.go$'))
 
 # Dummy values, no password: the chart refuses to render without a database
-# source, Kafka brokers, the three consumer groups and the SSCC company prefix.
+# source, Kafka brokers, the four consumer groups and the SSCC company prefix.
 # None is ever dialled.
 groups=(nodeConsumerGroup:seller-inbound-node
   catalogConsumerGroup:seller-inbound-catalog
-  receiptConsumerGroup:seller-inbound-receipt)
+  receiptConsumerGroup:seller-inbound-receipt
+  sourcingConsumerGroup:seller-inbound-sourcing)
 urls=(ssccCompanyPrefix:0614141)
 base=(--set database.url=postgres://u@example.invalid:5432/db
   --set kafka.brokers=kafka.example.invalid:9092)
@@ -67,7 +68,7 @@ slice_env() { # slice_env <go slice variable>
 # shellcheck disable=SC2207
 api_vars=($( { literal_env; slice_env consumerGroups; } | sort -u))
 (( ${#api_vars[@]} >= 12 )) || fail "found only ${#api_vars[@]} env names in cmd/api/main.go; the scan is looking in the wrong place"
-(( $(slice_env consumerGroups | wc -l) == 3 )) || fail "expected 3 consumer groups in cmd/api/main.go, found $(slice_env consumerGroups | wc -l)"
+(( $(slice_env consumerGroups | wc -l) == 4 )) || fail "expected 4 consumer groups in cmd/api, found $(slice_env consumerGroups | wc -l)"
 full_deployment="$(helm template "$release" "$chart_dir" "${base[@]}" "${everything[@]}" --show-only templates/deployment.yaml)"
 full_configmap="$(helm template "$release" "$chart_dir" "${base[@]}" "${everything[@]}" --show-only templates/configmap.yaml)"
 secret_vars=" DATABASE_URL MIGRATIONS_DATABASE_URL "
@@ -93,7 +94,7 @@ env_value() { # env_value <rendered> <NAME>
 }
 for kv in 'KAFKA_BROKERS=kafka.example.invalid:9092' 'EVENT_PUBLISHER=kafka' \
   'NODE_CONSUMER_GROUP=seller-inbound-node' 'CATALOG_CONSUMER_GROUP=seller-inbound-catalog' \
-  'RECEIPT_CONSUMER_GROUP=seller-inbound-receipt' 'SSCC_COMPANY_PREFIX=0614141'; do
+  'RECEIPT_CONSUMER_GROUP=seller-inbound-receipt' 'SOURCING_CONSUMER_GROUP=seller-inbound-sourcing' 'SSCC_COMPANY_PREFIX=0614141'; do
   [[ "$(env_value "$api_deployment" "${kv%%=*}")" == "${kv#*=}" ]] || fail "the api Deployment does not render $kv"
   grep -q "^  ${kv%%=*}: \"${kv#*=}\"" <<<"$configmap" || fail "the ConfigMap does not carry $kv"
 done
