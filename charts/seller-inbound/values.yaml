@@ -112,7 +112,7 @@ config:
   nodeConsumerGroup: ""              # NODE_CONSUMER_GROUP (node-topology events)
   catalogConsumerGroup: ""           # CATALOG_CONSUMER_GROUP (offer-availability packaging events)
   receiptConsumerGroup: ""           # RECEIPT_CONSUMER_GROUP (vendor-connectivity receipt events)
-  sourcingConsumerGroup: ""          # SOURCING_CONSUMER_GROUP (order-sourcing release/cancel events, ADR 0015)
+  sourcingConsumerGroup: ""          # SOURCING_CONSUMER_GROUP (order-sourcing release/cancel events, ADR 0016)
 
   # The network's own GS1 company prefix (6 to 11 digits) the SSCCs it issues are
   # built from. REQUIRED, no default.

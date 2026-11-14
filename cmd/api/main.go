@@ -1,6 +1,6 @@
 // Command api is seller-inbound's composition root: it wires env config into
 // adapters, adapters into the application service, and the service into the
-// seller REST API, the four Kafka consumers (ADR 0003, ADR 0015), the outbox relay and
+// seller REST API, the four Kafka consumers (ADR 0003, ADR 0016), the outbox relay and
 // the retention loop, all on real Postgres and real Kafka: there is no
 // in-memory mode, no log sink and no consumer that is off.
 //

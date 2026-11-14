@@ -88,7 +88,7 @@ The ids in the example (`ish-…`, `ipl-…`) are shaped for readability; the se
 Eleven event types from four producers, one consumer per topic, dispatch on the full `type`, effects idempotent on the
 CloudEvents `id` through `processed_events` in the same transaction. All eleven (node-topology 5, offer-availability 3,
 vendor-connectivity 1, order-sourcing 2) are read by the four consumers `cmd/api` starts
-([ADR 0015](/docs/adr/0015-start-the-order-sourcing-consumer)). The table of types and effects is on the
+([ADR 0016](/docs/adr/0016-start-the-order-sourcing-consumer)). The table of types and effects is on the
 [Event catalogue](/docs/api-reference/events#consumed). Failure handling: a transient failure is retried with capped
 backoff and then dead-lettered to `<topic>.dlq`; a payload that can never apply is dead-lettered at once
 ([ADR 0003](/docs/adr/0003-consumed-contracts-and-local-read-models), [Troubleshooting](/docs/operations/troubleshooting)).

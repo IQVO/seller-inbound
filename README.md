@@ -79,7 +79,7 @@ internal/
   architecture/              the fitness tests below
   bootretry/ testing/        boot retry, shared test helpers
 apis/                        openapi.yaml (REST) + asyncapi.yaml (events)
-docs/adr/                    15 ADRs + index
+docs/adr/                    16 ADRs + index
 features/                    6 godog feature files
 charts/seller-inbound/       the Helm chart
 web/                         the operator micro-frontend remote
@@ -105,9 +105,9 @@ Specified in `apis/asyncapi.yaml` — ten published and eleven consumed event ty
 | `retailnetwork.node-topology.events` | consumes (`NODE_CONSUMER_GROUP`) | `NodeRegistered`, `NodeActivated`, `NodeSuspended`, `NodeRetired`, `NodeOperationalProfileDeclared` |
 | `retailnetwork.offer-availability.events` | consumes (`CATALOG_CONSUMER_GROUP`) | `CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired`, `ListingAvailabilityChanged` (availability half of the placement `DemandHeatView`, ADR 0012) |
 | `retailnetwork.vendor-connectivity.events` | consumes (`RECEIPT_CONSUMER_GROUP`) | `InboundReceiptSubmitted` (the carton-level receipt that closes a shipment) |
-| `retailnetwork.order-sourcing.events` | consumes (`SOURCING_CONSUMER_GROUP`) | `FulfillmentReleasedToNode`, `FulfillmentCancelled` (demand half of the placement `DemandHeatView`, ADR 0012, ADR 0015) |
+| `retailnetwork.order-sourcing.events` | consumes (`SOURCING_CONSUMER_GROUP`) | `FulfillmentReleasedToNode`, `FulfillmentCancelled` (demand half of the placement `DemandHeatView`, ADR 0012, ADR 0016) |
 
-All eleven consumed types are read by the four consumers `cmd/api` starts (`cmd/api/wire_background.go`, [ADR 0015](docs/adr/0015-start-the-order-sourcing-consumer.md)). A `kafka-go` group consumer that starts before its topic exists never picks it up later, so restart the pod after `retailnetwork.order-sourcing.events` exists (fleet gap row 45).
+All eleven consumed types are read by the four consumers `cmd/api` starts (`cmd/api/wire_background.go`, [ADR 0016](docs/adr/0016-start-the-order-sourcing-consumer.md)). A `kafka-go` group consumer that starts before its topic exists never picks it up later, so restart the pod after `retailnetwork.order-sourcing.events` exists (fleet gap row 45).
 
 `PlacementPlanSuggested` is analytics-only today: it goes to the events topic so a consumer could subscribe later without a topic change, but no consumer of it is evidenced in this repository (ADR 0012, `streamFor` in `internal/adapters/outbound/kafka/encoder.go`). Whether it keeps no operational consumer beyond v1 is an open decision, not settled here.
 
@@ -216,7 +216,7 @@ CI (`.github/workflows/ci.yml`) runs `lint`, `guide-lint`, `complexity`, `test`,
 
 ## Architecture Decision Records
 
-[docs/adr/](docs/adr/index.md) — index plus 15 ADRs (0001–0015: bounded context, aggregates and invariants, consumed contracts and local read models, CloudEvents envelope and type catalogue, seller compliance scorecard, read-only MCP server, console web remote, fleet observability standard, A2A inbound adapter, fleet REST API guideline, agent authority levels and complete MCP surface, placement advisory, seller status as an integration fact, received stock published per item, start of the order-sourcing consumer).
+[docs/adr/](docs/adr/index.md) — index plus 16 ADRs (0001–0016: bounded context, aggregates and invariants, consumed contracts and local read models, CloudEvents envelope and type catalogue, seller compliance scorecard, read-only MCP server, console web remote, fleet observability standard, A2A inbound adapter, fleet REST API guideline, agent authority levels and complete MCP surface, placement advisory, seller status as an integration fact, received stock published per item, inbound capacity allocation, start of the order-sourcing consumer).
 
 ## License
 

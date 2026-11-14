@@ -50,7 +50,7 @@ Source: `internal/adapters/inbound/kafka/consumers.go`, `internal/adapters/outbo
 
 Four consumers run in `cmd/api`, each under a mandatory stable consumer group ([Runbook](/docs/operations/runbook)); they
 read all eleven consumed types in `apis/asyncapi.yaml` (node-topology 5, offer-availability 3, vendor-connectivity 1,
-order-sourcing 2; [ADR 0015](/docs/adr/0015-start-the-order-sourcing-consumer)).
+order-sourcing 2; [ADR 0016](/docs/adr/0016-start-the-order-sourcing-consumer)).
 Each message is claimed in `processed_events` by its CloudEvents id in the same transaction as its effect, so delivery
 is at-least-once with an atomic effect.
 

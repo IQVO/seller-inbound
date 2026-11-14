@@ -199,7 +199,7 @@ each claimed in `processed_events` by the CloudEvents id:
 - `ApplyFulfillmentCancelled` (order-sourcing `FulfillmentCancelled`) removes the group's lines.
 
 The two order-sourcing use cases are read by the fourth consumer `cmd/api` starts
-([ADR 0015](/docs/adr/0015-start-the-order-sourcing-consumer)); see [Integration](/docs/ecosystem/integration).
+([ADR 0016](/docs/adr/0016-start-the-order-sourcing-consumer)); see [Integration](/docs/ecosystem/integration).
 
 ## Queries
 
