@@ -17,8 +17,8 @@ model complexity 0.48 ([Core Domain Chart](/docs/ddd/core-domain-chart)).
 - **Low differentiation.** The rules are the common practice of case-packed receiving: identify every carton, check it
   against the plan, count what arrives. Nothing in this context decides a promise or a route, which is what sets the
   network apart. It enables supply; it does not differentiate.
-- **Moderate complexity.** Three aggregates (one with a child entity and a six-state machine), eight consumed event types
-  from three producers, and invariants that depend on two local read models. The hard part is validating a carton set
+- **Moderate complexity.** Three aggregates (one with a child entity and a six-state machine), eleven consumed event types
+  from four producers (nine read by running consumers), and invariants that depend on two local read models. The hard part is validating a carton set
   against a plan and a packaging hierarchy, not the lifecycle.
 - **Not Generic.** Buying a seller-onboarding product would still leave the carton, SSCC and receipt-reconciliation
   rules to write, and they are specific to this network's model (`ownerRef`, the node's inbound limits).

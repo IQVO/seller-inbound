@@ -3,7 +3,7 @@ id: domain-events
 title: Domain Events
 sidebar_label: Domain Events
 sidebar_position: 7
-description: "The nine events Seller Inbound publishes and the eight it consumes, with payloads, an example envelope and idempotency rules."
+description: "The ten events Seller Inbound publishes and the eleven it consumes, with payloads, an example envelope and idempotency rules."
 ---
 
 # Domain Events
@@ -27,6 +27,7 @@ on the Vendor API. All timestamps are RFC 3339 UTC strings with nanosecond preci
 | `InboundShipmentReceived` | `shipmentId`, `sellerId`, `nodeId`, `status`, `cartons` (`sscc`, `status`), `receivedAt`, `received` (`catalogItemId?`, `gtin`, `qtyEaches`; ADR 0014) |
 | `InboundDiscrepancyRecorded` | `shipmentId`, `sellerId`, `nodeId`, `sscc` (omitted when none), `kind`, `expected`, `actual` (both omitted when empty), `recordedAt` |
 | `SellerComplianceViolationRecorded` | `sellerId`, `shipmentId` (omitted when none), `code`, `recordedAt` |
+| `PlacementPlanSuggested` | `planId`, `sellerId`, `catalogItemId`, `basis`, `suggestions` (`nodeId`, `regionId`, `suggestedUnits`, `regionDemandUnits`, `nodeAvailabilityUnits`), `createdAt` (ADR 0012; events topic, analytics-only consumer in v1) |
 
 Value sets:
 
@@ -84,8 +85,11 @@ The ids in the example (`ish-…`, `ipl-…`) are shaped for readability; the se
 
 ## Consumed
 
-Eight event types from three producers, one consumer per topic, dispatch on the full `type`, effects idempotent on the
-CloudEvents `id` through `processed_events` in the same transaction. The table of types and effects is on the
+Eleven event types from four producers, one consumer per topic, dispatch on the full `type`, effects idempotent on the
+CloudEvents `id` through `processed_events` in the same transaction. Nine of them (node-topology 5, offer-availability 3,
+vendor-connectivity 1) are read by the three consumers `cmd/api` starts; the two order-sourcing types
+(`FulfillmentReleasedToNode`, `FulfillmentCancelled`) have handlers but no started consumer
+([Integration](/docs/ecosystem/integration#discrepancies-found)). The table of types and effects is on the
 [Event catalogue](/docs/api-reference/events#consumed). Failure handling: a transient failure is retried with capped
 backoff and then dead-lettered to `<topic>.dlq`; a payload that can never apply is dead-lettered at once
 ([ADR 0003](/docs/adr/0003-consumed-contracts-and-local-read-models), [Troubleshooting](/docs/operations/troubleshooting)).

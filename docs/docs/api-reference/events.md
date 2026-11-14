@@ -18,7 +18,7 @@ decoded only in `internal/adapters/kafka/cloudevents`. Field-level payloads are 
 | `specversion` | `1.0` |
 | `id` | a UUID minted once, when the event is encoded into the outbox; a relay retry republishes the same id |
 | `source` | `/retailnetwork/seller-inbound` |
-| `type` | `com.retailnetwork.partner.seller-inbound.<entity>.<EventName>`; entity `seller`, `inboundplan` or `inboundshipment` |
+| `type` | `com.retailnetwork.partner.seller-inbound.<entity>.<EventName>`; entity `seller`, `inboundplan`, `inboundshipment` or `placementplan` |
 | `subject` | the aggregate root id: `sellerId`, `planId` or `shipmentId` (for `SellerComplianceViolationRecorded`, the `sellerId`) |
 | `time` | the instant the fact became true |
 | `datacontenttype` | `application/json` |
@@ -44,9 +44,10 @@ the in-process outbox relay. Delivery is at-least-once; consumers dedupe on `id`
 | `InboundShipmentReceived` | `com.retailnetwork.partner.seller-inbound.inboundshipment.InboundShipmentReceived` | `retailnetwork.seller-inbound.events` | `ApplyInboundReceipt`, once, when the shipment closes | vendor-connectivity; offer-availability (`received`: creates owner-scoped listings, gap G51, ADR 0014) |
 | `InboundDiscrepancyRecorded` | `com.retailnetwork.partner.seller-inbound.inboundshipment.InboundDiscrepancyRecorded` | `retailnetwork.seller-inbound.analytics` | `ApplyInboundReceipt`, per discrepancy, also while the shipment is `RECEIVING` | none |
 | `SellerComplianceViolationRecorded` | `com.retailnetwork.partner.seller-inbound.seller.SellerComplianceViolationRecorded` | `retailnetwork.seller-inbound.analytics` | `ApplyInboundReceipt`, per distinct compliance code of a carton | none |
+| `PlacementPlanSuggested` | `com.retailnetwork.partner.seller-inbound.placementplan.PlacementPlanSuggested` | `retailnetwork.seller-inbound.events` | placement advisory compute ([ADR 0012](/docs/adr/0012-the-placement-advisory)) | none evidenced (analytics-only in v1) |
 
-The routing is `streamFor` in `encoder.go`: the three shipment events and the two seller status events (ADR 0013)
-other contexts consume go to the events topic; every other fact goes to the analytics topic. Creating or cancelling a plan, creating a shipment and adding cartons
+The routing is `streamFor` in `encoder.go`: the three shipment events, the two seller status events (ADR 0013)
+other contexts consume, and `PlacementPlanSuggested` (kept on the events topic so a consumer can subscribe later without a topic change) go to the events topic; every other fact goes to the analytics topic. Creating or cancelling a plan, creating a shipment and adding cartons
 publish nothing: a draft is private to the seller and the cartons travel with `InboundShipmentLabelled`.
 
 Value sets: the shipment `status` of `InboundShipmentReceived` is `CLOSED` or `CLOSED_WITH_DISCREPANCY`; the carton
@@ -75,6 +76,12 @@ the CloudEvents `id` (`processed_events`).
 | offer-availability | `retailnetwork.offer-availability.events` | `com.retailnetwork.commerce.offer-availability.catalogitem.CatalogItemPackagingDeclared` | Upserts the pack level. |
 | offer-availability | `retailnetwork.offer-availability.events` | `com.retailnetwork.commerce.offer-availability.catalogitem.CatalogItemPackLevelRetired` | Marks the level inactive. |
 | vendor-connectivity | `retailnetwork.vendor-connectivity.events` | `com.retailnetwork.partner.vendor-connectivity.inboundreceipt.InboundReceiptSubmitted` | Records the receipt on the shipment. |
+| offer-availability | `retailnetwork.offer-availability.events` | `com.retailnetwork.commerce.offer-availability.listing.ListingAvailabilityChanged` | Upserts the latest availability per item and node (`listing_availability`, availability half of the placement `DemandHeatView`, ADR 0012). |
+| order-sourcing | `retailnetwork.order-sourcing.events` | `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleasedToNode` | Handler defined (`SourcingHandlers`), **no consumer started by `cmd/api`**: would fold the released lines into `demand_heat_lines` (ADR 0012). |
+| order-sourcing | `retailnetwork.order-sourcing.events` | `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentCancelled` | Handler defined, **no consumer started by `cmd/api`**: would delete the assignment group's `demand_heat_lines`. |
+
+The contract lists eleven consumed types; the first nine rows above are read by the three consumers `cmd/api` starts, the
+last two are not (see [Integration](/docs/ecosystem/integration#discrepancies-found)).
 
 Failure handling (retry, dead letters, poison messages) is on [Integration](/docs/ecosystem/integration#upstream-what-seller-inbound-consumes).
 

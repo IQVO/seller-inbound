@@ -67,7 +67,7 @@ fitness tests enforce this (`TestPostgresIntegrationTestsUseTestcontainers`, `Te
 - `TestEventCatalogueMatchesContract` (`internal/architecture/catalogue_fitness_test.go`, a fleet-managed file) checks
   that every `com.warehouse.(wms|wes).<service>...` or `com.retailnetwork.<domain>.<service>...` type that
   `apis/asyncapi.yaml` declares for this module appears in the ADR catalogue. seller-inbound's types are
-  `com.retailnetwork.partner.seller-inbound...`; its nine published types are checked against ADR 0004, and the types
+  `com.retailnetwork.partner.seller-inbound...`; its ten published types are checked against ADR 0004, and the types
   it only consumes (other services' segments) are not required there. `TestEventCatalogueDetector` pins both type
   shapes. A new event still changes the domain struct, `apis/asyncapi.yaml` and the ADR 0004 `type:` line in one commit
   (CLAUDE.md); the test now fails the build if the ADR line is missing.

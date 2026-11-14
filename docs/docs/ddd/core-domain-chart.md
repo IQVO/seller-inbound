@@ -41,7 +41,7 @@ check it against the plan, count what arrives. Nothing here decides a promise or
 apart. It enables supply; it does not differentiate.
 
 **Model complexity is moderate (x = 0.48).** Three aggregates, one with a child entity (`Carton`) and a six-state
-machine, eight consumed event types from three producers, and invariants that depend on two local read models
+machine, eleven consumed event types from four producers (nine read by running consumers), and invariants that depend on two local read models
 (`NodeInboundView`, `CatalogPackagingView`). The hardest part is validating a carton set against a plan and a packaging
 hierarchy, not the lifecycle.
 
