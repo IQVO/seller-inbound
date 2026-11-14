@@ -2,12 +2,14 @@ package http
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/claudioed/seller-inbound/internal/application/ports"
 	"github.com/claudioed/seller-inbound/internal/domain/capacity"
 	"github.com/claudioed/seller-inbound/internal/domain/inboundshipment"
 	"github.com/claudioed/seller-inbound/internal/domain/network"
+	"github.com/claudioed/seller-inbound/internal/domain/placementplan"
 	"github.com/claudioed/seller-inbound/internal/domain/scorecard"
 	"github.com/claudioed/seller-inbound/internal/domain/seller"
 	"github.com/claudioed/seller-inbound/internal/domain/shared"
@@ -43,6 +45,8 @@ var problemCatalogue = []struct {
 	p   problem
 }{
 	{scorecard.ErrInvalidWindow, problem{http.StatusBadRequest, "invalid-window", "The window must be 7d or 30d"}},
+	{ports.ErrInvalidCoverDays, problem{http.StatusBadRequest, "invalid-cover-days",
+		fmt.Sprintf("The coverDays must be between %d and %d", placementplan.MinCoverDays, placementplan.MaxCoverDays)}},
 	{errMalformedRequest, problem{http.StatusUnprocessableEntity, "validation-failed", "Validation failed"}},
 	{shared.ErrValidation, problem{http.StatusUnprocessableEntity, "validation-failed", "Validation failed"}},
 	{inboundshipment.ErrCasePackNotUniform, problem{http.StatusUnprocessableEntity, "case-pack-not-uniform", "A case-packed carton holds one item at one quantity"}},

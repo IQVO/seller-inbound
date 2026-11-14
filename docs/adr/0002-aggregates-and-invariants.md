@@ -55,3 +55,7 @@ The shared slugs are `not-found` 404, `illegal-transition` 409, `concurrent-upda
 
 - Handlers hold no business logic; a new rule lands in the aggregate with a table test and a boundary test, a new error in `problemCatalogue`, and a changed number here is a new ADR that supersedes this one.
 - The label data (SSCC, GS1-128 element string `(00)<sscc>`, human readable line, contents in eaches, destination node) is derived on read and never stored.
+
+## Addendum 2026-11-13: current state
+
+A11 describes the first nine events. `streamFor` (`internal/adapters/outbound/kafka/encoder.go:206`) now sends six events only to the events topic: `InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived`, `PlacementPlanSuggested` (ADR 0012), `SellerSuspended` and `SellerReinstated` (ADR 0013). Four stay analytics-only: `SellerOnboarded`, `InboundPlanConfirmed`, `InboundDiscrepancyRecorded` and `SellerComplianceViolationRecorded`. `InboundShipmentReceived` also carries `received` per item (ADR 0014). The contract is `apis/asyncapi.yaml`.

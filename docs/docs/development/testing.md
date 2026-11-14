@@ -55,7 +55,8 @@ own Postgres and Kafka with testcontainers, so there is no `DATABASE_URL`, no do
 fitness tests enforce this (`TestPostgresIntegrationTestsUseTestcontainers`, `TestKafkaIntegrationTestsUseTestcontainers`).
 
 - `cmd/api/e2e_integration_test.go` starts the real `run` entry point against the containers and walks the REST API,
-  the three consumers and the relay end to end.
+  the four consumers and the relay end to end (the sourcing consumer: a merged release lands `demand_heat_lines` rows, a
+  replayed event id is a no-op, a cancel removes the rows).
 - `cmd/mcp` and `cmd/a2a` have their own `main_integration_test.go`.
 - `internal/adapters/outbound/postgres` covers the repositories, the scorecard tables, and that an outbox row written
   under a span stores its `traceparent`.
@@ -67,7 +68,7 @@ fitness tests enforce this (`TestPostgresIntegrationTestsUseTestcontainers`, `Te
 - `TestEventCatalogueMatchesContract` (`internal/architecture/catalogue_fitness_test.go`, a fleet-managed file) checks
   that every `com.warehouse.(wms|wes).<service>...` or `com.retailnetwork.<domain>.<service>...` type that
   `apis/asyncapi.yaml` declares for this module appears in the ADR catalogue. seller-inbound's types are
-  `com.retailnetwork.partner.seller-inbound...`; its nine published types are checked against ADR 0004, and the types
+  `com.retailnetwork.partner.seller-inbound...`; its ten published types are checked against ADR 0004, and the types
   it only consumes (other services' segments) are not required there. `TestEventCatalogueDetector` pins both type
   shapes. A new event still changes the domain struct, `apis/asyncapi.yaml` and the ADR 0004 `type:` line in one commit
   (CLAUDE.md); the test now fails the build if the ADR line is missing.

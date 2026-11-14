@@ -31,11 +31,11 @@ check a design decision against this fleet's standing architecture.
 3. **Runtime rule.** `cmd/**` must not import `internal/adapters/outbound/memory`
    (`TestRuntimeBinaryHasNoInMemoryAdapters`); the relay is built with
    `WithMaxAttempts` (`TestOutboxRelaysPassAttemptCap`); `/readyz` keeps its
-   empty-topic Kafka metadata check. This repo has no MCP adapter and no analytics
-   read side.
+   empty-topic Kafka metadata check. This repo has a read-only MCP adapter (ADR 0006) and no
+   analytics read side.
 5. **Kafka consumer-group correctness.** Each consumer's group id comes from its
    mandatory env var (`NODE_CONSUMER_GROUP`, `CATALOG_CONSUMER_GROUP`,
-   `RECEIPT_CONSUMER_GROUP`), never a literal
+   `RECEIPT_CONSUMER_GROUP`, `SOURCING_CONSUMER_GROUP`), never a literal
    (`TestKafkaConsumerGroupNeverHardcodedInline`); every handler is idempotent on the
    CloudEvents id through the inbox and dispatches on the full `type`. See
    `.claude/rules/fleet/kafka-testing-and-consumers.md`.

@@ -61,12 +61,10 @@ flowchart TB
     E2["InboundShipmentLabelled"]:::event
     C4["ShipInboundShipment"]:::command
     E3["InboundShipmentShipped"]:::event
-    H1["Hotspot: who creates<br/>owner-scoped listings?"]:::hotspot
     S --> C2 --> G2
     P1 --- C2
     S --> C3 --> G2 --> E2
     S --> C4 --> G2 --> E3
-    E3 --- H1
     classDef command fill:#a5d8ff,stroke:#1971c2,color:#000
     classDef aggregate fill:#ffec99,stroke:#e67700,color:#000
     classDef event fill:#ffc078,stroke:#d9480f,color:#000
@@ -93,9 +91,11 @@ flowchart TB
     E4["SellerComplianceViolationRecorded"]:::event
     H1["Hotspot: shipment never<br/>received?"]:::hotspot
     H2["Hotspot: violations feed only an<br/>informational scorecard"]:::hotspot
+    X1["offer-availability<br/>creates owner-scoped listings<br/>from the received items (ADR 0014)"]:::external
     V --> E1 --> P1 --> C1 --> G1
     P2 --- G1
     G1 --> E2
+    E2 --> X1
     G1 --> E3
     G1 --> E4
     G1 --- H1
@@ -114,6 +114,9 @@ Source: `internal/application/usecases/consumers.go` (`ApplyInboundReceipt`), `i
 
 | Hotspot | Where it comes from |
 | --- | --- |
-| Who creates owner-scoped listings from received stock | Network gap register G51 (IQVO/warehouse-docs): nothing in this service creates a listing |
 | A shipped shipment that is never received | No timeout exists: a `SHIPPED` shipment stays so until a receipt arrives (see [Troubleshooting](/docs/operations/troubleshooting)) |
 | Violations are recorded and nothing acts on them | The scorecard is informational ([ADR 0005](/docs/adr/0005-seller-compliance-scorecard)); no consumer of the analytics topic exists in the organisation |
+
+Closed: who creates owner-scoped listings from received stock (network gap G51). `InboundShipmentReceived` carries
+`received` per item ([ADR 0014](/docs/adr/0014-received-stock-is-published-per-item), `apis/asyncapi.yaml`) and
+offer-availability creates the listings from it (board 3). This service still creates no listing.

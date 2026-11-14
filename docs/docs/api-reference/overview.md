@@ -18,7 +18,7 @@ for a walk through the seller API.
 | Interface | Source of truth | Notes |
 | --- | --- | --- |
 | REST | `apis/openapi.yaml` (OpenAPI 3.0.3, version 1.0.0) | The pages under *REST* are generated from the spec with `npm run gen-api-docs`; do not edit them by hand. The spec names the server `http://localhost:8000/api/seller-inbound`, the gateway route in `warehouse-infra` (prefix stripped); `cmd/api` itself serves the routes at the root of `:8080`. |
-| Events | `apis/asyncapi.yaml` (AsyncAPI 3.0.0, version 1.0.0) | Nine published and eight consumed event types; summarised on the [event catalogue](/docs/api-reference/events), every field on [Domain events](/docs/ddd/domain-events). |
+| Events | `apis/asyncapi.yaml` (AsyncAPI 3.0.0, version 1.0.0) | Ten published and eleven consumed event types; summarised on the [event catalogue](/docs/api-reference/events), every field on [Domain events](/docs/ddd/domain-events). |
 | MCP | [ADR 0006](/docs/adr/0006-read-only-mcp-server), `internal/adapters/inbound/mcp` | `cmd/mcp` serves Streamable HTTP on `/mcp` (port 8090; through Kong `/api/mcp/seller-inbound`). Six read-only tools, no write tool: `get_inbound_plan`, `get_inbound_shipment`, `get_shipment_labels`, `get_seller_scorecard`, `get_placement_plan`, `list_placement_plans`. See [MCP tools](/docs/mcp/tools). No auth, by fleet decision. |
 | A2A | [ADR 0009](/docs/adr/0009-a2a-inbound-adapter), `internal/adapters/inbound/a2a` | `cmd/a2a` serves JSON-RPC 2.0 on `/` and `/a2a` (port 8093; through Kong `/api/a2a/seller-inbound`), the Agent Card at `/.well-known/agent-card.json`. Two read-only skills, no write skill: `seller_compliance` (`sellerId`, optional `window` `7d` or `30d`) and `inbound_status` (exactly one of `planId` or `shipmentId`). No auth, by fleet decision. |
 
@@ -59,7 +59,7 @@ The `:verb` actions share a chi pattern per resource (`/sellers/{sellerAction}`,
   [ADR 0010](/docs/adr/0010-fleet-rest-api-guideline).
 - **Errors** are RFC 9457 `application/problem+json` with `type` = the bare slug (not a URL), `title`, `status`,
   `detail` and `instance`. The slugs are `not-found`, `illegal-transition`, `concurrent-update`, `validation-failed`,
-  `invalid-window`, `seller-exists`, `seller-suspended`, `node-cannot-receive`, `sscc-not-unique`, `invalid-sscc`,
+  `invalid-window`, `invalid-cover-days`, `seller-exists`, `seller-suspended`, `node-cannot-receive`, `sscc-not-unique`, `invalid-sscc`,
   `case-pack-not-uniform`, `case-qty-mismatches-gtin`, `carton-overweight`, `carton-oversize`,
   `carton-contents-mismatch-plan`, `shipment-not-labelled`, `idempotency-key-required`, `idempotency-key-invalid`, `idempotency-key-reused`,
   `dependency-unavailable` and `internal-error`. The full status table is on

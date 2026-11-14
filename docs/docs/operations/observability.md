@@ -136,8 +136,8 @@ Not shipped as rules; they are the reads that replace the missing instruments.
 | --- | --- | --- |
 | Outbox backlog | `SELECT count(*), min(created_at) FROM outbox_events WHERE published_at IS NULL` | oldest row older than a few minutes |
 | Rows parked at the cap | `SELECT id, event_type, attempts, last_error FROM outbox_events WHERE published_at IS NULL AND attempts >= 20` (use your `OUTBOX_MAX_ATTEMPTS`) | any row; also the ERROR line `row reached the attempt cap` |
-| Consumer lag | Kafka consumer-group lag of the three groups | growing, or the same `partition`/`offset` repeating in `handling failed; retrying` |
-| Dead letters | depth of `retailnetwork.node-topology.events.dlq`, `retailnetwork.offer-availability.events.dlq`, `retailnetwork.vendor-connectivity.events.dlq` | any message; headers `x-dlq-error`, `x-dlq-source-offset` say why |
+| Consumer lag | Kafka consumer-group lag of the four groups | growing, or the same `partition`/`offset` repeating in `handling failed; retrying` |
+| Dead letters | depth of `retailnetwork.node-topology.events.dlq`, `retailnetwork.offer-availability.events.dlq`, `retailnetwork.vendor-connectivity.events.dlq`, `retailnetwork.order-sourcing.events.dlq` | any message; headers `x-dlq-error`, `x-dlq-source-offset` say why |
 | Failed ship attempts | `seller_inbound_shipment_shipped_total{outcome="rejected"}` by `reason` | a rising `internal-error` or `node-cannot-receive` |
 | Boot loop | `service exited with error` and the `WarehousePodRestarting` alert | any |
 | Table growth | row counts of `outbox_events`, `processed_events` (nothing deletes them) and `idempotency_keys` (purged after 24 h) | capacity planning |
