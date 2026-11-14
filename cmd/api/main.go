@@ -1,6 +1,6 @@
 // Command api is seller-inbound's composition root: it wires env config into
 // adapters, adapters into the application service, and the service into the
-// seller REST API, the three Kafka consumers (ADR 0003), the outbox relay and
+// seller REST API, the four Kafka consumers (ADR 0003, ADR 0015), the outbox relay and
 // the retention loop, all on real Postgres and real Kafka: there is no
 // in-memory mode, no log sink and no consumer that is off.
 //
@@ -11,7 +11,7 @@
 //	MIGRATIONS_DATABASE_URL      direct DSN for the boot migrations (default DATABASE_URL)
 //	KAFKA_BROKERS                comma-separated brokers (REQUIRED: relay, consumers, /readyz)
 //	EVENT_PUBLISHER              kafka (default kafka); log is a boot error
-//	NODE_CONSUMER_GROUP, CATALOG_CONSUMER_GROUP, RECEIPT_CONSUMER_GROUP
+//	NODE_CONSUMER_GROUP, CATALOG_CONSUMER_GROUP, RECEIPT_CONSUMER_GROUP, SOURCING_CONSUMER_GROUP
 //	                             stable group ids (ALL REQUIRED, boot error naming the variable)
 //	SSCC_COMPANY_PREFIX          the network's GS1 company prefix, 6 to 11 digits (REQUIRED)
 //	SSCC_EXTENSION_DIGIT         SSCC extension digit 0..9 (default 0, ADR 0002 A5)

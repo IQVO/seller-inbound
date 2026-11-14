@@ -21,7 +21,7 @@ type worker struct {
 	done chan struct{}
 }
 
-// startBackground starts the three consumers and the retention loop. They are
+// startBackground starts the four consumers and the retention loop. They are
 // always on; the readers dial lazily inside Run, so a broker outage never
 // blocks boot.
 func startBackground(ad adapters, rt runtimeEnv, svc *usecases.Service, logger *slog.Logger) ([]*worker, func()) {
@@ -34,6 +34,7 @@ func startBackground(ad adapters, rt runtimeEnv, svc *usecases.Service, logger *
 		inboundkafka.NewNodeConsumer(rt.brokers, rt.groups["NODE_CONSUMER_GROUP"], svc, logger),
 		inboundkafka.NewCatalogConsumer(rt.brokers, rt.groups["CATALOG_CONSUMER_GROUP"], svc, logger),
 		inboundkafka.NewReceiptConsumer(rt.brokers, rt.groups["RECEIPT_CONSUMER_GROUP"], svc, logger),
+		inboundkafka.NewSourcingConsumer(rt.brokers, rt.groups["SOURCING_CONSUMER_GROUP"], svc, logger),
 	}
 	for _, c := range consumers {
 		w := &worker{name: c.Name, done: make(chan struct{})}

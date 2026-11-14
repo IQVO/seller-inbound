@@ -20,7 +20,8 @@ func validEnv() map[string]string {
 	return map[string]string{
 		"DATABASE_URL": "postgres://u@h/db", "KAFKA_BROKERS": "b1:9092, b2:9092",
 		"NODE_CONSUMER_GROUP": "g-node", "CATALOG_CONSUMER_GROUP": "g-catalog", "RECEIPT_CONSUMER_GROUP": "g-receipt",
-		"SSCC_COMPANY_PREFIX": "0614141",
+		"SOURCING_CONSUMER_GROUP": "g-sourcing",
+		"SSCC_COMPANY_PREFIX":     "0614141",
 	}
 }
 
@@ -32,7 +33,8 @@ func TestLoadRuntimeAcceptsTheMinimalEnvironment(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(rt.brokers) != 2 || rt.brokers[1] != "b2:9092" || rt.groups["NODE_CONSUMER_GROUP"] != "g-node" ||
-		rt.groups["RECEIPT_CONSUMER_GROUP"] != "g-receipt" || rt.ssccPrefix != "0614141" || rt.ssccExtension != 0 {
+		rt.groups["RECEIPT_CONSUMER_GROUP"] != "g-receipt" || rt.groups["SOURCING_CONSUMER_GROUP"] != "g-sourcing" ||
+		rt.ssccPrefix != "0614141" || rt.ssccExtension != 0 {
 		t.Fatalf("rt = %+v", rt)
 	}
 }
@@ -57,6 +59,7 @@ func TestLoadRuntimeRefusesWithTheVariableName(t *testing.T) {
 		"node group":        {map[string]string{"NODE_CONSUMER_GROUP": ""}, "NODE_CONSUMER_GROUP"},
 		"catalog group":     {map[string]string{"CATALOG_CONSUMER_GROUP": ""}, "CATALOG_CONSUMER_GROUP"},
 		"receipt group":     {map[string]string{"RECEIPT_CONSUMER_GROUP": ""}, "RECEIPT_CONSUMER_GROUP"},
+		"sourcing group":    {map[string]string{"SOURCING_CONSUMER_GROUP": ""}, "SOURCING_CONSUMER_GROUP"},
 		"no prefix":         {map[string]string{"SSCC_COMPANY_PREFIX": ""}, "SSCC_COMPANY_PREFIX"},
 		"short prefix":      {map[string]string{"SSCC_COMPANY_PREFIX": "12345"}, "SSCC_COMPANY_PREFIX"},
 		"long prefix":       {map[string]string{"SSCC_COMPANY_PREFIX": "123456789012"}, "SSCC_COMPANY_PREFIX"},
