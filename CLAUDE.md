@@ -11,7 +11,7 @@ This project is a domain-driven design study, not associated with any company: n
 Guides: `python3 scripts/harness/repo_lint.py`, `python3 scripts/harness/guide_lint.py` must stay clean. npm runs ONLY inside web/.
 
 ## Layout (hexagonal)
-`internal/domain/{shared,gs1,seller,inboundplan,inboundshipment,scorecard,network}` pure Go; `internal/application/{ports,requests,views,usecases,outbox}`;
+`internal/domain/{shared,gs1,seller,inboundplan,inboundshipment,scorecard,network,placementplan,capacity}` pure Go; `internal/application/{ports,requests,views,usecases,outbox}`;
 `internal/adapters/inbound/{http (chi),kafka,mcp (read-only)}`; `internal/adapters/outbound/{postgres,kafka,outbox,sscc,clock,ids,memory}`;
 `cmd/api` (composition root) and `cmd/mcp` (read-only MCP server, :8090); `features/` (godog, never a .go file at the repo root); migrations embedded in the postgres adapter.
  Agent authority: every MCP tool and A2A skill declares a level (`com.warehouse/authority` _meta / `authority:L<n>` skill tag; L1 read, L2 recommend, L3 write - ADR 11); the MCP Streamable HTTP handler is stateless and answers the 2026-07-28 revision.
@@ -21,8 +21,8 @@ Guides: `python3 scripts/harness/repo_lint.py`, `python3 scripts/harness/guide_l
 Real PostgreSQL and Kafka only. `DATABASE_URL` and `KAFKA_BROKERS` are mandatory (boot error naming the variable). `/healthz` = liveness; `/readyz` = drain gate + dependency checks. No authentication on REST or MCP (the in-cluster ClusterIP boundary is the access control). See docs/docs/overview/runtime.md.
 
 ## REST and MCP
-chi router implementing every operation of apis/openapi.yaml (14 operations) plus /healthz, /readyz. Every state-changing route takes `Idempotency-Key`. Errors are RFC 9457 problem+json with kebab-case `type` slugs.
-The MCP server (cmd/mcp, ADR 0006) exposes four read-only tools — one per REST GET (get_seller_scorecard with an optional window, get_inbound_plan, get_shipment_labels, get_inbound_shipment) — bound to the same read use cases; reads add zero outbox rows (testcontainers-proven), and the adapter touches no write seam (UnitOfWork/EventOutbox/Inbox).
+chi router implementing every operation of apis/openapi.yaml (19 operations over 17 paths) plus /healthz, /readyz. Every state-changing route takes `Idempotency-Key`. Errors are RFC 9457 problem+json with kebab-case `type` slugs.
+The MCP server (cmd/mcp, ADR 0006) exposes six read-only tools (get_seller_scorecard with an optional window, get_inbound_plan, get_shipment_labels, get_inbound_shipment, get_placement_plan, list_placement_plans, pinned by `testdata/tool_registry.golden.json`) — each bound to a read use case; reads add zero outbox rows (testcontainers-proven), and the adapter touches no write seam (UnitOfWork/EventOutbox/Inbox).
 
 ## Events: CloudEvents 1.0 is MANDATORY
 Envelope only via internal/adapters/kafka/cloudevents. Type catalogue in ADR 0004; subject and Kafka key = aggregate id. Transactional outbox: aggregates + outbox rows in ONE Postgres transaction. A new event: domain struct + apis/asyncapi.yaml + ADR 0004 `type:` line in the SAME commit.
