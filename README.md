@@ -80,7 +80,7 @@ internal/
   bootretry/ testing/        boot retry, shared test helpers
 apis/                        openapi.yaml (REST) + asyncapi.yaml (events)
 docs/adr/                    16 ADRs + index
-features/                    6 godog feature files
+features/                    13 godog feature files (166 scenarios, 218 executed)
 charts/seller-inbound/       the Helm chart
 web/                         the operator micro-frontend remote
 ```

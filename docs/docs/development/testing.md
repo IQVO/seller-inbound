@@ -14,7 +14,7 @@ The pyramid as it stands on `develop`. Everything except `make integration` runs
 | --- | --- | --- | --- |
 | Unit (domain, application, adapters) | `internal/domain/**`, `internal/application/**`, `internal/adapters/**`, `internal/bootretry`, `cmd/*/main_test.go` | about 89 `_test.go` files, 12 of them `*_integration_test.go` | `make test` |
 | HTTP handler tests (no database) | `internal/adapters/inbound/http/*_test.go` | readiness, NUL rejection, idempotency capture, scorecard, telemetry, handlers | `make test` |
-| BDD acceptance (godog) | `features/*.feature` | **6 feature files, 47 scenarios** | `make bdd` (also part of `make test`) |
+| BDD acceptance (godog) | `features/*.feature` | **13 feature files, 166 scenario definitions, 218 executed** | `make bdd` (also part of `make test`) |
 | Integration (testcontainers) | files tagged `integration`: `cmd/api/e2e_integration_test.go`, `cmd/mcp`, `cmd/a2a`, `internal/adapters/outbound/{postgres,outbox,kafka}`, `internal/adapters/inbound/kafka` | 12 `*_integration_test.go` files | `make integration` |
 | Contract | event catalogue vs `apis/asyncapi.yaml`, MCP tool registry golden file, CloudEvents encoder/decoder, Spectral lint of both specs | see below | `make arch-test`, `make test`, CI `api-lint` |
 | Mutation | `internal/domain/**` with gremlins | thresholds in `.gremlins.yaml` | `make mutation`, `make mutation-full` |
@@ -34,15 +34,36 @@ CI runs the same target, so the scope cannot drift).
 
 ## godog features
 
-| File | Scenarios |
-| --- | --- |
-| `features/sellers.feature` | 9 |
-| `features/inbound_plans.feature` | 9 |
-| `features/shipments_and_labels.feature` | 13 |
-| `features/receipts.feature` | 6 |
-| `features/scorecard.feature` | 8 |
-| `features/node_limits.feature` | 2 |
-| **Total** | **47** |
+Definitions are `Scenario` and `Scenario Outline` lines (`git grep -c -E "^[[:space:]]*Scenario" -- features`, an
+Outline counts once); executed adds one run per `Examples` row and is the `N scenarios` line of `make bdd`. The one
+scenario tagged `@known-bug` is a definition but is not executed by default (see below).
+
+| File | Definitions | Executed |
+| --- | --- | --- |
+| `features/sellers.feature` | 9 | 9 |
+| `features/inbound_plans.feature` | 9 | 9 |
+| `features/shipments_and_labels.feature` | 13 | 13 |
+| `features/receipts.feature` | 6 | 6 |
+| `features/scorecard.feature` | 8 | 8 |
+| `features/node_limits.feature` | 2 | 2 |
+| `features/seller_account_rules.feature` | 14 | 20 |
+| `features/plan_rules.feature` | 16 | 30 |
+| `features/carton_rules.feature` | 29 | 46 |
+| `features/shipment_lifecycle_rules.feature` | 13 | 14 |
+| `features/receipt_rules.feature` | 28 | 32 |
+| `features/read_model_rules.feature` | 8 | 8 |
+| `features/scorecard_rules.feature` | 11 | 21 |
+| **Total** | **166** | **218** |
+
+The first six files are the original suite, written from the OpenAPI contract. The `*_rules` files pin the documented
+rules, invariants, caps, state edges and failure modes (seller account, plan lines and GTINs, carton and SSCC rules,
+shipment lifecycle, receipt discrepancies and the ADR 0014 `received` lines, the node-topology and packaging read models,
+and the scorecard thresholds at their edges).
+
+Tags: `BDD_TAGS` selects scenarios (default `~@known-bug`). `@known-bug` marks a scenario that states a documented rule
+the code does not meet yet; `BDD_TAGS=@known-bug go test ./features -run TestFeatures` runs it and it fails until the
+defect is fixed. `@slow` marks the 1000-carton scenario so mutation runs can skip it. The runner is `Strict`, so an
+undefined step fails the run. The step table also has two placeholders, `{shipment:N}` and `{repeat:c:N}`.
 
 The steps (`features/steps_test.go`, `features/features_test.go`) drive the real use cases and the real REST router over
 in-memory adapters, and feed the consumers with CloudEvents built from the producers' contracts (node-topology,
