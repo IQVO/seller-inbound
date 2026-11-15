@@ -31,6 +31,25 @@ Feature: The shipment lifecycle rules of the documentation
     When I send GET "/inbound-shipments/{shipment}"
     Then the response field "state" is "DRAFT"
 
+  # ADR 0002 A10 as clarified by its 2026-11-15 addendum: the plan's lines are a ceiling over
+  # all of its shipments; exactness is demanded only of a plan with a single shipment.
+  Scenario: A plan filled by several shipments labels each one with only its share of the lines
+    Given seller "S-1" has a confirmed individual plan for 10 eaches of "item-1" with GTIN "00614141000012" to node "n-1"
+    And the plan has an open shipment
+    And the shipment has an individual carton of 5 eaches of "item-1" with GTIN "00614141000012"
+    And the plan has an open shipment
+    When I send POST "/inbound-shipments/{shipment:1}/labels"
+    Then the response status is 200
+    And the response field "state" is "LABELLED"
+
+  Scenario: A plan with a single shipment must be filled exactly before it is labelled
+    Given seller "S-1" has a confirmed individual plan for 10 eaches of "item-1" with GTIN "00614141000012" to node "n-1"
+    And the plan has an open shipment
+    And the shipment has an individual carton of 5 eaches of "item-1" with GTIN "00614141000012"
+    When I send POST "/inbound-shipments/{shipment}/labels"
+    Then the response status is 422
+    And the problem type is "carton-contents-mismatch-plan"
+
   Scenario: Labelling seals every carton and publishes the manifest with its lot and expiry
     Given seller "S-1" has a confirmed case-packed plan for 24 eaches of "item-1" with GTIN "00614141000036" to node "n-1"
     And the plan has an open shipment

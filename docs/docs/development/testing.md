@@ -14,7 +14,7 @@ The pyramid as it stands on `develop`. Everything except `make integration` runs
 | --- | --- | --- | --- |
 | Unit (domain, application, adapters) | `internal/domain/**`, `internal/application/**`, `internal/adapters/**`, `internal/bootretry`, `cmd/*/main_test.go` | about 89 `_test.go` files, 12 of them `*_integration_test.go` | `make test` |
 | HTTP handler tests (no database) | `internal/adapters/inbound/http/*_test.go` | readiness, NUL rejection, idempotency capture, scorecard, telemetry, handlers | `make test` |
-| BDD acceptance (godog) | `features/*.feature` | **13 feature files, 166 scenario definitions, 218 executed** | `make bdd` (also part of `make test`) |
+| BDD acceptance (godog) | `features/*.feature` | **13 feature files, 168 scenario definitions, 222 executed** | `make bdd` (also part of `make test`) |
 | Integration (testcontainers) | files tagged `integration`: `cmd/api/e2e_integration_test.go`, `cmd/mcp`, `cmd/a2a`, `internal/adapters/outbound/{postgres,outbox,kafka}`, `internal/adapters/inbound/kafka` | 12 `*_integration_test.go` files | `make integration` |
 | Contract | event catalogue vs `apis/asyncapi.yaml`, MCP tool registry golden file, CloudEvents encoder/decoder, Spectral lint of both specs | see below | `make arch-test`, `make test`, CI `api-lint` |
 | Mutation | `internal/domain/**` with gremlins | thresholds in `.gremlins.yaml` | `make mutation`, `make mutation-full` |
@@ -35,8 +35,8 @@ CI runs the same target, so the scope cannot drift).
 ## godog features
 
 Definitions are `Scenario` and `Scenario Outline` lines (`git grep -c -E "^[[:space:]]*Scenario" -- features`, an
-Outline counts once); executed adds one run per `Examples` row and is the `N scenarios` line of `make bdd`. The one
-scenario tagged `@known-bug` is a definition but is not executed by default (see below).
+Outline counts once); executed adds one run per `Examples` row and is the `N scenarios` line of `make bdd`. No scenario
+is tagged `@known-bug` any more (see below).
 
 | File | Definitions | Executed |
 | --- | --- | --- |
@@ -46,14 +46,14 @@ scenario tagged `@known-bug` is a definition but is not executed by default (see
 | `features/receipts.feature` | 6 | 6 |
 | `features/scorecard.feature` | 8 | 8 |
 | `features/node_limits.feature` | 2 | 2 |
-| `features/seller_account_rules.feature` | 14 | 20 |
+| `features/seller_account_rules.feature` | 14 | 21 |
 | `features/plan_rules.feature` | 16 | 30 |
-| `features/carton_rules.feature` | 29 | 46 |
-| `features/shipment_lifecycle_rules.feature` | 13 | 14 |
+| `features/carton_rules.feature` | 29 | 47 |
+| `features/shipment_lifecycle_rules.feature` | 15 | 16 |
 | `features/receipt_rules.feature` | 28 | 32 |
 | `features/read_model_rules.feature` | 8 | 8 |
 | `features/scorecard_rules.feature` | 11 | 21 |
-| **Total** | **166** | **218** |
+| **Total** | **168** | **222** |
 
 The first six files are the original suite, written from the OpenAPI contract. The `*_rules` files pin the documented
 rules, invariants, caps, state edges and failure modes (seller account, plan lines and GTINs, carton and SSCC rules,

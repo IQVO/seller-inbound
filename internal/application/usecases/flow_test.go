@@ -319,6 +319,33 @@ func TestIssuedSsccCollisionIsReissued(t *testing.T) {
 	}
 }
 
+func TestIssuedSsccCollidingInSameShipmentIsReissued(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	caseGTIN, eachGTIN := e.seed(t)
+	p := e.plan(t, "INDIVIDUAL", 10, caseGTIN, eachGTIN)
+	_, _ = e.svc.ConfirmInboundPlan(ctx, p.PlanID)
+	sh, _ := e.svc.CreateInboundShipment(ctx, p.PlanID)
+	// the seller supplied the SSCC the network is about to issue, in THIS shipment
+	next, _ := (&memory.SsccIssuer{}).Next(ctx)
+	if _, err := e.svc.AddCarton(ctx, addCarton(sh.ShipmentID, next, eachGTIN, 1)); err != nil {
+		t.Fatal(err)
+	}
+	c, err := e.svc.AddCarton(ctx, addCarton(sh.ShipmentID, "", eachGTIN, 1))
+	if err != nil || !c.Issued || c.Carton.SSCC == next {
+		t.Fatalf("a same-shipment collision must be re-issued: %v %+v", err, c)
+	}
+	// a supplied SSCC that collides in the same shipment stays the seller's error
+	_, err = e.svc.AddCarton(ctx, addCarton(sh.ShipmentID, next, eachGTIN, 1))
+	if !errors.Is(err, inboundshipment.ErrSsccNotUnique) {
+		t.Fatalf("a supplied duplicate must stay refused: %v", err)
+	}
+	got, _ := e.svc.GetInboundShipment(ctx, sh.ShipmentID)
+	if len(got.Cartons) != 2 {
+		t.Fatalf("cartons = %d, want 2", len(got.Cartons))
+	}
+}
+
 func TestEveryRejectionLeavesNoTrace(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()
