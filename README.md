@@ -80,7 +80,7 @@ internal/
   bootretry/ testing/        boot retry, shared test helpers
 apis/                        openapi.yaml (REST) + asyncapi.yaml (events)
 docs/adr/                    16 ADRs + index
-features/                    6 godog feature files
+features/                    13 godog feature files (166 scenarios, 218 executed)
 charts/seller-inbound/       the Helm chart
 web/                         the operator micro-frontend remote
 ```
@@ -206,7 +206,7 @@ Deployed, the remote is served by its own nginx pod behind the web gateway at `h
 ## Tests
 
 - **Unit**: `make test` — domain, use cases, handlers, adapters.
-- **BDD**: `make bdd` — godog scenarios in `features/` (6 feature files).
+- **BDD**: `make bdd` — godog scenarios in `features/` (13 feature files).
 - **Integration**: `make integration` — testcontainers Postgres + Kafka.
 - **Mutation**: `make mutation` (blocking subset) / `make mutation-full` — gremlins, config in `.gremlins.yaml`.
 - **Architecture fitness**: `make arch-test` — `internal/architecture/` (hexagonal rule, CloudEvents-only, catalogue, Kafka rules, read-only MCP/A2A).
