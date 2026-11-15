@@ -206,7 +206,7 @@ Deployed, the remote is served by its own nginx pod behind the web gateway at `h
 ## Tests
 
 - **Unit**: `make test` — domain, use cases, handlers, adapters.
-- **BDD**: `make bdd` — godog scenarios in `features/` (6 feature files).
+- **BDD**: `make bdd` — godog scenarios in `features/` (13 feature files).
 - **Integration**: `make integration` — testcontainers Postgres + Kafka.
 - **Mutation**: `make mutation` (blocking subset) / `make mutation-full` — gremlins, config in `.gremlins.yaml`.
 - **Architecture fitness**: `make arch-test` — `internal/architecture/` (hexagonal rule, CloudEvents-only, catalogue, Kafka rules, read-only MCP/A2A).
