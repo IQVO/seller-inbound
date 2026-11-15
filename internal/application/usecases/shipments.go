@@ -174,8 +174,9 @@ func (s *Service) AddCarton(ctx context.Context, in requests.AddCarton) (views.A
 }
 
 // addWithSSCC adds the carton and saves the shipment. An issued SSCC that
-// collides with one a seller supplied is re-issued; a supplied one that collides
-// is the seller's error.
+// collides with one a seller supplied (in this shipment, which the aggregate
+// refuses, or in another one, which the repository refuses) is re-issued; a
+// supplied one that collides is the seller's error.
 func (s *Service) addWithSSCC(ctx context.Context, sh *inboundshipment.Shipment, in requests.AddCarton, rules inboundshipment.CartonRules) (inboundshipment.Carton, bool, error) {
 	issued := in.SSCC == ""
 	attempts := 1
@@ -194,6 +195,11 @@ func (s *Service) addWithSSCC(ctx context.Context, sh *inboundshipment.Shipment,
 		before := sh.Snapshot()
 		carton, err := sh.AddCarton(newCarton(in, sscc), rules)
 		if err != nil {
+			// The aggregate refuses before it mutates: nothing to restore.
+			if issued && errors.Is(err, inboundshipment.ErrSsccNotUnique) {
+				lastErr = err
+				continue
+			}
 			return inboundshipment.Carton{}, false, err
 		}
 		// A refused SSCC leaves the transaction usable: the repository checks the

@@ -36,6 +36,7 @@ Feature: The seller account rules of the documentation
       | sellerId       | status |
       | acme.goods_1-b | 201    |
       | acme/goods     | 422    |
+      | acme:goods     | 422    |
 
   Scenario Outline: A seller name is non-blank, trimmed and at most 120 characters
     When I send POST "/sellers" with:

@@ -385,10 +385,8 @@ Feature: The carton rules of the documentation
     And the response field "carton.sscc" is "006141410000000029"
 
   # ADR 0002 A5 and use-cases (AddCarton): an issued SSCC that collides is issued
-  # again. The collision with an SSCC supplied in ANOTHER shipment is re-issued
-  # (above); one supplied in the SAME shipment is refused by the aggregate before
-  # the retry loop sees it: the seller gets sscc-not-unique for an SSCC it never sent.
-  @bdd @known-bug
+  # again, whether the colliding SSCC was supplied in this shipment or in another.
+  @bdd
   Scenario: An issued SSCC that collides with one the seller supplied in the same shipment is issued again
     Given seller "S-1" has a confirmed individual plan for 20 eaches of "item-1" with GTIN "00614141000012" to node "n-1"
     And the plan has an open shipment
