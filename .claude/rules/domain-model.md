@@ -33,7 +33,7 @@ are in `docs/adr/0002-aggregates-and-invariants.md` (assumptions A1-A12).
   creates no plan, shipment or carton and ships nothing (`ErrSellerSuspended`).
 - **InboundPlan** (`internal/domain/inboundplan`): `DRAFT` -> `CONFIRMED` | `CANCELLED`; 1 to 500
   lines, one per item and GTIN.
-- **InboundShipment** + **Carton** (`internal/domain/inboundshipment`, the mutation focus): all
+- **InboundShipment** + **Carton** (`internal/domain/inboundshipment`): all
   the carton invariants (`ErrCasePackNotUniform`, `ErrCaseQtyMismatchesGtin`, `ErrCartonOverweight`,
   `ErrCartonOversize`, `ErrSsccNotUnique`, `ErrInvalidSscc`, `ErrCartonContentsMismatchPlan`,
   `ErrShipmentNotLabelled`) and `RecordReceipt`.
