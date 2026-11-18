@@ -1,9 +1,10 @@
-# Default values for seller-inbound. Three components: the api Deployment
+# Default values for seller-inbound. Three core components: the api Deployment
 # (cmd/api, always), the optional, default-off mcp Deployment (cmd/mcp,
 # ADR 0006 — the read-only MCP server) and the optional, default-off frontend
-# Deployment (the seller_inbound_mfe web remote, ADR 0007). The outbox relay,
-# the four Kafka consumers and the three loops run inside the api only; there
-# is no projector or reports component.
+# Deployment (the seller_inbound_mfe web remote, ADR 0007), plus the optional,
+# default-off analytics read side (ADR 0017: the analytics-projector and
+# analytics-reports Deployments). The outbox relay, the four Kafka consumers
+# and the three loops run inside the api only.
 
 replicaCount: 1
 
@@ -306,3 +307,62 @@ frontend:
     requests:
       cpu: 50m
       memory: 64Mi
+
+# The analytics read side (ADR 0017), OFF by default: cmd/si-projector projects
+# this context's OWN two topics (retailnetwork.seller-inbound.events and
+# retailnetwork.seller-inbound.analytics) into a SEPARATE analytical Postgres
+# and cmd/si-reports serves read-only reports over it
+# (GET /reports/seller-inbound-performance, GET /reports/freshness). Both run
+# from the same image. No auth (fleet-wide).
+analytics:
+  enabled: false
+  # LOG_LEVEL of both analytics binaries.
+  logLevel: "info"
+  database:
+    # The projector's read-write analytical DSN (DIRECT Postgres, not
+    # PgBouncer: it also runs the migrations). No password in committed values.
+    projectorUrl: ""
+    # The reports reader's DSN -- a read-only role where possible; falls back
+    # to projectorUrl when empty (local/dev).
+    reportsUrl: ""
+    # Name of an existing Secret holding ANALYTICS_DATABASE_URL (projector) and
+    # ANALYTICS_READER_DATABASE_URL (reports). Takes precedence over the URLs.
+    existingSecret: ""
+  projector:
+    replicaCount: 1
+    adminAddr: ":8091"                  # ADMIN_ADDR (/healthz, /readyz)
+    adminPort: 8091
+    # ANALYTICS_CONSUMER_GROUP: the projector's FIXED consumer group on both
+    # own topics.
+    consumerGroup: "seller-inbound-analytics"
+    resources:
+      limits:
+        cpu: 500m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+  reports:
+    replicaCount: 1
+    httpAddr: ":8092"                   # HTTP_ADDR
+    service:
+      type: ClusterIP
+      port: 80
+      targetPort: 8092
+    # Gateway exposure: /api/seller-inbound/reports -> Service :80, prefix
+    # rewritten to /reports. Needs the Gateway parentRef from the environment
+    # that deploys the chart.
+    route:
+      enabled: false
+      path: "/api/seller-inbound/reports"
+      parentRefs:
+        - name: ""
+          namespace: ""
+          sectionName: "http"
+    resources:
+      limits:
+        cpu: 500m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi

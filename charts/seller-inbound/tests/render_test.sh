@@ -339,9 +339,91 @@ grep -q 'type: ClusterIP' <<<"$frontend_svc" || fail "the frontend Service must 
 if grep -Eq 'name: (DATABASE_URL|KAFKA_BROKERS)$' <<<"$frontend_dep"; then fail "the frontend Deployment must not get database/Kafka env"; fi
 if grep -q 'configMapRef:' <<<"$frontend_dep"; then fail "frontend-deployment.yaml must not mount the api ConfigMap"; fi
 
+# --- optional components: the analytics read side (ADR 0017) -------------------
+# si-projector + si-reports are OFF by default; each runs its OWN binary with its OWN
+# env (exactly what the binary reads), never the api ConfigMap or the OLTP DSN.
+an=(--set analytics.enabled=true --set analytics.database.projectorUrl=postgres://projector@example.invalid:5432/analytics)
+atpl() { helm template "$release" "$chart_dir" "${base[@]}" "$@"; }
+if grep -q 'component: analytics' <<<"$default_render"; then fail "the analytics components must not render while analytics.enabled is false"; fi
+if grep -q 'seller-inbound-projector\|seller-inbound-reports' <<<"$default_render"; then fail "no analytics resource may render by default"; fi
+projector_dep="$(atpl "${an[@]}" --show-only templates/analytics-projector-deployment.yaml)"
+reports_dep="$(atpl "${an[@]}" --show-only templates/analytics-reports-deployment.yaml)"
+grep -q 'app.kubernetes.io/component: analytics-projector' <<<"$projector_dep" || fail "the projector Deployment was not rendered with analytics.enabled=true"
+grep -q 'command: \["/app/si-projector"\]' <<<"$projector_dep" || fail "the projector Deployment must run /app/si-projector"
+grep -q 'app.kubernetes.io/component: analytics-reports' <<<"$reports_dep" || fail "the reports Deployment was not rendered with analytics.enabled=true"
+grep -q 'command: \["/app/si-reports"\]' <<<"$reports_dep" || fail "the reports Deployment must run /app/si-reports"
+for dep in "$projector_dep" "$reports_dep"; do
+  if grep -q 'configMapRef:' <<<"$dep"; then fail "the analytics Deployments must not mount the api ConfigMap"; fi
+  if grep -Eq 'name: (DATABASE_URL|MIGRATIONS_DATABASE_URL|EVENT_PUBLISHER|OUTBOX_[A-Z_]+|SSCC_[A-Z_]+|(NODE|CATALOG|RECEIPT|SOURCING)_CONSUMER_GROUP)$' <<<"$dep"; then
+    fail "the analytics Deployments must never get the OLTP DSN, the relay or the OLTP consumer env"
+  fi
+done
+# Chart vs binary, both ways: every env literal the binary reads (and every variable it requires) is rendered, and nothing else is.
+# shellcheck disable=SC2207
+projector_vars=($(binary_env_of "$repo_dir/cmd/si-projector/main.go" "$repo_dir/cmd/si-projector/telemetry.go"))
+(( ${#projector_vars[@]} >= 8 )) || fail "found only ${#projector_vars[@]} env literals in cmd/si-projector; the scan is looking in the wrong place"
+# cmd/si-reports: every literal but ANALYTICS_DATABASE_URL, its single-role local fallback, which the chart
+# deliberately does NOT render (the reports pod gets the reader DSN only).
+# shellcheck disable=SC2207
+reports_vars=($(binary_env_of "$repo_dir/cmd/si-reports/main.go" "$repo_dir/cmd/si-reports/telemetry.go" | grep -vx 'ANALYTICS_DATABASE_URL'))
+(( ${#reports_vars[@]} >= 6 )) || fail "found only ${#reports_vars[@]} env literals in cmd/si-reports; the scan is looking in the wrong place"
+binary_env_of "$repo_dir/cmd/si-reports/main.go" | grep -qx 'ANALYTICS_DATABASE_URL' || fail "cmd/si-reports no longer reads the ANALYTICS_DATABASE_URL fallback; drop this exception"
+for var in "${projector_vars[@]}"; do
+  grep -q "name: $var\$" <<<"$projector_dep" || fail "the projector Deployment does not render $var, which cmd/si-projector reads"
+done
+for var in "${reports_vars[@]}"; do
+  grep -q "name: $var\$" <<<"$reports_dep" || fail "the reports Deployment does not render $var, which cmd/si-reports reads"
+done
+projector_known=" ${projector_vars[*]} "
+while read -r name; do
+  [[ "$projector_known" == *" $name "* ]] || fail "the projector Deployment renders $name, which cmd/si-projector does not read"
+done < <(grep -oE '^ +- name: [A-Z][A-Z0-9_]+$' <<<"$projector_dep" | awk '{print $3}' | sort -u)
+reports_known=" ${reports_vars[*]} ANALYTICS_READER_DATABASE_URL "
+while read -r name; do
+  [[ "$reports_known" == *" $name "* ]] || fail "the reports Deployment renders $name, which cmd/si-reports does not read"
+done < <(grep -oE '^ +- name: [A-Z][A-Z0-9_]+$' <<<"$reports_dep" | awk '{print $3}' | sort -u)
+if grep -Eq 'name: (KAFKA_BROKERS|ANALYTICS_DATABASE_URL|ANALYTICS_CONSUMER_GROUP)$' <<<"$reports_dep"; then
+  fail "the reports Deployment gets neither Kafka nor any DSN but the reader's"
+fi
+[[ "$(env_value "$projector_dep" ADMIN_ADDR)" == ":8091" ]] || fail "ADMIN_ADDR must default to :8091"
+[[ "$(env_value "$projector_dep" ANALYTICS_CONSUMER_GROUP)" == "seller-inbound-analytics" ]] || fail "the projector group must default to seller-inbound-analytics"
+[[ "$(env_value "$projector_dep" KAFKA_BROKERS)" == "kafka.example.invalid:9092" ]] || fail "the projector KAFKA_BROKERS must come from kafka.brokers"
+[[ "$(env_value "$reports_dep" HTTP_ADDR)" == ":8092" ]] || fail "the reports HTTP_ADDR must default to :8092"
+[[ "$(env_value "$projector_dep" OTEL_SERVICE_NAME)" == "seller-inbound-projector" ]] || fail "the projector must export as <otel.serviceName>-projector"
+[[ "$(env_value "$reports_dep" OTEL_SERVICE_NAME)" == "seller-inbound-reports" ]] || fail "the reports must export as <otel.serviceName>-reports"
+[[ "$(env_value "$reports_dep" SERVICE_VERSION)" == "0.1.0" ]] || fail "the analytics SERVICE_VERSION must default to the image tag / appVersion"
+grep -A4 'name: ANALYTICS_DATABASE_URL$' <<<"$projector_dep" | grep -q 'secretKeyRef:' || fail "ANALYTICS_DATABASE_URL must come from a Secret"
+grep -A4 'name: ANALYTICS_READER_DATABASE_URL$' <<<"$reports_dep" | grep -q 'secretKeyRef:' || fail "ANALYTICS_READER_DATABASE_URL must come from a Secret"
+# The reports Service (component analytics-reports, :80 -> http); the projector has none.
+reports_svc="$(atpl "${an[@]}" --show-only templates/analytics-reports-deployment.yaml | awk '/^kind: Service/ {s=1} s')"
+grep -q 'app.kubernetes.io/component: analytics-reports' <<<"$reports_svc" || fail "the reports Service was not rendered"
+grep -q 'port: 80$' <<<"$reports_svc" || fail "the reports Service must listen on :80"
+analytics_all="$(atpl "${an[@]}")"
+if grep -B2 -A8 '^kind: Service' <<<"$analytics_all" | grep -q 'component: analytics-projector'; then fail "the projector must have no Service"; fi
+# The analytics Secret: both keys, the reader falling back to the projector DSN; an existing Secret replaces it.
+analytics_secret="$(atpl "${an[@]}" --show-only templates/analytics-secret.yaml)"
+[[ "$(grep -c 'postgres://projector@example.invalid:5432/analytics' <<<"$analytics_secret")" == 2 ]] \
+  || fail "the analytics Secret must carry ANALYTICS_DATABASE_URL and the ANALYTICS_READER_DATABASE_URL fallback"
+reader_secret="$(atpl "${an[@]}" --set analytics.database.reportsUrl=postgres://reports@example.invalid/a --show-only templates/analytics-secret.yaml)"
+grep -q 'ANALYTICS_READER_DATABASE_URL: "postgres://reports@example.invalid/a"' <<<"$reader_secret" || fail "analytics.database.reportsUrl must be the reader DSN"
+existing_an="$(atpl --set analytics.enabled=true --set analytics.database.existingSecret=an-sec)"
+grep -q 'name: an-sec' <<<"$existing_an" || fail "analytics.database.existingSecret is not referenced"
+if grep -q 'name: seller-inbound-analytics$' <<<"$existing_an"; then fail "no analytics Secret may be created with analytics.database.existingSecret"; fi
+# The gateway route is opt-in, rewrites to /reports and outranks the API prefix under Kong.
+if grep -q 'kind: HTTPRoute' <<<"$analytics_all"; then fail "the reports HTTPRoute must not render while analytics.reports.route.enabled is false"; fi
+reports_route="$(atpl "${an[@]}" --set analytics.reports.route.enabled=true --show-only templates/analytics-reports-route.yaml)"
+grep -q 'replacePrefixMatch: /reports' <<<"$reports_route" || fail "the reports HTTPRoute must rewrite its prefix to /reports"
+grep -q 'value: /api/seller-inbound/reports' <<<"$reports_route" || fail "the reports HTTPRoute must listen on /api/seller-inbound/reports"
+grep -q 'konghq.com/regex-priority: "10"$' <<<"$reports_route" || fail "the reports HTTPRoute must carry konghq.com/regex-priority \"10\" so it outranks the API prefix under Kong's traditional router"
+an_off="$(atpl --set analytics.reports.route.enabled=true --set analytics.database.projectorUrl=postgres://p@h/a)"
+if grep -q 'component: analytics' <<<"$an_off"; then fail "nothing of analytics may render while analytics.enabled is false"; fi
+# Refusals: a DSN source, the brokers and a consumer group.
+expect_refusal "analytics without a DSN" "analytics.database.projectorUrl" "${base[@]}" --set analytics.enabled=true
+expect_refusal "analytics without a consumer group" "analytics.projector.consumerGroup" "${base[@]}" "${an[@]}" --set analytics.projector.consumerGroup=
+
 # ALL components render TOGETHER (the ci/all-components-values.yaml file).
-together="$(helm template "$release" "$chart_dir" "${base[@]}" --set mcp.enabled=true --set a2a.enabled=true --set frontend.enabled=true)"
-for component in api mcp a2a frontend; do
+together="$(helm template "$release" "$chart_dir" "${base[@]}" --set mcp.enabled=true --set a2a.enabled=true --set frontend.enabled=true "${an[@]}")"
+for component in api mcp a2a frontend analytics-projector analytics-reports; do
   grep -q "app.kubernetes.io/component: $component\$" <<<"$together" || fail "the full render lacks the $component component"
 done
 if grep -E 'kind: (Ingress|HTTPRoute)' <<<"$together" | grep -q frontend; then
