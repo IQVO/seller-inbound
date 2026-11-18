@@ -114,6 +114,26 @@ func URL(t *testing.T) string {
 	return url
 }
 
+// EmptyURL returns the DSN of a fresh database with NO migration applied (the
+// analytical database's own migrations are the binary's to run).
+func EmptyURL(t *testing.T) string {
+	t.Helper()
+	once.Do(start)
+	if errStart != nil {
+		t.Fatalf("start postgres container: %v", errStart)
+	}
+	ctx := context.Background()
+	name := fmt.Sprintf("e_%d", seq.Add(1))
+	if err := adminExec(ctx, `CREATE DATABASE `+name); err != nil {
+		t.Fatalf("create database %s: %v", name, err)
+	}
+	url, err := databaseURL(ctx, name)
+	if err != nil {
+		t.Fatalf("database url: %v", err)
+	}
+	return url
+}
+
 // NewPool returns a pool on a fresh database (migrations applied), closed
 // when the test ends.
 func NewPool(t *testing.T) *pgxpool.Pool {

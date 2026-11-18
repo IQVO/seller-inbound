@@ -160,6 +160,28 @@ const sidebar: SidebarsConfig = {
         },
       ],
     },
+    {
+      type: "category",
+      label: "Reports",
+      link: {
+        type: "doc",
+        id: "api-reference/rest/reports",
+      },
+      items: [
+        {
+          type: "doc",
+          id: "api-reference/rest/get-seller-inbound-performance-report",
+          label: "Seller-inbound performance, per UTC day (GetSellerInboundPerformanceReport)",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "api-reference/rest/get-report-freshness",
+          label: "How far the analytics projection is behind (GetReportFreshness)",
+          className: "api-method get",
+        },
+      ],
+    },
   ],
 };
 

@@ -59,7 +59,7 @@ channels:
   sellerInboundAnalytics:
     address: retailnetwork.seller-inbound.analytics
     title: seller-inbound analytics topic
-    description: Analytics-only events. No context consumes them.
+    description: Analytics-only events. No other context consumes them; this context's own analytics projector (`cmd/si-projector`, consumer group `ANALYTICS_CONSUMER_GROUP`, ADR 0017) reads `InboundPlanConfirmed` from here, together with the events topic, into a separate analytical database.
     messages:
       SellerOnboarded:
         $ref: '#/components/messages/SellerOnboarded'

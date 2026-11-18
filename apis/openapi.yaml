@@ -50,6 +50,8 @@ tags:
   description: Cartons with SSCCs, label data and the ship command.
 - name: Placement
   description: Roadmap feature F6 (ADR 0012). Where forward stock belongs.
+- name: Reports
+  description: Read-only analytics reports (ADR 0017), served by the separate `si-reports` process over the analytics projection of this context's own events. Off by default in the chart.
 paths:
   /sellers:
     post:
@@ -921,6 +923,81 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalError'
+  /reports/seller-inbound-performance:
+    servers:
+    - url: http://localhost:8092
+    get:
+      tags:
+      - Reports
+      operationId: getSellerInboundPerformanceReport
+      summary: Seller-inbound performance, per UTC day (GetSellerInboundPerformanceReport)
+      x-pagination-exempt: report
+      description: |
+        Per UTC day of each fact's own business instant, folded from this context's OWN events only (ADR 0017); days without any fact are omitted. Served by the reports process (`si-reports`, port 8092), not by the seller API; `from` and `to` are UTC dates, both inclusive (neither = the 30 days ending today, at most 366 days).
+
+        - `inbound_plans_confirmed`: `InboundPlanConfirmed` events of the day (`confirmedAt`). Plan creation publishes no event, so confirmation is the inbound announcement the model records.
+        - `placement_advisories_issued`: `PlacementPlanSuggested` events of the day (`createdAt`).
+        - `shipments_received`: `InboundShipmentReceived` events of the day (`receivedAt`).
+        - `received_eaches` and `received_item_count`: the eaches and the distinct GTINs of EVERY `received` line of the day's receipts (ADR 0014). `received_by_item` lists at most 10 of them, most eaches first, ties by GTIN; `publications` is the number of receipts that listed the GTIN, `catalog_item_id` is present when a line of that day resolved it. A receipt published before ADR 0014 has no lines.
+        - `advisory_to_receipt_samples`, `advisory_to_receipt_p50_seconds`, `advisory_to_receipt_p95_seconds`: for every received line that resolved its `catalogItemId`, the seconds from the LATEST placement advisory of the same seller and item at or before the receipt to the receipt (continuous percentiles); a line without such an advisory is not a sample. Nothing in the own facts links an advisory to a shipment, so this is the time since the seller's latest advice about the item, not a causal lead time. Both percentiles are `null` on a day without a sample.
+
+        Not reported, because this context publishes no event for it: inbound capacity allocations granted or refused and the reasons of a refusal (the capacity gate answers `inbound-capacity-exceeded` and publishes nothing).
+      parameters:
+      - $ref: '#/components/parameters/ReportFrom'
+      - $ref: '#/components/parameters/ReportTo'
+      responses:
+        '200':
+          description: The report for the range; `days` is empty when no fact falls in it.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SellerInboundPerformanceReport'
+              example:
+                from: '2026-11-01'
+                to: '2026-11-07'
+                days:
+                - day: '2026-11-03'
+                  inbound_plans_confirmed: 2
+                  placement_advisories_issued: 3
+                  shipments_received: 1
+                  received_eaches: 19
+                  received_item_count: 2
+                  received_by_item:
+                  - gtin: '00614141000012'
+                    catalog_item_id: item-1
+                    publications: 2
+                    qty_eaches: 15
+                  - gtin: '00614141000036'
+                    publications: 1
+                    qty_eaches: 4
+                  advisory_to_receipt_samples: 2
+                  advisory_to_receipt_p50_seconds: 9000
+                  advisory_to_receipt_p95_seconds: 13860
+        '400':
+          $ref: '#/components/responses/InvalidReportRange'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /reports/freshness:
+    servers:
+    - url: http://localhost:8092
+    get:
+      tags:
+      - Reports
+      operationId: getReportFreshness
+      summary: How far the analytics projection is behind (GetReportFreshness)
+      description: '`as_of` is the CloudEvents time of the newest event the projector applied; `lag_seconds` is now minus `as_of`, never negative. Both are `null` until the first event. One endpoint for every report: they all read the same projection.'
+      responses:
+        '200':
+          description: The projection's freshness.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportFreshness'
+              example:
+                as_of: '2026-11-08T18:28:30Z'
+                lag_seconds: 90
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
   parameters:
     SellerIdPath:
@@ -969,6 +1046,24 @@ components:
         minLength: 1
         maxLength: 128
       example: 3f6c2a9e-8b1d-4c7a-9e55-0d2f6b7a1c40
+    ReportFrom:
+      name: from
+      in: query
+      required: false
+      description: First UTC day of the range, `YYYY-MM-DD`, inclusive. Omitted = 29 days before `to` (a 30-day range).
+      schema:
+        type: string
+        format: date
+      example: '2026-11-01'
+    ReportTo:
+      name: to
+      in: query
+      required: false
+      description: Last UTC day of the range, `YYYY-MM-DD`, inclusive. Omitted = today. At most 366 days from `from`; `from` after `to` is `invalid-report-range`.
+      schema:
+        type: string
+        format: date
+      example: '2026-11-07'
   headers:
     IdempotencyReplayed:
       description: Present, with the value `true`, only when this answer is a replay of the stored response of an earlier request with the same `Idempotency-Key`.
@@ -1035,6 +1130,18 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
+    InvalidReportRange:
+      description: 'The `from` / `to` range is not valid (`invalid-report-range`): not a `YYYY-MM-DD` date, `from` after `to`, or more than 366 days.'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: invalid-report-range
+            title: The report range is invalid
+            status: 400
+            detail: from must not be after to
+            instance: /reports/seller-inbound-performance
   schemas:
     Problem:
       type: object
@@ -1816,3 +1923,110 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Label'
+    SellerInboundPerformanceReport:
+      type: object
+      required:
+      - from
+      - to
+      - days
+      properties:
+        from:
+          type: string
+          format: date
+          description: The first UTC day of the range (inclusive).
+        to:
+          type: string
+          format: date
+          description: The last UTC day of the range (inclusive).
+        days:
+          type: array
+          description: One row per UTC day that has any fact, ordered by day.
+          items:
+            $ref: '#/components/schemas/SellerInboundPerformanceDay'
+    SellerInboundPerformanceDay:
+      type: object
+      required:
+      - day
+      - inbound_plans_confirmed
+      - placement_advisories_issued
+      - shipments_received
+      - received_eaches
+      - received_item_count
+      - received_by_item
+      - advisory_to_receipt_samples
+      - advisory_to_receipt_p50_seconds
+      - advisory_to_receipt_p95_seconds
+      properties:
+        day:
+          type: string
+          format: date
+        inbound_plans_confirmed:
+          type: integer
+          minimum: 0
+        placement_advisories_issued:
+          type: integer
+          minimum: 0
+        shipments_received:
+          type: integer
+          minimum: 0
+        received_eaches:
+          type: integer
+          minimum: 0
+          description: The eaches of every received line of the day, not only of the listed items.
+        received_item_count:
+          type: integer
+          minimum: 0
+          description: The distinct GTINs received that day, not only the listed ones.
+        received_by_item:
+          type: array
+          maxItems: 10
+          description: At most 10 items, most eaches first, ties by GTIN.
+          items:
+            $ref: '#/components/schemas/ReceivedItem'
+        advisory_to_receipt_samples:
+          type: integer
+          minimum: 0
+          description: The received lines of the day that had a preceding placement advisory of the same seller and item.
+        advisory_to_receipt_p50_seconds:
+          type: number
+          nullable: true
+          description: Median seconds from that advisory to the receipt; null without a sample.
+        advisory_to_receipt_p95_seconds:
+          type: number
+          nullable: true
+          description: 95th-percentile seconds from that advisory to the receipt; null without a sample.
+    ReceivedItem:
+      type: object
+      required:
+      - gtin
+      - publications
+      - qty_eaches
+      properties:
+        gtin:
+          type: string
+          pattern: ^[0-9]{14}$
+          description: The EACH-level GTIN when the receipt resolved it, otherwise the carton GTIN (ADR 0014).
+        catalog_item_id:
+          type: string
+          description: Present when a received line of that day resolved the catalogue item.
+        publications:
+          type: integer
+          minimum: 1
+          description: The receipts of the day that listed this GTIN.
+        qty_eaches:
+          type: integer
+          minimum: 1
+    ReportFreshness:
+      type: object
+      required:
+      - as_of
+      - lag_seconds
+      properties:
+        as_of:
+          type: string
+          format: date-time
+          nullable: true
+        lag_seconds:
+          type: number
+          minimum: 0
+          nullable: true

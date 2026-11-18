@@ -1,0 +1,11 @@
+DROP INDEX IF EXISTS idx_analytics_processed_events_occurred_at;
+DROP INDEX IF EXISTS idx_received_stock_lines_received_at;
+DROP INDEX IF EXISTS idx_shipment_receipts_received_at;
+DROP INDEX IF EXISTS idx_placement_advisories_seller_item;
+DROP INDEX IF EXISTS idx_placement_advisories_created_at;
+DROP INDEX IF EXISTS idx_plan_confirmations_confirmed_at;
+DROP TABLE IF EXISTS received_stock_lines;
+DROP TABLE IF EXISTS shipment_receipts;
+DROP TABLE IF EXISTS placement_advisories;
+DROP TABLE IF EXISTS plan_confirmations;
+DROP TABLE IF EXISTS analytics_processed_events;

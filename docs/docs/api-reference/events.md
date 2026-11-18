@@ -46,6 +46,8 @@ the in-process outbox relay. Delivery is at-least-once; consumers dedupe on `id`
 | `SellerComplianceViolationRecorded` | `com.retailnetwork.partner.seller-inbound.seller.SellerComplianceViolationRecorded` | `retailnetwork.seller-inbound.analytics` | `ApplyInboundReceipt`, per distinct compliance code of a carton | none |
 | `PlacementPlanSuggested` | `com.retailnetwork.partner.seller-inbound.placementplan.PlacementPlanSuggested` | `retailnetwork.seller-inbound.events` | placement advisory compute ([ADR 0012](/docs/adr/0012-the-placement-advisory)) | none evidenced (analytics-only in v1) |
 
+The "none" consumers above are other contexts. This context's own analytics projector (`cmd/si-projector`, [ADR 0017](/docs/adr/0017-analytics-read-side)) reads `InboundPlanConfirmed`, `PlacementPlanSuggested` and `InboundShipmentReceived` from the two own topics into a separate analytical database; it acknowledges and skips the other seven types.
+
 The routing is `streamFor` in `encoder.go`: the three shipment events, the two seller status events (ADR 0013)
 other contexts consume, and `PlacementPlanSuggested` (kept on the events topic so a consumer can subscribe later without a topic change) go to the events topic; every other fact goes to the analytics topic. Creating or cancelling a plan, creating a shipment and adding cartons
 publish nothing: a draft is private to the seller and the cartons travel with `InboundShipmentLabelled`.

@@ -106,6 +106,7 @@ func InitializeScenario(sc *godog.ScenarioContext) {
 	registerWhen(sc, w)
 	registerThen(sc, w)
 	registerRuleSteps(sc, w)
+	registerPerformanceSteps(sc)
 }
 
 // --- helpers -----------------------------------------------------------------
