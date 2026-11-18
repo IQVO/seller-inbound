@@ -1,0 +1,79 @@
+---
+id: get-seller-inbound-performance-report
+title: "Seller-inbound performance, per UTC day (GetSellerInboundPerformanceReport)"
+description: "Per UTC day of each fact's own business instant, folded from this context's OWN events only (ADR 0017); days without any fact are omitted. Served by the reports process (`si-reports`, port 8092), not by the seller API; `from` and `to` are UTC dates, both inclusive (neither = the 30 days ending today, at most 366 days)."
+sidebar_label: "Seller-inbound performance, per UTC day (GetSellerInboundPerformanceReport)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "get api-method"
+info_path: docs/api-reference/rest/seller-inbound-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Seller-inbound performance, per UTC day (GetSellerInboundPerformanceReport)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/reports/seller-inbound-performance"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Per UTC day of each fact's own business instant, folded from this context's OWN events only (ADR 0017); days without any fact are omitted. Served by the reports process (`si-reports`, port 8092), not by the seller API; `from` and `to` are UTC dates, both inclusive (neither = the 30 days ending today, at most 366 days).
+
+- `inbound_plans_confirmed`: `InboundPlanConfirmed` events of the day (`confirmedAt`). Plan creation publishes no event, so confirmation is the inbound announcement the model records.
+- `placement_advisories_issued`: `PlacementPlanSuggested` events of the day (`createdAt`).
+- `shipments_received`: `InboundShipmentReceived` events of the day (`receivedAt`).
+- `received_eaches` and `received_item_count`: the eaches and the distinct GTINs of EVERY `received` line of the day's receipts (ADR 0014). `received_by_item` lists at most 10 of them, most eaches first, ties by GTIN; `publications` is the number of receipts that listed the GTIN, `catalog_item_id` is present when a line of that day resolved it. A receipt published before ADR 0014 has no lines.
+- `advisory_to_receipt_samples`, `advisory_to_receipt_p50_seconds`, `advisory_to_receipt_p95_seconds`: for every received line that resolved its `catalogItemId`, the seconds from the LATEST placement advisory of the same seller and item at or before the receipt to the receipt (continuous percentiles); a line without such an advisory is not a sample. Nothing in the own facts links an advisory to a shipment, so this is the time since the seller's latest advice about the item, not a causal lead time. Both percentiles are `null` on a day without a sample.
+
+Not reported, because this context publishes no event for it: inbound capacity allocations granted or refused and the reasons of a refusal (the capacity gate answers `inbound-capacity-exceeded` and publishes nothing).
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./get-seller-inbound-performance-report.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./get-seller-inbound-performance-report.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./get-seller-inbound-performance-report.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      
