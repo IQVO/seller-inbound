@@ -22,6 +22,7 @@ import (
 	"go/token"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -128,6 +129,26 @@ func cswireParseDir(t *testing.T, dir string) []*ast.File {
 	return out
 }
 
+// cswireOtherRoots names the constructors a binary other than cmd/api starts:
+// the analytics projector (ADR 0017) is its own composition root,
+// cmd/si-projector. The exception is itself checked: such a constructor must
+// be CALLED from that root, and an entry whose constructor no longer exists
+// fails, so the map cannot rot into a blanket exclusion.
+func cswireOtherRoots() map[string]string {
+	return map[string]string{"NewAnalyticsConsumer": "si-projector"}
+}
+
+// cswireSplit separates the declared constructors cmd/api must start from the
+// ones another root starts.
+func cswireSplit(declared []string, other map[string]string) (api []string) {
+	for _, name := range declared {
+		if _, elsewhere := other[name]; !elsewhere {
+			api = append(api, name)
+		}
+	}
+	return api
+}
+
 func TestEveryConsumerConstructorIsStartedFromCmdApi(t *testing.T) {
 	declared := cswireDeclared(cswireParseDir(t, filepath.Join("..", "adapters", "inbound", "kafka")))
 	if len(declared) == 0 {
@@ -137,8 +158,25 @@ func TestEveryConsumerConstructorIsStartedFromCmdApi(t *testing.T) {
 	if len(called) == 0 {
 		t.Fatal("cmd/api calls no New*Consumer constructor: the sensor's import alias scan no longer matches")
 	}
-	for _, name := range cswireUnwired(declared, called) {
+	for _, name := range cswireUnwired(cswireSplit(declared, cswireOtherRoots()), called) {
 		t.Errorf("%s", cswireViolation(name))
+	}
+}
+
+// TestOtherRootConsumerConstructorsAreStartedFromTheirRoot keeps the
+// constructors cmd/api does not start covered: each must be called from its
+// own binary.
+func TestOtherRootConsumerConstructorsAreStartedFromTheirRoot(t *testing.T) {
+	declared := cswireDeclared(cswireParseDir(t, filepath.Join("..", "adapters", "inbound", "kafka")))
+	for name, root := range cswireOtherRoots() {
+		if !slices.Contains(declared, name) {
+			t.Errorf("%s is listed as started by cmd/%s but is not declared: remove the exception", name, root)
+			continue
+		}
+		called := cswireCalled(cswireParseDir(t, filepath.Join("..", "..", "cmd", root)))
+		if !called[name] {
+			t.Errorf("%s", strings.ReplaceAll(cswireViolation(name), "cmd/api", "cmd/"+root))
+		}
 	}
 }
 
@@ -198,5 +236,19 @@ func TestConsumerWiredSensorBites(t *testing.T) {
 				t.Fatalf("unwired = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestConsumerWiredSensorSplitsTheOtherRoots(t *testing.T) {
+	declared := []string{"NewAnalyticsConsumer", "NewNodeConsumer"}
+	got := cswireSplit(declared, map[string]string{"NewAnalyticsConsumer": "si-projector"})
+	if strings.Join(got, ",") != "NewNodeConsumer" {
+		t.Fatalf("cmd/api must still start %v, got the split %v", declared, got)
+	}
+	if got := cswireSplit(declared, nil); strings.Join(got, ",") != "NewAnalyticsConsumer,NewNodeConsumer" {
+		t.Fatalf("without an exception every constructor belongs to cmd/api, got %v", got)
+	}
+	if cswireOtherRoots()["NewAnalyticsConsumer"] != "si-projector" || len(cswireOtherRoots()) != 1 {
+		t.Fatalf("the only exception is the analytics projector: %v", cswireOtherRoots())
 	}
 }
