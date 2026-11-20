@@ -36,12 +36,17 @@ against its account (no authentication, consistent with the fleet):
   `status`, `detail`, `instance`. An unmapped error is an opaque 500 `internal-error`. A new
   `Err` needs a catalogue row.
 - **Idempotency-Key** is required on every write (`idempotency.go`): same key + same request
-  replays the first response, same key + other request is 409 `idempotency-key-reused`, a missing
-  key is 400 `idempotency-key-required`; the key is GLOBAL and replays carry
-  `Idempotency-Replayed: true`; keys live 24 h in `idempotency_keys`. A new write
-  registers through the `write(...)` wrapper in `NewRouter`, never bare `r.Post`.
-- **NUL** (U+0000) is rejected before anything else (`nul.go`): 404 in the path, 400
-  `malformed-request` in the query or body.
+  replays the first response when that was a 2xx or a FINAL/OUTCOME refusal, same key + other
+  request is 409 `idempotency-key-reused`, a missing key is 400 `idempotency-key-required`; the key
+  is GLOBAL and replays carry `Idempotency-Replayed: true`; keys live 24 h in `idempotency_keys`. A
+  new write registers through the `write(...)` wrapper in `NewRouter`, never bare `r.Post`.
+- **Replay class** (`replay_class.go`, ADR 0018): every `problem` literal lives in `errors.go` and
+  declares `class` (FINAL, OUTCOME, RETRYABLE); a new problem type needs a class, a row in the ADR 0018
+  table (`TestTheADRClassTableMatchesTheCatalogue`) and an entry in `TestEveryProblemTypeHasTheClassTheADRDecided`.
+  RETRYABLE (nothing committed, the answer depends on state that can change; when unsure) is NOT stored:
+  the key is released and the same key executes again. The middleware reads the class, never a slug.
+- **NUL** (U+0000) is rejected before anything else (`nul.go`): 404 in the path, 422
+  `validation-failed` in the query or body; written before the idempotency middleware, so never stored.
 - Bodies are decoded strictly (`decodeJSON`, `response.go`): unknown fields are refused
   (`validation-failed`).
 - Every GTIN and SSCC in `apis/openapi.yaml` and `apis/asyncapi.yaml` examples must carry a correct

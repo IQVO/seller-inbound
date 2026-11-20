@@ -142,7 +142,7 @@ One Postgres database owned by this context, created by the embedded migrations
 | `catalog_pack_levels` | Local copy of the packaging hierarchy: item, level, GTIN, units per pack, active flag. |
 | `outbox_events` | The transactional outbox; one row per message and destination topic, with `attempts` and `last_error`. |
 | `processed_events` | The consumers' inbox: CloudEvents ids already applied. |
-| `idempotency_keys` | Stored answers of the `POST` routes, keyed by the global `Idempotency-Key` (since migration 0003; `route` holds method and path for the fingerprint), kept 24 h. |
+| `idempotency_keys` | Stored answers of the `POST` routes (a 2xx or a FINAL refusal; a RETRYABLE one is released, ADR 0018), keyed by the global `Idempotency-Key` (since migration 0003; `route` holds method and path for the fingerprint), kept 24 h. |
 | `seller_scorecard_receipts`, `seller_scorecard_occurrences` | The append-only facts the scorecard is computed from. |
 | `demand_heat_lines`, `listing_availability` | The two halves of the `DemandHeatView` read model of the placement advisory: live released order lines per assignment group, and the latest listing availability per item and node ([ADR 0012](/docs/adr/0012-the-placement-advisory)). |
 | `placement_plans` | The `PlacementPlan` aggregate; the per-node suggestions live in JSONB. |
