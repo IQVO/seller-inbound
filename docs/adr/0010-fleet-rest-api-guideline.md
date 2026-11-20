@@ -44,6 +44,9 @@ still had `:verb` custom methods, answered `Idempotency-Key` problems with
   characters is `400 idempotency-key-invalid`; a replay carries
   `Idempotency-Replayed: true` (the first execution never does). 2xx and 4xx are
   stored and replayed, a 5xx or panic rolls back and is never stored.
+  *Update 2026-11-20 ([ADR 0018](./0018-every-problem-type-has-a-replay-class.md)): a 4xx is stored only when its
+  problem type is FINAL or OUTCOME; a RETRYABLE refusal rolls back, key row included, and the same key executes again.
+  The decision text above is the one in force on 2026-11-07.*
 - **Pagination (R7).** seller-inbound has no list endpoint; the one flagged
   GET is exempt (below). No `page` package or `unknown-query-parameter` check is
   needed because no collection takes `limit`/`cursor`.
