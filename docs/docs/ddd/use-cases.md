@@ -18,7 +18,7 @@ facts are read from local tables fed by Kafka ([Integration](/docs/ecosystem/int
 - **Errors** are `application/problem+json`; the status and slug of every error are in
   [Troubleshooting](/docs/operations/troubleshooting#rest-problem-types).
 - **Idempotency-Key** is required on every `POST` (1 to 128 characters, kept 24 h); a repeat with the same body
-  replays the first answer (`Idempotency-Replayed: true`), the same key on a different method, path or body is `409 idempotency-key-reused`.
+  replays the first answer (`Idempotency-Replayed: true`) when it was a 2xx or a refusal that is final for the request; a refusal that depends on state that can change (RETRYABLE, [ADR 0018](/docs/adr/0018-every-problem-type-has-a-replay-class)) is not stored and the same key executes again. The same key on a different method, path or body is `409 idempotency-key-reused`.
 - **Seller must be `ACTIVE`** for every plan, shipment and carton command and for confirm and ship
   (`requireActiveSeller`, `internal/application/usecases/sellers.go`). Cancelling a plan and the receipt consumer do not
   check it.

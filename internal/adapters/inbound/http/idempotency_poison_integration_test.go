@@ -74,17 +74,16 @@ func keyedRequest(key string) *http.Request {
 }
 
 // TestIdempotency_A409FromAnAbortedTransactionCommitsTheOutcome: a request
-// losing a race on a unique index answers 409, not 500, and that 409 is cached
-// and replayed; a retry with the same key never re-runs the handler.
+// losing a race on a unique index answers 409, not 500, and a 409 whose problem
+// type is FINAL is cached and replayed (ADR 0018); a retry with the same key
+// never re-runs the handler.
 func TestIdempotency_A409FromAnAbortedTransactionCommitsTheOutcome(t *testing.T) {
 	pool := poisonPool(t)
 	var calls atomic.Int64
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
 		poisonTx(t, r)
-		w.Header().Set("Content-Type", "application/problem+json")
-		w.WriteHeader(http.StatusConflict)
-		_, _ = w.Write([]byte(`{"type":"some-conflict","title":"Conflict","status":409}`))
+		inboundhttp.ProbeRefuseForTest(w, r, http.StatusConflict, "FINAL")
 	})
 	mw := inboundhttp.RequireIdempotencyKey(pool, pgtx.With)(handler)
 
@@ -114,6 +113,35 @@ func TestIdempotency_A409FromAnAbortedTransactionCommitsTheOutcome(t *testing.T)
 	}
 	if calls.Load() != 1 {
 		t.Fatalf("handler ran %d times, want 1 (the replay must not re-run it)", calls.Load())
+	}
+}
+
+// TestIdempotency_ARetryable409FromAnAbortedTransactionIsReleased: the same race
+// answered with a RETRYABLE problem type (concurrent-update) is a truthful 409
+// that is NOT stored; the aborted transaction rolls back whole, the key row
+// included, and the retry under the same key runs the handler again.
+func TestIdempotency_ARetryable409FromAnAbortedTransactionIsReleased(t *testing.T) {
+	pool := poisonPool(t)
+	var calls atomic.Int64
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		poisonTx(t, r)
+		inboundhttp.ProbeRefuseForTest(w, r, http.StatusConflict, "RETRYABLE")
+	})
+	mw := inboundhttp.RequireIdempotencyKey(pool, pgtx.With)(handler)
+
+	for i := 1; i <= 2; i++ {
+		rec := httptest.NewRecorder()
+		mw.ServeHTTP(rec, keyedRequest("k-retryable"))
+		if rec.Code != http.StatusConflict || rec.Header().Get(inboundhttp.IdempotencyReplayedHeader) != "" {
+			t.Fatalf("attempt %d = %d replayed=%q, want the truthful 409, executed", i, rec.Code, rec.Header().Get(inboundhttp.IdempotencyReplayedHeader))
+		}
+		if n := queryInt(t, pool, `SELECT count(*) FROM idempotency_keys WHERE key = 'k-retryable'`); n != 0 {
+			t.Fatalf("attempt %d left %d key rows, want 0: a RETRYABLE refusal releases the key", i, n)
+		}
+	}
+	if calls.Load() != 2 {
+		t.Fatalf("handler ran %d times, want 2", calls.Load())
 	}
 }
 

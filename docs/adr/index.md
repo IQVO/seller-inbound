@@ -31,3 +31,4 @@ The *Status* column is copied from each ADR's own `## Status` section.
 | [0015](./0015-inbound-capacity-allocation.md) | Inbound capacity allocation and placement options | Accepted (2026-11-14) |
 | [0016](./0016-start-the-order-sourcing-consumer.md) | Start the order-sourcing consumer | Accepted (2026-11-14) |
 | [0017](./0017-analytics-read-side.md) | Analytics read side (projector and reports) | Accepted (2026-11-17) |
+| [0018](./0018-every-problem-type-has-a-replay-class.md) | Every problem type has a replay class; a retryable refusal is not stored | Accepted (2026-11-20) |

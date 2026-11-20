@@ -26,7 +26,7 @@ info:
       the vendor's receipts (shipments closed, cartons received, discrepancies by kind, compliance violations). It is **informational**: the derived `complianceTier` (`GOOD`, `WATCH`,
       `AT_RISK`) suspends and blocks nothing; suspension stays the human `POST /sellers/{sellerId}/suspensions` command (ADR 0005). A rate whose denominator is zero is omitted, never `NaN`.
     - **No authentication** (consistent with the fleet): the seller is named in the request body and checked against its account.
-    - Every `POST` takes `Idempotency-Key` (1 to 128 printable ASCII characters; missing is `400 idempotency-key-required`, malformed `400 idempotency-key-invalid`); a repeat replays the first response with `Idempotency-Replayed: true`, and the same key on a different method, path or body is `409 idempotency-key-reused`.
+    - Every `POST` takes `Idempotency-Key` (1 to 128 printable ASCII characters; missing is `400 idempotency-key-required`, malformed `400 idempotency-key-invalid`); a repeat replays the first response with `Idempotency-Replayed: true` when that response was a success or a refusal that is final for the request (`invalid-cover-days`, `invalid-sscc`), and the same key on a different method, path or body is `409 idempotency-key-reused`. A refusal that depends on state that can change (`validation-failed`, `case-pack-not-uniform`, `case-qty-mismatches-gtin`, `carton-overweight`, `carton-oversize`, `carton-contents-mismatch-plan`, `inbound-capacity-exceeded`, `network-split-destination`, `network-split-unavailable`, `not-found`, `seller-suspended`, `seller-exists`, `node-cannot-receive`, `sscc-not-unique`, `shipment-not-labelled`, `illegal-transition` and `concurrent-update`) is NOT stored: the key is released and the same `Idempotency-Key` executes the request again.
     - A NUL character (U+0000) is refused before anything else runs: in a path it is `404 not-found`; in a query string or a JSON body it is `422 validation-failed`, and the `Idempotency-Key` of such a request is not recorded.
       Request bodies are decoded strictly: an unknown field, malformed JSON, an empty body where one is required, trailing data or a body over 4 MiB is `422 validation-failed`.
     - Errors are RFC 9457 `application/problem+json`; the shared problem types are `not-found` 404, `illegal-transition` 409, `concurrent-update` 409 and
@@ -768,7 +768,7 @@ paths:
           headers:
             Idempotency-Replayed:
               $ref: '#/components/headers/IdempotencyReplayed'
-          description: The computed plan (or replayed for a known Idempotency-Key).
+          description: The computed plan (or replayed for a known Idempotency-Key, when the first answer was stored).
           content:
             application/json:
               schema:
@@ -1040,7 +1040,7 @@ components:
       name: Idempotency-Key
       in: header
       required: true
-      description: Client-generated key, 1 to 128 printable ASCII characters (a UUID per logical submit). A retry with the same key and the same request replays the first response with `Idempotency-Replayed true`; the same key on a different method, path or body is `409 idempotency-key-reused`.
+      description: Client-generated key, 1 to 128 printable ASCII characters (a UUID per logical submit). A retry with the same key and the same request replays the first response with `Idempotency-Replayed true` when it was a 2xx or a refusal that is final for the request (`invalid-cover-days`, `invalid-sscc`); the same key on a different method, path or body is `409 idempotency-key-reused`. A refusal that depends on state that can change (`validation-failed`, `case-pack-not-uniform`, `case-qty-mismatches-gtin`, `carton-overweight`, `carton-oversize`, `carton-contents-mismatch-plan`, `inbound-capacity-exceeded`, `network-split-destination`, `network-split-unavailable`, `not-found`, `seller-suspended`, `seller-exists`, `node-cannot-receive`, `sscc-not-unique`, `shipment-not-labelled`, `illegal-transition` and `concurrent-update`) and every 5xx is not stored, so the key is released, the retry executes again, and a different request under a released key is a new request, not `idempotency-key-reused`.
       schema:
         type: string
         minLength: 1
@@ -1066,7 +1066,7 @@ components:
       example: '2026-11-07'
   headers:
     IdempotencyReplayed:
-      description: Present, with the value `true`, only when this answer is a replay of the stored response of an earlier request with the same `Idempotency-Key`.
+      description: Present, with the value `true`, only when this answer is a replay of the stored response of an earlier request with the same `Idempotency-Key`. A refusal whose problem type is RETRYABLE is never stored, so it is never replayed.
       schema:
         type: string
         enum:
