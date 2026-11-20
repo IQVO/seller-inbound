@@ -83,13 +83,24 @@ func phaseIdempotency(t *testing.T, s *service, w *world) {
 		}
 		assertProblem(t, got.body, "idempotency-key-invalid")
 	}
-	// A 4xx is cached and replayed.
-	bad := s.send(t, http.MethodPost, "/sellers/ghost-seller/suspensions", "", "idem-404")
-	if bad.status != http.StatusNotFound {
-		t.Fatalf("ghost suspend = %d", bad.status)
+	// A FINAL refusal is cached and replayed; a RETRYABLE one releases its key (ADR 0018).
+	const badCover = `{"sellerId":"seller-idem","catalogItemId":"item-1","coverDays":1000}`
+	bad := s.send(t, http.MethodPost, "/placement-plans", badCover, "idem-400")
+	if bad.status != http.StatusBadRequest {
+		t.Fatalf("invalid coverDays = %d", bad.status)
 	}
-	if rep := s.send(t, http.MethodPost, "/sellers/ghost-seller/suspensions", "", "idem-404"); rep.status != http.StatusNotFound || rep.replayed != "true" || rep.body != bad.body {
-		t.Fatalf("cached 4xx replay = %d replayed=%q", rep.status, rep.replayed)
+	if rep := s.send(t, http.MethodPost, "/placement-plans", badCover, "idem-400"); rep.status != http.StatusBadRequest || rep.replayed != "true" || rep.body != bad.body {
+		t.Fatalf("cached FINAL 4xx replay = %d replayed=%q", rep.status, rep.replayed)
+	}
+	ghost := s.send(t, http.MethodPost, "/sellers/ghost-seller/suspensions", "", "idem-404")
+	if ghost.status != http.StatusNotFound {
+		t.Fatalf("ghost suspend = %d", ghost.status)
+	}
+	if rep := s.send(t, http.MethodPost, "/sellers/ghost-seller/suspensions", "", "idem-404"); rep.status != http.StatusNotFound || rep.replayed != "" {
+		t.Fatalf("a RETRYABLE 404 was replayed: %d replayed=%q, want it executed again", rep.status, rep.replayed)
+	}
+	if c := w.db.count(`SELECT count(*) FROM idempotency_keys WHERE key='idem-404'`); c != 0 {
+		t.Fatalf("idempotency rows of a RETRYABLE 404 = %d, want 0", c)
 	}
 	// N concurrent requests with one key: exactly one effect, the rest replay.
 	const n = 8
