@@ -1,9 +1,10 @@
-# Default values for seller-inbound. Three components: the api Deployment
+# Default values for seller-inbound. Three core components: the api Deployment
 # (cmd/api, always), the optional, default-off mcp Deployment (cmd/mcp,
 # ADR 0006 — the read-only MCP server) and the optional, default-off frontend
-# Deployment (the seller_inbound_mfe web remote, ADR 0007). The outbox relay,
-# the four Kafka consumers and the three loops run inside the api only; there
-# is no projector or reports component.
+# Deployment (the seller_inbound_mfe web remote, ADR 0007), plus the optional,
+# default-off analytics read side (ADR 0017: the analytics-projector and
+# analytics-reports Deployments). The outbox relay, the four Kafka consumers
+# and the three loops run inside the api only.
 
 replicaCount: 1
 
@@ -274,6 +275,12 @@ a2a:
       cpu: 100m
       memory: 128Mi
 
+# capacity step 3 (warehouse-infra ADR 0012): true (with mcp.enabled and a2a.enabled) runs cmd/mcp and cmd/a2a as
+# two containers of one <release>-agents Deployment. Off by default; warehouse-infra switches it on.
+agents:
+  colocate: false
+  strategy: {}   # {} = k8s default (RollingUpdate); {type: Recreate} only when no surge slot is free
+
 # The console web remote (ADR 0007): the seller_inbound_mfe Module Federation
 # remote (web/), a static nginx pod serving the SPA the warehouse-console
 # shell mounts under /seller-inbound/*. OFF by default: the api alone is the
@@ -306,3 +313,77 @@ frontend:
     requests:
       cpu: 50m
       memory: 64Mi
+
+# The analytics read side (ADR 0017), OFF by default: cmd/si-projector projects
+# this context's OWN two topics (retailnetwork.seller-inbound.events and
+# retailnetwork.seller-inbound.analytics) into a SEPARATE analytical Postgres
+# and cmd/si-reports serves read-only reports over it
+# (GET /reports/seller-inbound-performance, GET /reports/freshness). Both run
+# from the same image. No auth (fleet-wide).
+analytics:
+  enabled: false
+  # LOG_LEVEL of both analytics binaries.
+  logLevel: "info"
+  database:
+    # The projector's read-write analytical DSN (DIRECT Postgres, not
+    # PgBouncer: it also runs the migrations). No password in committed values.
+    projectorUrl: ""
+    # The reports reader's DSN -- a read-only role where possible; falls back
+    # to projectorUrl when empty (local/dev).
+    reportsUrl: ""
+    # Name of an existing Secret holding ANALYTICS_DATABASE_URL (projector) and
+    # ANALYTICS_READER_DATABASE_URL (reports). Takes precedence over the URLs.
+    existingSecret: ""
+  projector:
+    replicaCount: 1
+    adminAddr: ":8091"                  # ADMIN_ADDR (/healthz, /readyz)
+    adminPort: 8091
+    # ANALYTICS_CONSUMER_GROUP: the projector's FIXED consumer group on both
+    # own topics.
+    consumerGroup: "seller-inbound-analytics"
+    resources:
+      limits:
+        cpu: 500m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+  reports:
+    replicaCount: 1
+    httpAddr: ":8092"                   # HTTP_ADDR
+    service:
+      type: ClusterIP
+      port: 80
+      targetPort: 8092
+    # Gateway exposure: /api/seller-inbound/reports -> Service :80, prefix
+    # rewritten to /reports. Needs the Gateway parentRef from the environment
+    # that deploys the chart.
+    route:
+      enabled: false
+      path: "/api/seller-inbound/reports"
+      parentRefs:
+        - name: ""
+          namespace: ""
+          sectionName: "http"
+    resources:
+      limits:
+        cpu: 500m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+# Kong plugins rendered by THIS chart (kong-plugins.yaml) and attached to
+# every HTTPRoute of this chart via the konghq.com/plugins annotation. Fleet decision
+# 2026-10-13: Kong configuration belongs to the application charts, not
+# warehouse-infra Terraform. Defaults off; warehouse-infra's values switch
+# them on. NO auth plugin here, ever.
+kongPlugins:
+  cors:
+    enabled: false
+    origin: "http://localhost"
+  prometheus:
+    enabled: false
+  opentelemetry:
+    enabled: false
+    tracesEndpoint: "http://otel-collector.observability.svc.cluster.local:4318/v1/traces"

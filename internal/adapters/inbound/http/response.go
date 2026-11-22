@@ -63,14 +63,16 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	p := problemFor(err)
 	detail := err.Error()
 	if p == internalProblem {
-		slog.ErrorContext(r.Context(), "request failed", "error", sanitizeLog(err.Error()), "method", r.Method, "path", sanitizeLog(r.URL.Path))
+		slog.ErrorContext(r.Context(), "request failed", "error", sanitizeLog(err.Error()), "method", logReplacer.Replace(r.Method), "path", sanitizeLog(r.URL.Path))
 		detail = "an unexpected error occurred"
 	}
 	writeProblem(w, r, p, detail)
 }
 
-// writeProblem writes p with an explicit detail.
+// writeProblem writes p with an explicit detail and marks the idempotency
+// middleware's capturing writer with p's replay class (replay_class.go).
 func writeProblem(w http.ResponseWriter, r *http.Request, p problem, detail string) {
+	markReplayClass(w, p.class)
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(p.status)
 	_ = json.NewEncoder(w).Encode(problemDetail{

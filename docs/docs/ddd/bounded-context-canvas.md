@@ -16,6 +16,7 @@ flowchart TB
     AGT["agents"]
     NT["node-topology"]
     OA["offer-availability"]
+    OS["order-sourcing"]
     SI["seller-inbound"]
     VC["vendor-connectivity"]
     NP["node-performance"]
@@ -23,6 +24,7 @@ flowchart TB
     AGT -->|"MCP and A2A reads"| SI
     NT -->|"evt NodeInboundView"| SI
     OA -->|"evt CatalogPackagingView"| SI
+    OS -->|"evt FulfillmentReleasedToNode,<br/>FulfillmentCancelled"| SI
     VC -->|"evt InboundReceiptSubmitted"| SI
     SI -->|"evt InboundShipmentLabelled,<br/>Shipped, Received"| VC
     SI -->|"evt InboundShipmentShipped"| NP
@@ -69,6 +71,7 @@ at pack time; the receipt side only records).
 | `vendor-connectivity` | event | `InboundReceiptSubmitted` | Kafka `retailnetwork.vendor-connectivity.events` | Customer/Supplier |
 | `node-topology` | event | `NodeRegistered`, `NodeOperationalProfileDeclared`, `NodeActivated`, `NodeSuspended`, `NodeRetired` | Kafka `retailnetwork.node-topology.events` | Conformist |
 | `offer-availability` | event | `CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired`, `ListingAvailabilityChanged` | Kafka `retailnetwork.offer-availability.events` | Conformist |
+| `order-sourcing` | event | `FulfillmentReleasedToNode`, `FulfillmentCancelled` | Kafka `retailnetwork.order-sourcing.events` | Conformist |
 
 All write routes take an `Idempotency-Key`. No authentication, as in every other context of the fleet.
 

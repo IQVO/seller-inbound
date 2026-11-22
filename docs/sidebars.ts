@@ -27,6 +27,7 @@ const sidebars: SidebarsConfig = {
         'operations/configuration',
         'operations/runbook',
         'operations/observability',
+        'operations/analytics-read-side',
         'operations/troubleshooting',
         'operations/before-first-release',
       ],

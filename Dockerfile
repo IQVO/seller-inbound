@@ -40,10 +40,11 @@ WORKDIR /app
 # filesystem read-only. Logs go to stdout.
 COPY --from=build --chown=app:app /out/ ./
 USER 1000
-# 8080 api (cmd/api), 8090 mcp (cmd/mcp: Streamable HTTP + /healthz), 8093 a2a
-# (cmd/a2a: A2A JSON-RPC + Agent Card + /healthz). The web remote has its own
-# image (web/Dockerfile).
-EXPOSE 8080 8090 8093
+# 8080 api (cmd/api), 8090 mcp (cmd/mcp: Streamable HTTP + /healthz), 8091
+# si-projector (admin: /healthz, /readyz), 8092 si-reports (read-only reports,
+# ADR 0017), 8093 a2a (cmd/a2a: A2A JSON-RPC + Agent Card + /healthz). The web
+# remote has its own image (web/Dockerfile).
+EXPOSE 8080 8090 8091 8092 8093
 # cmd/api is the service's main binary (HTTP on :8080). Additional cmd/*
 # binaries are run by the chart with `command: ["/app/<dirname>"]`.
 ENTRYPOINT ["./api"]

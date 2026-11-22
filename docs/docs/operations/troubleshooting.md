@@ -79,7 +79,7 @@ request path). The table is `problemCatalogue` in `internal/adapters/inbound/htt
 | 422 | `validation-failed` | Bad JSON, an unknown field, a value outside its bounds, a malformed GTIN, a plan line repeated, a shipment labelled with no carton. |
 | 400 | `idempotency-key-required` | A `POST` without an `Idempotency-Key` header. |
 | 400 | `idempotency-key-invalid` | An `Idempotency-Key` that is not 1 to 128 printable ASCII characters. |
-| 409 | `idempotency-key-reused` | The same key with a different method, path or body (the key is global). A key replays the stored answer, with `Idempotency-Replayed: true`, for 24 h. A client bug: do not retry. |
+| 409 | `idempotency-key-reused` | The same key with a different method, path or body (the key is global). A key whose answer was stored replays it, with `Idempotency-Replayed: true`, for 24 h (see "Which refusals are replayed"). A client bug: do not retry. |
 | 422 | `case-pack-not-uniform` | A `CASE_PACKED` carton with more than one item, `MIXED` kind, or an item packed at two different quantities. |
 | 422 | `case-qty-mismatches-gtin` | The carton quantity differs from the `unitsPerPack` of the item's active CASE level, or the GTIN is not an active CASE level. |
 | 422 | `carton-overweight` / `carton-oversize` | Above the node's declared `maxCartonWeightG` or `maxCartonDimsMm` (edges compared sorted, so orientation does not matter). |
@@ -89,7 +89,21 @@ request path). The table is `problemCatalogue` in `internal/adapters/inbound/htt
 | 500 | `internal-error` | An unmapped error. The detail is always `an unexpected error occurred`; the real error is in the ERROR log line `request failed`. |
 
 Other points: a NUL character (U+0000) in the path, query or body is a uniform client error and never records the
-idempotency key; a 5xx is never cached, so the same key can retry; a 4xx is cached and replays.
+idempotency key; a 5xx is never cached, so the same key can retry.
+
+### Which refusals are replayed under the same `Idempotency-Key`
+
+Every problem type has a replay class ([ADR 0018](/docs/adr/0018-every-problem-type-has-a-replay-class)). A 2xx and a `FINAL`
+refusal are stored and replayed with `Idempotency-Replayed: true` for 24 h: `invalid-cover-days`, `invalid-sscc`.
+A `RETRYABLE` refusal depends on state that can change and is NOT stored: the key is released (no row in
+`idempotency_keys`), and sending the same request again under the same key executes it again, so it can succeed once the
+state allows it. A different request under a released key is a new request, not `idempotency-key-reused`. The
+RETRYABLE types are `validation-failed`, `case-pack-not-uniform`, `case-qty-mismatches-gtin`, `carton-overweight`,
+`carton-oversize`, `carton-contents-mismatch-plan`, `inbound-capacity-exceeded`, `network-split-destination`,
+`network-split-unavailable`, `not-found`, `seller-suspended`, `seller-exists`, `node-cannot-receive`,
+`sscc-not-unique`, `shipment-not-labelled`, `illegal-transition`, `concurrent-update` and every 5xx. Whether to send it
+again is the caller's decision: this service retries nothing. No problem type is `OUTCOME` (no refusal commits state).
+A concurrent duplicate of a request that ends RETRYABLE waits for it and then executes itself.
 
 ## Seller scorecard
 

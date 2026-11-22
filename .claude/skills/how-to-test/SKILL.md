@@ -33,8 +33,10 @@ description: Write or review tests and diagnose a failing coverage, mutation, bd
 
 gremlins fails when the measured value is `<=` the threshold, so `.gremlins.yaml` thresholds sit
 strictly BELOW what the packages measure. Every domain package measures 100% efficacy and 100%
-mutator coverage except `inboundshipment` (99.23%: one equivalent mutant, see `.gremlins.yaml`); the thresholds are 99. Run one package: `gremlins unleash ./internal/domain/inboundshipment`
-(single worker, config in `.gremlins.yaml`). Kill a survivor with a test that fails on that exact
+mutator coverage except `capacity` (88.24% efficacy: six equivalent guards), `network` (95.65% mutator coverage: a `const`
+declaration the cover profile cannot see) and `inboundshipment` (99.33%: one equivalent mutant); each survivor is in `MUTATION.md`.
+The thresholds are 88 and 95, written as plain numbers (a quoted value is read as 0 and never gates). Run one package:
+`gremlins unleash ./internal/domain/capacity` (single worker, config in `.gremlins.yaml`). Kill a survivor with a test that fails on that exact
 change; lower a threshold only with a justification in the PR. A new `internal/domain/<pkg>` is gated
 the moment it exists (the Makefile `mutation` target and the CI `mutation-fast` job loop over the glob).
 

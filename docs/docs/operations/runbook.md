@@ -29,7 +29,7 @@ is always on (`replicaCount: 1`, HPA off by default). Three are optional and off
 - REST seller API on `:8080` (`internal/adapters/inbound/http/server.go`): sellers, inbound
   plans, inbound shipments and cartons, label data, the seller compliance scorecard
   (`GET /sellers/{id}/scorecard`, a pure read); every write behind an
-  `Idempotency-Key` header (24h replay).
+  `Idempotency-Key` header (24h replay of a stored answer; a RETRYABLE refusal releases its key, ADR 0018).
 - Transactional outbox relay draining `outbox_events` to Kafka
   (`internal/adapters/outbound/outbox/relay.go`).
 - Four Kafka consumers: node (`retailnetwork.node-topology.events`), catalog

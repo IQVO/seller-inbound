@@ -25,7 +25,7 @@ Page map (source under `docs/docs/`):
 | Area | Pages |
 |---|---|
 | Overview | [Introduction](docs/docs/overview/introduction.md), [Architecture](docs/docs/overview/architecture.md), [Runtime](docs/docs/overview/runtime.md), [Quickstart](docs/docs/overview/quickstart.md) |
-| Operations | [Configuration](docs/docs/operations/configuration.md), [Runbook](docs/docs/operations/runbook.md), [Observability](docs/docs/operations/observability.md), [Troubleshooting](docs/docs/operations/troubleshooting.md), [Before first release](docs/docs/operations/before-first-release.md) |
+| Operations | [Configuration](docs/docs/operations/configuration.md), [Runbook](docs/docs/operations/runbook.md), [Observability](docs/docs/operations/observability.md), [Analytics read side](docs/docs/operations/analytics-read-side.md), [Troubleshooting](docs/docs/operations/troubleshooting.md), [Before first release](docs/docs/operations/before-first-release.md) |
 | Development | [Testing](docs/docs/development/testing.md) |
 | Ecosystem | [Integration](docs/docs/ecosystem/integration.md), [MCP tools](docs/docs/mcp/tools.md) |
 | DDD | [Ubiquitous language](docs/docs/ddd/ubiquitous-language.md), [Use cases](docs/docs/ddd/use-cases.md), [Subdomain classification](docs/docs/ddd/subdomain-classification.md), [DDD artifacts](docs/docs/ddd/ddd-artifacts.md) (the 10-page ddd-crew pack) |
@@ -54,6 +54,9 @@ cmd/api/                     composition root: seller REST API + outbox relay + 
 cmd/mcp/                     read-only MCP server (Streamable HTTP on /mcp)
 cmd/a2a/                     read-only A2A agent (JSON-RPC over HTTP, Agent Card at
                              /.well-known/agent-card.json)
+cmd/si-projector/            analytics projector: this context's own two topics into a separate
+                             analytical Postgres (optional, ADR 0017)
+cmd/si-reports/              read-only analytics reports (GET /reports/seller-inbound-performance)
 internal/
   domain/                    seller, inboundplan, inboundshipment, network, scorecard,
                              shared — pure business logic
@@ -80,7 +83,7 @@ internal/
   bootretry/ testing/        boot retry, shared test helpers
 apis/                        openapi.yaml (REST) + asyncapi.yaml (events)
 docs/adr/                    16 ADRs + index
-features/                    13 godog feature files (166 scenarios, 218 executed)
+features/                    13 godog feature files (168 scenarios, 222 executed)
 charts/seller-inbound/       the Helm chart
 web/                         the operator micro-frontend remote
 ```
@@ -102,6 +105,7 @@ Specified in `apis/asyncapi.yaml` — ten published and eleven consumed event ty
 |---|---|---|
 | `retailnetwork.seller-inbound.events` | publishes (via the transactional outbox) | `InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived`, `SellerSuspended`, `SellerReinstated` (ADR 0013), `PlacementPlanSuggested` (ADR 0012) |
 | `retailnetwork.seller-inbound.analytics` | publishes (analytics-only, via the outbox) | `SellerOnboarded`, `InboundPlanConfirmed`, `InboundDiscrepancyRecorded`, `SellerComplianceViolationRecorded` |
+| both own topics above | consumed by `cmd/si-projector` (`ANALYTICS_CONSUMER_GROUP`, ADR 0017) | `InboundPlanConfirmed`, `PlacementPlanSuggested`, `InboundShipmentReceived` (the other seven types are acknowledged and skipped) |
 | `retailnetwork.node-topology.events` | consumes (`NODE_CONSUMER_GROUP`) | `NodeRegistered`, `NodeActivated`, `NodeSuspended`, `NodeRetired`, `NodeOperationalProfileDeclared` |
 | `retailnetwork.offer-availability.events` | consumes (`CATALOG_CONSUMER_GROUP`) | `CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired`, `ListingAvailabilityChanged` (availability half of the placement `DemandHeatView`, ADR 0012) |
 | `retailnetwork.vendor-connectivity.events` | consumes (`RECEIPT_CONSUMER_GROUP`) | `InboundReceiptSubmitted` (the carton-level receipt that closes a shipment) |
@@ -164,7 +168,7 @@ Logs, metrics and traces follow the fleet standard ([ADR 0008](docs/adr/0008-fle
 
 ## API
 
-REST contract: [`apis/openapi.yaml`](apis/openapi.yaml). Every `POST` takes `Idempotency-Key` (1 to 128 printable ASCII characters; missing is `400 idempotency-key-required`, malformed `400 idempotency-key-invalid`); a repeat replays the first response with `Idempotency-Replayed: true`, the same key on a different method, path or body is `409 idempotency-key-reused` (ADR 0010). Errors are RFC 9457 `application/problem+json`; the shared problem types are `not-found` 404, `illegal-transition` 409, `concurrent-update` 409 and `validation-failed` 422, plus one slug per model `Err...` name. Suspending a suspended seller and reinstating an active one answer `200` with the account and publish no event (ADR 0002 A3). No authentication.
+REST contract: [`apis/openapi.yaml`](apis/openapi.yaml). Every `POST` takes `Idempotency-Key` (1 to 128 printable ASCII characters; missing is `400 idempotency-key-required`, malformed `400 idempotency-key-invalid`); a repeat replays the first response with `Idempotency-Replayed: true`, the same key on a different method, path or body is `409 idempotency-key-reused` (ADR 0010). Only a 2xx and a refusal that is final for the request (`invalid-cover-days`, `invalid-sscc`) are stored: a refusal that depends on state that can change (`concurrent-update`, `not-found`, `seller-suspended`, `node-cannot-receive`, `validation-failed` and the other 409/422 types) releases the key and the same key executes again (ADR 0018). Errors are RFC 9457 `application/problem+json`; the shared problem types are `not-found` 404, `illegal-transition` 409, `concurrent-update` 409 and `validation-failed` 422, plus one slug per model `Err...` name. Suspending a suspended seller and reinstating an active one answer `200` with the account and publish no event (ADR 0002 A3). No authentication.
 
 What it does, route by route:
 
@@ -187,6 +191,8 @@ Deploy with `charts/seller-inbound`. Values that matter: `config.*` (the env abo
 ### Running the A2A agent in Kubernetes
 
 `cmd/a2a` ([ADR 0009](docs/adr/0009-a2a-inbound-adapter.md)) is the optional third binary: a read-only A2A agent (Agent2Agent, JSON-RPC 2.0, Agent Card at `/.well-known/agent-card.json`, port 8093) with two goal-shaped skills, `seller_compliance` and `inbound_status`, over the same reads; both declare `authority:L1` on the card (Agentic Standard v2, [ADR 0011](docs/adr/0011-agent-authority-levels-and-complete-mcp-surface.md)); Postgres only, `A2A_AGENT_URL` is mandatory (absolute http(s) URL the card advertises), `a2a.enabled` in the chart (default off), unauthenticated like REST and MCP.
+
+`cmd/si-projector` and `cmd/si-reports` ([ADR 0017](docs/adr/0017-analytics-read-side.md)) are the optional analytics read side, off by default (`analytics.enabled` in the chart): the projector (`ANALYTICS_DATABASE_URL` and `KAFKA_BROKERS` **required**, `ANALYTICS_CONSUMER_GROUP` default `seller-inbound-analytics`, `ADMIN_ADDR` default `:8091`) folds this context's own events into a separate analytical Postgres; the reports (`ANALYTICS_READER_DATABASE_URL`, `HTTP_ADDR` default `:8092`) serve `GET /reports/seller-inbound-performance` (snake_case, per UTC day: plans confirmed, placement advisories, receipts, received stock per item, advisory-to-receipt p50/p95) and `GET /reports/freshness`, unauthenticated like the rest. Capacity allocations granted or refused are not reported: no event carries them. See [Analytics read side](docs/docs/operations/analytics-read-side.md).
 
 ## Operator micro-frontend (`web/`)
 

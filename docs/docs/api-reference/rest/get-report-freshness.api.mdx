@@ -1,0 +1,60 @@
+---
+id: get-report-freshness
+title: "How far the analytics projection is behind (GetReportFreshness)"
+description: "`as_of` is the CloudEvents time of the newest event the projector applied; `lag_seconds` is now minus `as_of`, never negative. Both are `null` until the first event. One endpoint for every report: they all read the same projection."
+sidebar_label: "How far the analytics projection is behind (GetReportFreshness)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "get api-method"
+info_path: docs/api-reference/rest/seller-inbound-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"How far the analytics projection is behind (GetReportFreshness)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/reports/freshness"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+`as_of` is the CloudEvents time of the newest event the projector applied; `lag_seconds` is now minus `as_of`, never negative. Both are `null` until the first event. One endpoint for every report: they all read the same projection.
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./get-report-freshness.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./get-report-freshness.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

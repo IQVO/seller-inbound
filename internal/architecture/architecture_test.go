@@ -8,9 +8,8 @@
 // with this repo's real module path. The 6 rules in TestHexagonalArchitecture
 // are universal across every bounded-context service in the fleet -- keep
 // them verbatim. If this repo has an analytics read-model region
-// (internal/analytics/...), also port the two "must not import analytics"
-// rules from inventory-storage's internal/architecture/architecture_test.go
-// (origin/develop) -- they are conditional, not every service has one.
+// (internal/analytics/..., ADR 0017) it also carries the three analytics rules
+// below.
 package architecture
 
 import (
@@ -108,6 +107,62 @@ func TestHexagonalArchitecture(t *testing.T) {
 		result := archgo.CheckArchitecture(moduleInfo, configuration.Config{
 			DependenciesRules: []*configuration.DependenciesRule{rule},
 		})
+
+		assertPass(t, result)
+	})
+
+	t.Run("the analytics read model depends on nothing internal", func(t *testing.T) {
+		// internal/analytics/report (ADR 0017) is a self-contained region: the
+		// facts, the report shapes, the KPI and range rules and the
+		// writer/reader ports. It imports no other internal package (not the
+		// OLTP domain, not an adapter), so the projection can never drag
+		// transactional code in.
+		rule := &configuration.DependenciesRule{
+			Package: "**.internal.analytics.**",
+			ShouldOnlyDependsOn: &configuration.Dependencies{
+				Internal: []string{"**.internal.analytics.**"},
+			},
+		}
+
+		result := archgo.CheckArchitecture(moduleInfo, configuration.Config{
+			DependenciesRules: []*configuration.DependenciesRule{rule},
+		})
+
+		assertPass(t, result)
+	})
+
+	t.Run("the analytical store depends only on the analytics read model and schema", func(t *testing.T) {
+		// The analytical database adapter implements the report ports over the
+		// embedded analytical migrations (the root analytics package) and
+		// nothing else: no OLTP domain, application or adapter import.
+		rule := &configuration.DependenciesRule{
+			Package: "**.internal.adapters.outbound.analyticsstore.**",
+			ShouldOnlyDependsOn: &configuration.Dependencies{
+				Internal: []string{"**.internal.analytics.**", "**.internal.adapters.outbound.analyticsstore.**", "**.seller-inbound.analytics"},
+			},
+		}
+
+		result := archgo.CheckArchitecture(moduleInfo, configuration.Config{
+			DependenciesRules: []*configuration.DependenciesRule{rule},
+		})
+
+		assertPass(t, result)
+	})
+
+	t.Run("the OLTP side never imports the analytics store or read model", func(t *testing.T) {
+		// The analytics model is derived FROM the event stream, never
+		// dual-written from the transactional core: the domain, the
+		// application layer and the OLTP postgres adapter must not import it.
+		forbidden := &configuration.Dependencies{
+			Internal: []string{"**.internal.analytics.**", "**.internal.adapters.outbound.analyticsstore.**"},
+		}
+		rules := []*configuration.DependenciesRule{
+			{Package: "**.internal.domain.**", ShouldNotDependsOn: forbidden},
+			{Package: "**.internal.application.**", ShouldNotDependsOn: forbidden},
+			{Package: "**.internal.adapters.outbound.postgres.**", ShouldNotDependsOn: forbidden},
+		}
+
+		result := archgo.CheckArchitecture(moduleInfo, configuration.Config{DependenciesRules: rules})
 
 		assertPass(t, result)
 	})
