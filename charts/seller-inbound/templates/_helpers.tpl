@@ -225,6 +225,15 @@ Deployment and Service. The Service ALSO pins app.kubernetes.io/component
 {{- include "seller-inbound.fullname" . }}-a2a
 {{- end }}
 
+{{/* agents.colocate (warehouse-infra ADR 0012): "true" iff colocate, mcp and a2a are all on; else empty. */}}
+{{- define "seller-inbound.agentsColocated" -}}
+{{- if and (.Values.agents | default dict).colocate .Values.mcp.enabled .Values.a2a.enabled }}true{{ end -}}
+{{- end }}
+
+{{- define "seller-inbound.agentsFullname" -}}
+{{- printf "%s-agents" (include "seller-inbound.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
 {{/*
 Every render-time requirement of the real runtime, in one include. The api
 Deployment includes it, so a mis-set release fails `helm template` / `helm install`.

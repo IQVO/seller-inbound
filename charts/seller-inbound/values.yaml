@@ -275,6 +275,12 @@ a2a:
       cpu: 100m
       memory: 128Mi
 
+# capacity step 3 (warehouse-infra ADR 0012): true (with mcp.enabled and a2a.enabled) runs cmd/mcp and cmd/a2a as
+# two containers of one <release>-agents Deployment. Off by default; warehouse-infra switches it on.
+agents:
+  colocate: false
+  strategy: {}   # {} = k8s default (RollingUpdate); {type: Recreate} only when no surge slot is free
+
 # The console web remote (ADR 0007): the seller_inbound_mfe Module Federation
 # remote (web/), a static nginx pod serving the SPA the warehouse-console
 # shell mounts under /seller-inbound/*. OFF by default: the api alone is the
