@@ -253,7 +253,7 @@ func ReceiptHandlers(svc *usecases.Service, logger *slog.Logger) map[string]Hand
 			if err := permanent(svc.ApplyInboundReceipt(ctx, e.ID(), in)); err != nil {
 				return err
 			}
-			logger.InfoContext(ctx, "event processed", "type", e.Type(), "event_id", e.ID(), "subject", e.Subject())
+			logger.InfoContext(ctx, "event processed", "type", sanitizeLog(e.Type()), "event_id", sanitizeLog(e.ID()), "subject", sanitizeLog(e.Subject()))
 			return nil
 		},
 	}
